@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0A0A0A">
+<meta name="description" content="Cloak's design system — colour, type, borders, motion, voice and components. Honest AI, for human ends.">
+<title>Cloak — Design System</title>
+<link rel="canonical" href="https://usecloak.org/design-system">
+<link rel="alternate" type="text/markdown" href="https://usecloak.org/design-system.md">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Cloak — Design System">
+<meta property="og:description" content="Neobrutalist, polished. The tokens, type, motion and voice behind Cloak.">
+<meta property="og:url" content="https://usecloak.org/design-system">
+<meta property="og:site_name" content="Cloak">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Cloak — Design System">
+<meta name="twitter:description" content="Neobrutalist, polished. The tokens, type, motion and voice behind Cloak.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='Syne%2C sans-serif' font-weight='800' font-size='22' fill='%23D44D2A'%3EC%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="cloak.css">
+<script>
+  if (localStorage.getItem('cloak_dark') !== '0') document.documentElement.classList.add('dark');
+  (function(){var t=localStorage.getItem('cloak_theme')||'default';document.documentElement.setAttribute('data-theme',t);})();
+  function toggleTheme() {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('cloak_dark', document.documentElement.classList.contains('dark') ? '1' : '0');
+    if (window.dsRefresh) window.dsRefresh();
+  }
+</script>
+<style>
+.ds{max-width:1100px;margin:0 auto;padding:0 32px 72px;}
+.ds a{color:var(--acc);font-weight:700;text-underline-offset:2px;}
+.ds a:hover{color:var(--acc2);}
+.ds :focus-visible,.ds-top :focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+
+/* top bar */
+.ds-top{position:sticky;top:0;z-index:100;}
+.ds-lockup{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink);}
+.ds-lockup span{font-family:var(--fd);font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;}
+.ds-orb{display:block;flex-shrink:0;}
+.ds-orb circle{fill:var(--acc);stroke:var(--ink);}
+.ds-nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;}
+.ds-nav::-webkit-scrollbar{display:none;}
+.ds-nav a{padding:6px 9px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink);opacity:.55;text-decoration:none;white-space:nowrap;border:1.5px solid transparent;transition:opacity var(--t),border-color var(--t),background var(--t);}
+.ds-nav a:hover{opacity:1;border-color:var(--ink);background:var(--p3);}
+
+/* hero */
+.ds-hero{position:relative;border-bottom:var(--bd);background:var(--p2);overflow:hidden;padding:72px 32px 56px;}
+.ds-hero::before{content:'';position:absolute;inset:0;background-image:linear-gradient(var(--bdt) 1px,transparent 1px),linear-gradient(90deg,var(--bdt) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;}
+.ds-hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:4px;background:var(--ink);}
+.ds-hero-in{position:relative;z-index:1;max-width:1100px;margin:0 auto;}
+.ds-eyebrow{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.2em;color:var(--acc);display:flex;align-items:center;gap:8px;margin-bottom:16px;}
+.ds-eyebrow::before{content:'';width:32px;height:2px;background:var(--acc);}
+.ds-hero h1{font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:clamp(3.2rem,6.5vw,6rem);line-height:.9;letter-spacing:-.03em;margin-bottom:22px;}
+.ds-hero h1 em{font-style:normal;color:var(--acc);}
+.ds-hero p{font-size:15px;line-height:1.75;opacity:.65;max-width:560px;}
+.ds-hero-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px;}
+.ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;padding:0 20px;border:var(--bd);font-family:var(--fu);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;text-decoration:none;cursor:pointer;transition:box-shadow var(--t),transform var(--t),background var(--t),color var(--t);}
+.ds a.ds-btn{text-decoration:none;}
+.ds-btn--acc{background:var(--acc);color:#fff!important;box-shadow:var(--sh);}
+.ds-btn--acc:hover{box-shadow:var(--shlg);transform:translate(-1px,-1px);}
+.ds-btn--acc:active{box-shadow:none;transform:translate(3px,3px);}
+.ds-btn--ink{background:var(--ink);color:var(--paper)!important;box-shadow:var(--shsm);}
+.ds-btn--ink:hover{background:var(--acc);box-shadow:var(--sh);transform:translate(-1px,-1px);}
+.ds-btn--ink:active{box-shadow:none;transform:translate(2px,2px);}
+.ds-btn--surf{background:var(--surf);color:var(--ink)!important;box-shadow:var(--shsm);}
+.ds-btn--surf:hover{box-shadow:var(--sh);transform:translate(-1px,-1px);}
+.ds-btn--surf:active{box-shadow:none;transform:translate(2px,2px);}
+.ds-btn--ghost{background:transparent;color:var(--ink)!important;border-style:dashed;opacity:.5;}
+.ds-btn--ghost:hover{opacity:.8;border-color:var(--acc);}
+.ds-btn:disabled{opacity:.38;cursor:not-allowed;transform:none;}
+
+/* sections */
+.ds-sec{padding-top:64px;scroll-margin-top:60px;}
+.ds-sec-head{display:grid;grid-template-columns:340px 1fr;gap:32px;margin-bottom:28px;align-items:end;}
+.ds-idx{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.18em;color:var(--acc);margin-bottom:10px;}
+.ds-sec h2{font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:clamp(1.9rem,3.8vw,3.2rem);line-height:.95;letter-spacing:-.025em;}
+.ds-sec-head p{font-size:14px;line-height:1.65;opacity:.6;max-width:560px;}
+.ds-sub{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;margin:32px 0 12px;display:flex;align-items:center;gap:12px;}
+.ds-sub::after{content:'';flex:1;height:2px;background:var(--ink);opacity:.08;}
+
+.ds-box{background:var(--surf);border:var(--bd);box-shadow:var(--shlg);}
+.ds-grid{display:grid;border:var(--bd);background:var(--surf);box-shadow:var(--shlg);}
+.ds-grid > *{border-right:var(--bdt);border-bottom:var(--bdt);}
+
+/* swatches */
+.ds-sw{grid-template-columns:repeat(5,1fr);}
+.ds-sw-cell{display:flex;flex-direction:column;}
+.ds-sw-chip{height:92px;border-bottom:var(--bd);}
+.ds-sw-meta{padding:10px 12px 12px;display:flex;flex-direction:column;gap:3px;}
+.ds-sw-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+.ds-sw-var,.ds-mono{font-family:'Courier New',monospace;font-size:11px;opacity:.6;}
+.ds-sw-use{font-size:12px;opacity:.5;line-height:1.4;}
+
+/* themes */
+.ds-themes{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.ds-theme{background:var(--paper);color:var(--ink);border:var(--bd);box-shadow:var(--sh);padding:16px;display:flex;flex-direction:column;gap:12px;cursor:pointer;text-align:left;font-family:var(--fu);transition:box-shadow var(--t),transform var(--t);}
+.ds-theme:hover{box-shadow:var(--shlg);transform:translate(-1px,-1px);}
+.ds-theme:active{box-shadow:none;transform:translate(2px,2px);}
+.ds-theme[aria-pressed="true"]{outline:3px solid var(--acc);outline-offset:4px;}
+.ds-theme-name{font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:16px;display:flex;justify-content:space-between;align-items:center;}
+.ds-theme-strip{display:flex;border:var(--bd);}
+.ds-theme-strip i{flex:1;height:28px;}
+.ds-theme-strip i + i{border-left:var(--bdt);}
+.ds-theme-cta{align-self:flex-start;height:30px;padding:0 12px;background:var(--acc);color:#fff;border:var(--bd);box-shadow:var(--shsm);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;}
+.ds-tag{font-family:var(--fu);font-size:9px;font-weight:800;letter-spacing:.12em;padding:3px 6px;background:var(--ink);color:var(--paper);}
+
+/* tiers */
+.ds-tiers{grid-template-columns:repeat(3,1fr);}
+.ds-tier{padding:20px;position:relative;}
+.ds-tier::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--c);}
+.ds-tier b{font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:22px;display:block;margin:6px 0 4px;}
+.ds-tier .ds-sw-use{opacity:.55;}
+
+/* type */
+.ds-type{grid-template-columns:1fr;}
+.ds-type-row{display:grid;grid-template-columns:200px 1fr;gap:24px;padding:22px 24px;align-items:baseline;}
+.ds-type-meta{display:flex;flex-direction:column;gap:4px;}
+.ds-type-meta b{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+.ds-d{font-family:var(--fd);font-weight:800;text-transform:uppercase;}
+.ds-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;}
+.ds-fams{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;}
+.ds-fam{padding:20px;}
+.ds-fam-big{font-size:64px;line-height:1;margin:10px 0 12px;}
+.ds-fam p{font-size:12px;opacity:.55;line-height:1.5;}
+
+/* borders + shadows */
+.ds-elev{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;}
+.ds-elev-item{display:flex;flex-direction:column;gap:14px;}
+.ds-elev-demo{height:110px;background:var(--surf);border:var(--bd);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;}
+
+/* states */
+.ds-states{grid-template-columns:repeat(3,1fr);}
+.ds-state{padding:22px;display:flex;flex-direction:column;gap:16px;min-height:170px;}
+.ds-state-demo{flex:1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.ds-state p{font-size:12px;opacity:.55;line-height:1.5;}
+.ds-fake{height:38px;padding:0 16px;border:var(--bd);background:var(--surf);display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+.ds-fake--lift{transform:translate(-1px,-1px);box-shadow:var(--sh);}
+.ds-fake--rest{box-shadow:var(--shsm);}
+.ds-fake--press{transform:translate(2px,2px);box-shadow:none;}
+.ds-fake--on{background:var(--ink);color:var(--paper);}
+.ds-fake--focus{border-color:var(--acc);box-shadow:var(--sh);}
+
+/* spacing */
+.ds-space{padding:24px;display:flex;flex-direction:column;gap:8px;}
+.ds-space-row{display:grid;grid-template-columns:52px 1fr;align-items:center;gap:14px;}
+.ds-space-bar{height:12px;background:var(--acc);border:1.5px solid var(--ink);}
+.ds-layout{grid-template-columns:repeat(4,1fr);}
+.ds-layout > div{padding:18px;}
+.ds-layout b{font-family:var(--fd);font-weight:800;font-size:26px;display:block;margin-top:6px;}
+
+/* components */
+.ds-comp{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.ds-comp-card{padding:24px;display:flex;flex-direction:column;gap:18px;}
+.ds-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
+.ds-seg{position:relative;display:flex;border:var(--bd);background:var(--p2);}
+.ds-seg button{flex:1;position:relative;z-index:1;height:40px;border:none;background:transparent;font-family:var(--fu);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink);cursor:pointer;transition:color var(--tm);}
+.ds-seg button[aria-selected="true"]{color:var(--paper);}
+.ds-seg-thumb{position:absolute;top:0;bottom:0;left:0;width:50%;background:var(--ink);transition:transform 240ms cubic-bezier(.16,1,.3,1);}
+.ds-seg[data-i="1"] .ds-seg-thumb{transform:translateX(100%);}
+.ds-field{display:flex;flex-direction:column;gap:5px;}
+.ds-field label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;opacity:.7;}
+.ds-input{width:100%;height:46px;padding:0 14px;background:var(--paper);border:var(--bd);color:var(--ink);font-family:var(--fu);font-size:14px;font-weight:500;outline:none;transition:box-shadow var(--t),border-color var(--t);}
+.ds-input:focus{box-shadow:var(--sh);border-color:var(--acc);}
+.ds-input::placeholder{color:var(--ink);opacity:.3;}
+.ds-badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:var(--bd);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;}
+.ds-badge--yel{background:var(--yel);color:#0A0A0A;border-color:#0A0A0A;}
+.ds-badge--ink{background:var(--ink);color:var(--paper);}
+.ds-badge--acc{background:var(--acc);color:#fff;}
+.ds-dots{display:flex;gap:5px;align-items:center;height:24px;}
+.ds-dots i{width:7px;height:7px;background:var(--ink);animation:tdot 1.2s infinite;}
+.ds-dots i:nth-child(2){animation-delay:.15s;}
+.ds-dots i:nth-child(3){animation-delay:.3s;background:var(--acc);}
+.ds-msg{display:flex;gap:12px;align-items:flex-start;}
+.ds-msg-body{font-size:15px;line-height:1.82;}
+.ds-msg-who{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;margin-bottom:2px;display:flex;align-items:center;gap:6px;}
+.ds-composer{display:flex;align-items:center;gap:10px;padding:10px;border:var(--bd);background:var(--surf);box-shadow:var(--sh);}
+.ds-composer input{flex:1;border:none;background:transparent;font-family:var(--fu);font-size:14px;color:var(--ink);outline:none;min-width:0;}
+.ds-composer input::placeholder{color:var(--ink);opacity:.3;}
+.ds-law{display:flex;gap:18px;padding:18px;background:var(--surf);border:var(--bd);box-shadow:var(--sh);}
+.ds-law-n{font-family:var(--fd);font-weight:800;font-size:28px;color:var(--acc);line-height:1;min-width:34px;}
+.ds-law h4{font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:14px;letter-spacing:.06em;margin-bottom:6px;}
+.ds-law p{font-size:13px;opacity:.6;line-height:1.6;}
+
+/* motion + backgrounds */
+.ds-motion{grid-template-columns:repeat(3,1fr);}
+.ds-motion > div{padding:20px;display:flex;flex-direction:column;gap:14px;}
+.ds-hatch{height:150px;border:var(--bd);position:relative;overflow:hidden;background:var(--paper);}
+.ds-hatch::before{content:'';position:absolute;top:0;bottom:0;left:-40px;right:0;background-image:repeating-linear-gradient(45deg,transparent 0,transparent 24px,rgba(10,10,10,.07) 24px,rgba(10,10,10,.07) 26px);animation:dsHatch 1.6s linear infinite;}
+.dark .ds-hatch::before{background-image:repeating-linear-gradient(45deg,transparent 0,transparent 24px,rgba(237,232,223,.07) 24px,rgba(237,232,223,.07) 26px);}
+@keyframes dsHatch{to{transform:translateX(36.77px);}}
+.ds-gridbg{height:150px;border:var(--bd);background-color:var(--p2);background-image:linear-gradient(var(--bdt) 1px,transparent 1px),linear-gradient(90deg,var(--bdt) 1px,transparent 1px);background-size:48px 48px;}
+.ds-orbpulse{height:150px;border:var(--bd);display:flex;align-items:center;justify-content:center;background:var(--paper);}
+.ds-orbpulse svg{animation:dsSquish 1.4s var(--spring) infinite;}
+@keyframes dsSquish{0%,100%{transform:scale(1,1)}30%{transform:scale(1.12,.88)}55%{transform:scale(.94,1.06)}}
+.ds-ease{padding:0 20px 20px;}
+.ds-ease table,.ds-voice table{width:100%;border-collapse:collapse;font-size:13px;}
+.ds-ease td,.ds-voice td{padding:10px 0;border-bottom:var(--bdt);vertical-align:top;}
+.ds-ease td:first-child,.ds-voice td:first-child{width:36%;padding-right:16px;}
+
+/* brand */
+.ds-brand{grid-template-columns:1.4fr 1fr;}
+.ds-brand > div{padding:32px;display:flex;flex-direction:column;justify-content:center;gap:14px;}
+.ds-lockup-big{display:flex;align-items:center;gap:14px;}
+.ds-lockup-big span{font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:56px;letter-spacing:-.02em;line-height:1;}
+.ds-tagline{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--acc);opacity:.85;}
+.ds-mono-c{width:96px;height:96px;background:#0A0A0A;color:#D44D2A;font-family:var(--fd);font-weight:800;font-size:64px;display:flex;align-items:center;justify-content:center;border:var(--bd);box-shadow:var(--sh);}
+
+/* icons */
+.ds-icons{grid-template-columns:repeat(8,1fr);}
+.ds-icons > div{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+.ds-icons svg{width:18px;height:18px;}
+.ds-icons span{opacity:.45;}
+
+/* voice */
+.ds-voice{grid-template-columns:1fr 1fr;}
+.ds-voice > div{padding:24px;}
+.ds-quote{font-family:var(--fd);font-weight:800;text-transform:uppercase;font-size:clamp(22px,3vw,30px);line-height:1;letter-spacing:-.01em;margin-bottom:10px;}
+.ds-do{color:var(--grn);} .ds-dont{color:var(--acc);}
+.ds-disc{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+.ds-disc div{font-size:12px;padding:10px 12px;border:var(--bdt);background:var(--paper);opacity:.8;}
+
+.ds-foot{margin-top:72px;border-top:var(--bd);padding:28px 0 0;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;}
+.ds-foot span{opacity:.5;}
+
+@media (max-width:900px){
+  .ds-sec-head{grid-template-columns:1fr;gap:12px;}
+  .ds-sw{grid-template-columns:repeat(3,1fr);}
+  .ds-elev,.ds-layout{grid-template-columns:repeat(2,1fr);}
+  .ds-states,.ds-motion,.ds-themes,.ds-fams,.ds-tiers{grid-template-columns:1fr;}
+  .ds-comp,.ds-brand,.ds-voice{grid-template-columns:1fr;}
+  .ds-icons{grid-template-columns:repeat(4,1fr);}
+  .ds-nav{display:none;}
+}
+@media (max-width:560px){
+  .ds{padding:0 16px 56px;}
+  .ds-hero{padding:48px 16px 40px;}
+  .ds-sw{grid-template-columns:repeat(2,1fr);}
+  .ds-type-row{grid-template-columns:1fr;gap:8px;padding:18px 16px;}
+  .ds-lockup-big span{font-size:40px;}
+  .ds-brand > div{padding:22px;}
+}
+</style>
+</head>
+<body class="values-page">
+<div class="vals-page-shell">
+
+  <header class="topbar ds-top">
+    <div class="topbar-left" style="gap:14px;">
+      <a class="icon-btn" href="chat.html" title="Back to Cloak" aria-label="Back to Cloak">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      </a>
+      <a class="ds-lockup" href="/" aria-label="Cloak home">
+        <svg class="ds-orb" width="20" height="20" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg>
+        <span>Cloak</span>
+      </a>
+    </div>
+    <nav class="ds-nav" aria-label="Sections">
+      <a href="#colour">Colour</a><a href="#type">Type</a><a href="#surface">Surface</a><a href="#states">States</a><a href="#space">Space</a><a href="#components">Components</a><a href="#motion">Motion</a><a href="#brand">Brand</a><a href="#icons">Icons</a><a href="#voice">Voice</a>
+    </nav>
+    <div class="topbar-right">
+      <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle dark mode">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true">
+          <path class="moon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          <g class="sun"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></g>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="ds-hero">
+    <div class="ds-hero-in">
+      <div class="ds-eyebrow">Design system · v2.0</div>
+      <h1>Honest AI,<br><em>for human ends.</em></h1>
+      <p>Neobrutalist, polished. Hard borders, hard shadows, square corners, warm paper and one hot accent. Everything below is live — it reads straight from <code class="ds-mono">cloak.css</code>, so it switches with your theme.</p>
+      <div class="ds-hero-actions">
+        <a class="ds-btn ds-btn--acc" href="design-system.md">Read the spec (.md) →</a>
+        <a class="ds-btn ds-btn--surf" href="https://github.com/UseCloakAI/cloak/blob/HEAD/cloak.css" target="_blank" rel="noopener">cloak.css ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <main class="ds">
+
+    <!-- COLOUR -->
+    <section class="ds-sec" id="colour">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">01 — Colour</div><h2>Paper, ink, rust.</h2></div>
+        <p>Warm cream paper, near-black ink, one rust accent. Yellow marks highlights. Muted text is ink at lower opacity — never a grey.</p>
+      </div>
+      <div class="ds-grid ds-sw" id="ds-swatches"></div>
+
+      <div class="ds-sub">Themes — tap to apply</div>
+      <div class="ds-themes">
+        <button class="ds-theme" data-theme="default" data-set="default"><div class="ds-theme-name">Default <span class="ds-tag">Rust</span></div><div class="ds-theme-strip"><i style="background:var(--surf)"></i><i style="background:var(--paper)"></i><i style="background:var(--p2)"></i><i style="background:var(--p3)"></i><i style="background:var(--acc)"></i><i style="background:var(--yel)"></i><i style="background:var(--ink)"></i></div><span class="ds-theme-cta">Send</span></button>
+        <button class="ds-theme" data-theme="eco" data-set="eco"><div class="ds-theme-name">Eco <span class="ds-tag">Green</span></div><div class="ds-theme-strip"><i style="background:var(--surf)"></i><i style="background:var(--paper)"></i><i style="background:var(--p2)"></i><i style="background:var(--p3)"></i><i style="background:var(--acc)"></i><i style="background:var(--yel)"></i><i style="background:var(--ink)"></i></div><span class="ds-theme-cta">Send</span></button>
+        <button class="ds-theme" data-theme="aqua" data-set="aqua"><div class="ds-theme-name">Aqua <span class="ds-tag">Blue</span></div><div class="ds-theme-strip"><i style="background:var(--surf)"></i><i style="background:var(--paper)"></i><i style="background:var(--p2)"></i><i style="background:var(--p3)"></i><i style="background:var(--acc)"></i><i style="background:var(--yel)"></i><i style="background:var(--ink)"></i></div><span class="ds-theme-cta">Send</span></button>
+      </div>
+
+      <div class="ds-sub">Model tiers</div>
+      <div class="ds-grid ds-tiers">
+        <div class="ds-tier" style="--c:var(--acc)"><span class="ds-label" style="opacity:.5">πνεῦμα · breath</span><b>Pneuma</b><div class="ds-sw-use">Fast, lowest energy. The default.</div></div>
+        <div class="ds-tier" style="--c:var(--yel)"><span class="ds-label" style="opacity:.5">λόγος · reason</span><b>Logos</b><div class="ds-sw-use">Balanced, extended thinking.</div></div>
+        <div class="ds-tier" style="--c:var(--blu)"><span class="ds-label" style="opacity:.5">καιρός · divine timing</span><b>Kairos</b><div class="ds-sw-use">Most capable.</div></div>
+      </div>
+    </section>
+
+    <!-- TYPE -->
+    <section class="ds-sec" id="type">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">02 — Type</div><h2>Syne shouts.<br>Grotesk talks.</h2></div>
+        <p>Syne 800, always uppercase, for display. Space Grotesk for everything else. Labels are tiny, bold, uppercase and tracked wide.</p>
+      </div>
+      <div class="ds-fams">
+        <div class="ds-box ds-fam"><span class="ds-label" style="opacity:.5">Display · --fd</span><div class="ds-fam-big ds-d">Aa</div><b class="ds-label">Syne 800</b><p>Uppercase only. -.03em on big sizes, +.06–.1em on small titles.</p></div>
+        <div class="ds-box ds-fam"><span class="ds-label" style="opacity:.5">UI + body · --fu</span><div class="ds-fam-big" style="font-weight:600">Aa</div><b class="ds-label">Space Grotesk 400–700</b><p>Body 14/1.65. Bot replies 15/1.82.</p></div>
+        <div class="ds-box ds-fam"><span class="ds-label" style="opacity:.5">Mono · --fm</span><div class="ds-fam-big" style="font-family:'Courier New',monospace">Aa</div><b class="ds-label">Courier New</b><p>Codes, URLs, console output.</p></div>
+      </div>
+      <div class="ds-grid ds-type">
+        <div class="ds-type-row"><div class="ds-type-meta"><b>Hero</b><span class="ds-mono">clamp(3.2rem,6.5vw,6rem) · .9</span></div><div class="ds-d" style="font-size:clamp(2.4rem,6vw,6rem);line-height:.9;letter-spacing:-.03em">Serve people</div></div>
+        <div class="ds-type-row"><div class="ds-type-meta"><b>H1</b><span class="ds-mono">clamp(1.9rem,3.8vw,3.2rem)</span></div><div class="ds-d" style="font-size:clamp(1.9rem,3.8vw,3.2rem);line-height:.95;letter-spacing:-.025em">Three laws</div></div>
+        <div class="ds-type-row"><div class="ds-type-meta"><b>Card title</b><span class="ds-mono">28px</span></div><div class="ds-d" style="font-size:28px">Do no harm</div></div>
+        <div class="ds-type-row"><div class="ds-type-meta"><b>Modal title</b><span class="ds-mono">18px · .06em</span></div><div class="ds-d" style="font-size:18px;letter-spacing:.06em">Allow ads?</div></div>
+        <div class="ds-type-row"><div class="ds-type-meta"><b>Body lg</b><span class="ds-mono">15px / 1.75</span></div><div style="font-size:15px;line-height:1.75;opacity:.6">We default to the lowest-energy models capable of handling your task, actively minimizing our carbon footprint on every request.</div></div>
+        <div class="ds-type-row"><div class="ds-type-meta"><b>Body</b><span class="ds-mono">14px / 1.65</span></div><div style="font-size:14px;line-height:1.65">Cloak is built on one premise — you are in control.</div></div>
+        <div class="ds-type-row"><div class="ds-type-meta"><b>Label</b><span class="ds-mono">10px · 700 · .14em</span></div><div class="ds-label" style="color:var(--acc)">Low-energy models by default</div></div>
+        <div class="ds-type-row"><div class="ds-type-meta"><b>Fine print</b><span class="ds-mono">12px · opacity .25–.4</span></div><div style="font-size:12px;opacity:.4">Cloak can make mistakes. Verify important information.</div></div>
+      </div>
+    </section>
+
+    <!-- SURFACE -->
+    <section class="ds-sec" id="surface">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">03 — Surface</div><h2>Hard edges.<br>Zero blur.</h2></div>
+        <p>2px ink on every container and control. Shadows are solid offsets — 2, 4, 6px — never soft. Radius is 0 everywhere except the orb and status dots.</p>
+      </div>
+      <div class="ds-elev">
+        <div class="ds-elev-item"><div class="ds-elev-demo">None</div><span class="ds-label">Pressed</span><span class="ds-mono">box-shadow: none</span></div>
+        <div class="ds-elev-item"><div class="ds-elev-demo" style="box-shadow:var(--shsm)">--shsm</div><span class="ds-label">Controls</span><span class="ds-mono">2px 2px 0 ink</span></div>
+        <div class="ds-elev-item"><div class="ds-elev-demo" style="box-shadow:var(--sh)">--sh</div><span class="ds-label">Hover / focus</span><span class="ds-mono">4px 4px 0 ink</span></div>
+        <div class="ds-elev-item"><div class="ds-elev-demo" style="box-shadow:var(--shlg)">--shlg</div><span class="ds-label">Cards / modals</span><span class="ds-mono">6px 6px 0 ink</span></div>
+      </div>
+      <div class="ds-sub">Lines</div>
+      <div class="ds-elev">
+        <div class="ds-elev-item"><div class="ds-elev-demo" style="border:var(--bd)">--bd</div><span class="ds-mono">2px solid ink</span></div>
+        <div class="ds-elev-item"><div class="ds-elev-demo" style="border:1.5px solid var(--ink)">thin</div><span class="ds-mono">1.5px — row hover</span></div>
+        <div class="ds-elev-item"><div class="ds-elev-demo" style="border:2px dashed var(--ink)">dashed</div><span class="ds-mono">2px dashed — ghost</span></div>
+        <div class="ds-elev-item"><div class="ds-elev-demo" style="border:var(--bdt)">--bdt</div><span class="ds-mono">1px ink @ .12 — dividers</span></div>
+      </div>
+    </section>
+
+    <!-- STATES -->
+    <section class="ds-sec" id="states">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">04 — States</div><h2>Lift. Sink.<br>Invert.</h2></div>
+        <p>Hover lifts the element up and left while the shadow grows. Press sinks it into its own shadow. Selected inverts to ink.</p>
+      </div>
+      <div class="ds-grid ds-states">
+        <div class="ds-state"><span class="ds-label">Rest → hover</span><div class="ds-state-demo"><span class="ds-fake ds-fake--rest">Rest</span><span style="opacity:.3">→</span><span class="ds-fake ds-fake--lift">Hover</span></div><p>translate(-1px,-1px), shadow 2→4 (4→6 on cards). Ink buttons turn rust.</p></div>
+        <div class="ds-state"><span class="ds-label">Press</span><div class="ds-state-demo"><span class="ds-fake ds-fake--press">Pressed</span></div><p>translate(2px,2px) — 3px on primary — and the shadow drops to none.</p></div>
+        <div class="ds-state"><span class="ds-label">Selected</span><div class="ds-state-demo"><span class="ds-fake ds-fake--on">Active</span></div><p>Ink fill, paper text. Settings nav adds a 3px rust bar on the right.</p></div>
+        <div class="ds-state"><span class="ds-label">Input focus</span><div class="ds-state-demo"><span class="ds-fake ds-fake--focus" style="min-width:180px;text-transform:none;letter-spacing:0;font-weight:500;font-size:14px">you@usecloak.org</span></div><p>Border turns rust + 4px hard shadow.</p></div>
+        <div class="ds-state"><span class="ds-label">Keyboard focus</span><div class="ds-state-demo"><span class="ds-fake" style="outline:2px solid var(--acc);outline-offset:3px">Tab</span></div><p>2px rust outline, 3px offset.</p></div>
+        <div class="ds-state"><span class="ds-label">Disabled</span><div class="ds-state-demo"><span class="ds-fake ds-fake--rest" style="opacity:.38">Send</span></div><p>Opacity .38, not-allowed cursor.</p></div>
+      </div>
+    </section>
+
+    <!-- SPACE -->
+    <section class="ds-sec" id="space">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">05 — Space</div><h2>Exact, not<br>snapped.</h2></div>
+        <p>Cloak doesn't force a 4/8 grid. These are the values that actually recur in the codebase — use them as written.</p>
+      </div>
+      <div class="ds-box ds-space" id="ds-space"></div>
+      <div class="ds-sub">Layout</div>
+      <div class="ds-grid ds-layout">
+        <div><span class="ds-label" style="opacity:.5">Sidebar</span><b>268</b></div>
+        <div><span class="ds-label" style="opacity:.5">Reading column</span><b>760</b></div>
+        <div><span class="ds-label" style="opacity:.5">Composer</span><b>880</b></div>
+        <div><span class="ds-label" style="opacity:.5">Auth card</span><b>400</b></div>
+        <div><span class="ds-label" style="opacity:.5">Top bar</span><b>52</b></div>
+        <div><span class="ds-label" style="opacity:.5">Input / button</span><b>46</b></div>
+        <div><span class="ds-label" style="opacity:.5">Control</span><b>36</b></div>
+        <div><span class="ds-label" style="opacity:.5">Section pad</span><b>72·56</b></div>
+      </div>
+    </section>
+
+    <!-- COMPONENTS -->
+    <section class="ds-sec" id="components">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">06 — Components</div><h2>The kit.</h2></div>
+        <p>Live and interactive. Grouped items share borders inside one box rather than floating as separate cards.</p>
+      </div>
+      <div class="ds-comp">
+        <div class="ds-box ds-comp-card">
+          <span class="ds-label" style="opacity:.5">Buttons</span>
+          <div class="ds-row">
+            <button class="ds-btn ds-btn--acc">Start using Cloak</button>
+            <button class="ds-btn ds-btn--ink">Launch App →</button>
+          </div>
+          <div class="ds-row">
+            <button class="ds-btn ds-btn--surf">Maybe later</button>
+            <button class="ds-btn ds-btn--ghost">Continue as guest</button>
+            <button class="ds-btn ds-btn--acc" disabled>Send</button>
+          </div>
+          <div class="ds-row">
+            <button class="icon-btn" aria-label="Settings"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg></button>
+            <button class="icon-btn" aria-label="New chat"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            <span class="ds-badge ds-badge--yel">New</span>
+            <span class="ds-badge ds-badge--ink">Think</span>
+            <span class="ds-badge ds-badge--acc">Pneuma</span>
+            <span class="status-pill"><span class="live-dot"></span>Live</span>
+          </div>
+        </div>
+
+        <div class="ds-box ds-comp-card">
+          <span class="ds-label" style="opacity:.5">Forms</span>
+          <div class="ds-seg" id="ds-seg" data-i="0" role="tablist">
+            <span class="ds-seg-thumb" aria-hidden="true"></span>
+            <button role="tab" aria-selected="true">Sign in</button>
+            <button role="tab" aria-selected="false">Create account</button>
+          </div>
+          <div class="ds-field"><label for="ds-email">Email</label><input id="ds-email" class="ds-input" type="email" placeholder="you@example.com"></div>
+          <div class="ds-field"><label for="ds-pass">Password</label><input id="ds-pass" class="ds-input" type="password" placeholder="••••••••"></div>
+        </div>
+
+        <div class="ds-box ds-comp-card">
+          <span class="ds-label" style="opacity:.5">Chat</span>
+          <div class="ds-msg">
+            <svg class="ds-orb" width="22" height="22" viewBox="0 0 32 32" aria-hidden="true" style="margin-top:3px"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg>
+            <div><div class="ds-msg-who">Cloak <span class="ds-badge ds-badge--acc" style="height:18px">Pneuma</span></div><div class="ds-msg-body">Short answer: yes. Here's the one thing to check first.</div></div>
+          </div>
+          <div class="ds-msg">
+            <svg class="ds-orb" width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg>
+            <div class="ds-dots" aria-label="Cloak is typing"><i></i><i></i><i></i></div>
+          </div>
+          <div class="ds-composer">
+            <button class="plus-btn" aria-label="Modes">+</button>
+            <input type="text" placeholder="Message Cloak…" aria-label="Message">
+            <button class="send-btn" aria-label="Send"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="ds-box ds-comp-card">
+          <span class="ds-label" style="opacity:.5">Content</span>
+          <div class="ds-law"><div class="ds-law-n">I</div><div><h4>Never harm a human</h4><p>Cloak must never harm a human, or through inaction allow one to come to harm.</p></div></div>
+          <div class="ds-law"><div class="ds-law-n">II</div><div><h4>A tool, not a companion</h4><p>You are in control. Cloak serves — it doesn't befriend.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MOTION -->
+    <section class="ds-sec" id="motion">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">07 — Motion + backgrounds</div><h2>Quick.<br>Then still.</h2></div>
+        <p>140ms for the small stuff, 240ms for panels. Popovers pop, chips spring. Flat paper, plus two textures. Everything respects reduced motion.</p>
+      </div>
+      <div class="ds-grid ds-motion">
+        <div><span class="ds-label">45° hatch · auth</span><div class="ds-hatch"></div><span class="ds-mono">7% ink · 1.6s / stripe · linear</span></div>
+        <div><span class="ds-label">48px grid · heroes</span><div class="ds-gridbg"></div><span class="ds-mono">1px ink @ .12</span></div>
+        <div><span class="ds-label">Orb · thinking</span><div class="ds-orbpulse"><svg class="ds-orb" width="56" height="56" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg></div><span class="ds-mono">squish-bounce · spring</span></div>
+      </div>
+      <div class="ds-box ds-ease" style="margin-top:24px">
+        <table>
+          <tr><td class="ds-mono">--t · 140ms ease</td><td>Shadow, transform, colour</td></tr>
+          <tr><td class="ds-mono">--tm · 240ms ease</td><td>Settings nav, larger panels</td></tr>
+          <tr><td class="ds-mono">cubic-bezier(.16,1,.3,1)</td><td>Modals and popovers pop in</td></tr>
+          <tr><td class="ds-mono">--spring (.34,1.56,.64,1)</td><td>Chips, staggered 80ms</td></tr>
+          <tr><td class="ds-mono">msgIn · 6px fade-up</td><td>Chat turns</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- BRAND -->
+    <section class="ds-sec" id="brand">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">08 — Brand</div><h2>The orb.</h2></div>
+        <p>The official lockup is the orb followed by CLOAK in Syne 800. The rust "C" monogram is kept for the favicon and very tight spaces only.</p>
+      </div>
+      <div class="ds-grid ds-brand">
+        <div>
+          <div class="ds-lockup-big">
+            <svg class="ds-orb" width="52" height="52" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg>
+            <span>Cloak</span>
+          </div>
+          <div class="ds-tagline">Honest AI, for human ends.</div>
+        </div>
+        <div style="align-items:flex-start">
+          <div class="ds-mono-c" aria-hidden="true">C</div>
+          <span class="ds-label" style="opacity:.5">Monogram · favicon only</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ICONS -->
+    <section class="ds-sec" id="icons">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">09 — Icons</div><h2>Inline.<br>Outlined.</h2></div>
+        <p>Feather-style 24px outlines, stroke 1.5–2.5, round caps, <code class="ds-mono">currentColor</code>. Rendered at 13–14px. New icons come from Lucide at stroke 1.8. No emoji, ever.</p>
+      </div>
+      <div class="ds-grid ds-icons">
+        <div><svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Plus</span></div>
+        <div><svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg><span>Back</span></div>
+        <div><svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Chat</span></div>
+        <div><svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Check</span></div>
+        <div><svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span>Moon</span></div>
+        <div><svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Shield</span></div>
+        <div><svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg><span>Trash</span></div>
+        <div><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z"/></svg><span>Send</span></div>
+      </div>
+      <p style="font-size:12px;opacity:.5;margin-top:14px">Glyphs as icons: × close · → nav CTA · ↗ external · ← back · · separator</p>
+    </section>
+
+    <!-- VOICE -->
+    <section class="ds-sec" id="voice">
+      <div class="ds-sec-head">
+        <div><div class="ds-idx">10 — Voice</div><h2>Blunt.<br>Principled.<br>Short.</h2></div>
+        <p>State rules plainly. Don't hedge. A tool, not a companion — warmth stops at a greeting.</p>
+      </div>
+      <div class="ds-grid ds-voice">
+        <div>
+          <div class="ds-quote">Instant. Sharp.<br>No filler.</div>
+          <table>
+            <tr><td class="ds-label">Casing</td><td>Write sentence case. CSS uppercases headings, buttons and labels.</td></tr>
+            <tr><td class="ds-label">Person</td><td>"Cloak" for behaviour, "we" for commitments, "you" for the user.</td></tr>
+            <tr><td class="ds-label">Punctuation</td><td>Em dashes. Middots for metadata. → after nav CTAs.</td></tr>
+            <tr><td class="ds-label">Numbering</td><td>Roman numerals for laws. "01 —" for indices.</td></tr>
+            <tr><td class="ds-label ds-do">Do</td><td>"Low-energy models by default."</td></tr>
+            <tr><td class="ds-label ds-dont">Don't</td><td>"100% carbon neutral! 🌱"</td></tr>
+          </table>
+        </div>
+        <div>
+          <span class="ds-label" style="opacity:.5">Disclaimers are part of the brand</span>
+          <div class="ds-disc">
+            <div>Cloak can make mistakes. Verify important information.</div>
+            <div>Not a mental health resource — if you're struggling, please contact a real person or a helpline.</div>
+            <div>Ads allow Cloak to offset carbon emissions and improve services for everyone.</div>
+            <div>Low-energy models by default.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="ds-foot">
+      <a class="ds-lockup" href="/" aria-label="Cloak home">
+        <svg class="ds-orb" width="18" height="18" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg>
+        <span style="font-size:14px">Cloak</span>
+      </a>
+      <span>Honest AI, for human ends. · <a href="design-system.md">design-system.md</a> · <a href="values.html">Values</a></span>
+    </footer>
+  </main>
+</div>
+
+<script>
+(function(){
+  var swatches=[
+    ['Ink','--ink','Text, borders, shadows'],
+    ['Paper','--paper','Page background'],
+    ['Surface','--surf','Cards, bars'],
+    ['Paper 2','--p2','Sunken, tracks'],
+    ['Paper 3','--p3','Row hover'],
+    ['Accent','--acc','CTAs, focus, brand'],
+    ['Accent hover','--acc2','Pressed / hover'],
+    ['Highlight','--yel','Announce, success'],
+    ['Live','--grn','Status dots only'],
+    ['Kairos','--blu','Top tier only']
+  ];
+  var sw=document.getElementById('ds-swatches');
+  sw.innerHTML=swatches.map(function(s){
+    return '<div class="ds-sw-cell"><div class="ds-sw-chip" style="background:var('+s[1]+')"></div><div class="ds-sw-meta"><span class="ds-sw-name">'+s[0]+'</span><span class="ds-sw-var" data-var="'+s[1]+'">'+s[1]+'</span><span class="ds-sw-use">'+s[2]+'</span></div></div>';
+  }).join('');
+
+  var sp=[2,4,6,8,10,12,14,16,18,22,24,28,32,36,44,56,72];
+  document.getElementById('ds-space').innerHTML=sp.map(function(v){
+    return '<div class="ds-space-row"><span class="ds-mono">'+v+'px</span><div class="ds-space-bar" style="width:'+(v*4)+'px;max-width:100%"></div></div>';
+  }).join('');
+
+  function refresh(){
+    var cs=getComputedStyle(document.documentElement);
+    sw.querySelectorAll('[data-var]').forEach(function(el){
+      var v=el.getAttribute('data-var');
+      el.textContent=v+' · '+cs.getPropertyValue(v).trim().toUpperCase();
+    });
+    var cur=document.documentElement.getAttribute('data-theme')||'default';
+    document.querySelectorAll('[data-set]').forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-set')===cur?'true':'false');});
+  }
+  window.dsRefresh=refresh;
+
+  document.querySelectorAll('[data-set]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var t=b.getAttribute('data-set');
+      document.documentElement.setAttribute('data-theme',t);
+      try{localStorage.setItem('cloak_theme',t);}catch(e){}
+      refresh();
+    });
+  });
+
+  var seg=document.getElementById('ds-seg');
+  seg.querySelectorAll('button').forEach(function(b,i){
+    b.addEventListener('click',function(){
+      seg.setAttribute('data-i',i);
+      seg.querySelectorAll('button').forEach(function(x,j){x.setAttribute('aria-selected',j===i?'true':'false');});
+    });
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
