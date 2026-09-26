@@ -37,7 +37,16 @@ RULES:
 - Be specific with queries — "React 19 concurrent features 2024" not "React features"
 - If a result page seems to have more info on sub-links, use deepCrawl on those URLs
 - You can request up to 3 search rounds if needed
-- Always synthesize into a clear, helpful answer after searching`;
+- Always synthesize into a clear, helpful answer after searching
+
+VERIFICATION — DON'T SPREAD MISINFORMATION:
+- High-stakes claims need verification before you state them as fact: deaths, illness, injuries, arrests, crimes, lawsuits, disasters, elections and results, resignations/firings, financial figures and prices, medical or legal facts, statistics, quotes, and anything "breaking".
+- Never assert a high-stakes claim about a real person or current event from memory alone. Search first.
+- Treat a claim as confirmed only when at least 2 independent, reputable sources agree (major wire services, established news outlets, official/primary sources like government sites, company filings, the person's verified channels). Several sites repeating one original report count as ONE source.
+- Be skeptical of: satire, content farms, AI-generated sites, tabloids, social posts, forums, and "death hoax" style stories. Check the publication date against the current date.
+- If sources conflict or only one weak source supports a claim, say so plainly ("I can't confirm this — only X reports it", "reports conflict") instead of picking a side. Never upgrade "reported" to "confirmed".
+- Only cite a source for what it actually says. Never invent sources, dates, numbers, or quotes. If you're not sure, say you're not sure.
+- Don't contradict something you said earlier in the conversation without flagging it and explaining what new evidence changed it.`;
 
 /* ── REAL-TIME CLOCK ──
    Fresh on every request, so Cloak always knows "now" and can research the
@@ -433,31 +442,57 @@ window.send = async function () {
         setBotState(botMsgEl, 'thinking');
 
         // Build context with search results for synthesis
-        const searchContext = allGathered
+        const _host = (u) => { try { return new URL(u).hostname.replace('www.', ''); } catch { return u; } };
+        const VERIFY_ASK = `Before answering, check every high-stakes claim (death, health, crime, disaster, election, money, statistics, quotes, breaking news) against the sources above:
+- Confirmed = at least 2 independent reputable sources agree. Same story syndicated/copied = one source.
+- If a key claim rests on a single or low-quality source, or sources conflict, and you can still verify, reply with ONLY a <search> block (no other text) with queries aimed at reputable/primary sources, then <done/>.
+- Otherwise write the answer. State confirmed facts plainly; clearly label anything unconfirmed or disputed; never state it as fact. Cite inline with [n] matching the numbers above, only for what that source actually says.`;
+        const buildContext = () => allGathered
           .filter(s => s.extracted)
-          .map((s, i) => `[${i + 1}] ${s.url}\n${s.title}\n${s.extracted.slice(0, 2000)}`)
+          .map((s, i) => `[${i + 1}] ${_host(s.url)} — ${s.url}\n${s.title}\n${s.extracted.slice(0, 2000)}`)
           .join('\n\n---\n\n');
 
-        const synthesisMessages = [
+        let synthesisMessages = [
           ...trimmedMessages,
           { role: 'assistant', content: firstResponse },
-          {
-            role: 'user',
-            content: `Here are the search results:\n\n${searchContext}\n\nNow synthesise a complete, helpful answer. Cite sources inline with [1], [2] etc. matching the source numbers above.`
-          }
+          { role: 'user', content: `Here are the search results:\n\n${buildContext()}\n\n${VERIFY_ASK}` }
         ];
 
-        // Round 2: Synthesis
-        stats.req++;
-        log('req', `Synthesis round | sources=${allGathered.length}`);
+        // Synthesis, with up to 2 extra verification rounds when the model
+        // asks to double-check a claim before stating it.
+        let synth;
+        for (let round = 0; ; round++) {
+          stats.req++;
+          log('req', `Synthesis round ${round + 1} | sources=${allGathered.length}`);
+          _fetchController = new AbortController();
+          synth = await streamChat({
+            model,
+            messages: synthesisMessages.slice(-22),
+            system: SEARCH_SYSTEM_PROMPT + cloakClock(),
+          }, botMsgEl, _fetchController.signal);
+          _fetchController = null;
 
-        _fetchController = new AbortController();
-        const synth = await streamChat({
-          model,
-          messages: synthesisMessages.slice(-22),
-          system: SEARCH_SYSTEM_PROMPT + cloakClock(),
-        }, botMsgEl, _fetchController.signal);
-        _fetchController = null;
+          const verifyCalls = (!synth.aborted && round < 2 && CLOAK_SEARCH.hasToolCalls(synth.text))
+            ? CLOAK_SEARCH.parseToolCalls(synth.text).filter(c => c.type === 'search') : [];
+          if (!verifyCalls.length) break;
+
+          // Verify: clear any prose painted before the tag, search again, re-synthesise.
+          dropTailOrb(botMsgEl);
+          const vbc = botMsgEl.querySelector('.bot-content');
+          if (vbc) { vbc.innerHTML = ''; vbc._tk = null; }
+          setBotState(botMsgEl, 'searching');
+          addStatus(botMsgEl, 'Verifying with more sources…');
+          for (const call of verifyCalls) {
+            allGathered = allGathered.concat(await CLOAK_SEARCH.search(call.params, botMsgEl));
+          }
+          addStatus(botMsgEl, 'Writing the answer…');
+          setBotState(botMsgEl, 'thinking');
+          synthesisMessages = [
+            ...trimmedMessages,
+            { role: 'assistant', content: firstResponse },
+            { role: 'user', content: `Here are the search results (including verification searches):\n\n${buildContext()}\n\n${VERIFY_ASK}${round >= 1 ? '\n\nThis is the last round: write the answer now, labelling anything still unconfirmed.' : ''}` }
+          ];
+        }
 
         // Drop any stray tool markup the model emits during synthesis.
         const finalText = synth.text.replace(/<search>[\s\S]*?<\/search>|<fetch>[\s\S]*?<\/fetch>|<done\s*\/?>/gi, '').trim();
@@ -478,7 +513,7 @@ window.send = async function () {
 
         // Render citation strip after a short delay
         setTimeout(() => {
-          renderCitationStrip(botMsgEl, allGathered.filter(s => s.url));
+          renderCitationStrip(botMsgEl, allGathered.filter(s => s.url && s.extracted));
         }, 600);
 
         if (voiceMode) playVoice(finalText);
