@@ -16,26 +16,19 @@
 <meta name="twitter:title" content="Cloak — What is Cloak?">
 <meta name="twitter:description" content="A human-centric AI platform. AI that serves people, not the other way around.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='Syne%2C sans-serif' font-weight='800' font-size='22' fill='%23D44D2A'%3EC%3C/text%3E%3C/svg%3E">
+<script>
+  // Reveal-on-scroll opt-in; if motion.js never loads, show everything.
+  document.documentElement.classList.add('m-js');
+  setTimeout(function(){ if(!window.CloakMotion) document.documentElement.classList.remove('m-js'); }, 3000);
+</script>
+<script src="motion.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="cloak.css">
 <style>
-/* ── CURSOR ── */
-html, body, *, *::before, *::after { cursor: none !important; }
-@media (prefers-reduced-motion: reduce) {
-  html, body, *, *::before, *::after { cursor: auto !important; }
-  .cursor { display: none !important; }
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
-}
+/* Custom cursor: crop marks on a spring — built by motion.js (<body data-cursor>).
+   Reduced motion is handled by cloak.css's global override. */
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
-.cursor{
-  position:fixed;width:11px;height:11px;
-  background:var(--acc);border:2px solid var(--ink);
-  pointer-events:none;z-index:9999;
-  transform:translate(-50%,-50%);
-  transition:width .12s,height .12s;
-}
-.cursor.big{width:36px;height:36px;}
 
 /* ── PAGE RESET ── */
 body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
@@ -50,20 +43,28 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 .lp-nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;}
 .lp-nav-wordmark{font-family:var(--fd);font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--ink);}
 .lp-nav-links{display:flex;align-items:center;gap:8px;}
+.lp-nav-links>*{animation:navIn .6s var(--ease-out) backwards;}
+.lp-nav-links>:nth-child(2){animation-delay:.07s;}
+.lp-nav-links>:nth-child(3){animation-delay:.14s;}
+/* Tactile: hover lifts by exactly the shadow it gains; press sinks flat onto it. */
 .lp-nav-link{
   height:34px;padding:0 14px;
   background:transparent;border:var(--bd);
   font-family:var(--fu);font-size:10px;font-weight:700;
   text-transform:uppercase;letter-spacing:.1em;
   color:var(--ink);text-decoration:none;
-  display:flex;align-items:center;
-  transition:box-shadow var(--t),transform var(--t),background var(--t);
+  display:flex;align-items:center;gap:6px;
+  transition:box-shadow var(--lift),transform var(--lift),background var(--t);
 }
-.lp-nav-link:hover{box-shadow:var(--shsm);transform:translate(-1px,-1px);}
+.lp-nav-link:hover{box-shadow:var(--shsm);transform:translate(-2px,-2px);}
+.lp-nav-link:active{box-shadow:none;transform:none;transition-duration:var(--tp);}
 .lp-nav-cta{
   background:var(--acc);color:#fff;box-shadow:var(--shsm);
 }
-.lp-nav-cta:hover{box-shadow:var(--sh)!important;background:var(--acc2)!important;}
+.lp-nav-cta:hover{box-shadow:var(--sh);background:var(--acc2);}
+.lp-nav-cta:active{box-shadow:none;transform:translate(2px,2px);}
+.arw{display:inline-block;transition:translate var(--lift);}
+a:hover>.arw{translate:3px 0;}
 
 /* ── HERO ── */
 .lp-hero{
@@ -92,33 +93,31 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
   font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.18em;
   color:var(--acc);margin-bottom:20px;
   display:flex;align-items:center;gap:8px;
-  opacity:0;animation:fadeUp .5s .1s cubic-bezier(.16,1,.3,1) forwards;
+  animation:slideIn .7s var(--ease-out) .2s backwards;
 }
-.lp-eyebrow::before{content:'';display:block;width:28px;height:2px;background:var(--acc);}
+.lp-eyebrow::before{content:'';display:block;width:28px;height:2px;background:var(--acc);transform-origin:0 50%;animation:ruleIn .6s var(--ease-out) .1s backwards;}
 
+/* Hero sequence: rule draws → eyebrow slides in → each title line is
+   uncloaked → copy rises → buttons pop up out of the page. */
 .lp-hero-title{
   font-family:var(--fd);
   font-size:clamp(3rem,6vw,5.5rem);
   font-weight:800;text-transform:uppercase;
   letter-spacing:-.03em;line-height:.92;
   color:var(--ink);margin-bottom:28px;
-  opacity:0;animation:fadeUp .5s .18s cubic-bezier(.16,1,.3,1) forwards;
+  --uc-d:.22s;
 }
 .lp-hero-title .acc{color:var(--acc);}
 
 .lp-hero-desc{
   font-size:15px;line-height:1.7;color:var(--ink);opacity:.6;
   max-width:400px;margin-bottom:40px;
-  opacity:0;animation:fadeUp .5s .26s cubic-bezier(.16,1,.3,1) forwards;
+  animation:rvUp .8s var(--ease-out) .8s backwards;
 }
-/* override the conflicting opacity 0 */
-.lp-hero-desc{opacity:0;}
-.lp-hero-desc.vis{opacity:.6;}
 
-.lp-hero-actions{
-  display:flex;gap:10px;flex-wrap:wrap;
-  opacity:0;animation:fadeUp .5s .34s cubic-bezier(.16,1,.3,1) forwards;
-}
+.lp-hero-actions{display:flex;gap:10px;flex-wrap:wrap;}
+.lp-hero-actions>*{animation:rvRise .62s var(--sp-snap) .95s backwards;--rise:4px;}
+.lp-hero-actions>:nth-child(2){animation-delay:1.03s;--rise:0px;}
 
 .lp-btn-primary{
   height:46px;padding:0 22px;
@@ -127,21 +126,36 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
   font-family:var(--fu);font-size:11px;font-weight:700;
   text-transform:uppercase;letter-spacing:.1em;
   text-decoration:none;display:flex;align-items:center;gap:8px;
-  transition:box-shadow var(--t),transform var(--t),background var(--t);
+  transition:box-shadow var(--lift),transform var(--lift),background var(--t);
 }
-.lp-btn-primary:hover{box-shadow:var(--shlg);transform:translate(-1px,-1px);background:var(--acc2);}
-.lp-btn-primary:active{box-shadow:none;transform:translate(2px,2px);}
+.lp-btn-primary:hover{box-shadow:var(--shlg);transform:translate(-2px,-2px);background:var(--acc2);}
+.lp-btn-primary:active{box-shadow:none;transform:translate(4px,4px);transition-duration:var(--tp);}
+.lp-btn-primary svg{transition:translate var(--lift),rotate var(--lift);}
+.lp-btn-primary:hover svg{translate:3px -2px;rotate:-8deg;}
 
+/* Ghost: dashed border drawn on ::before so it can march on hover. */
 .lp-btn-ghost{
+  --ant:var(--ink);
+  position:relative;
   height:46px;padding:0 22px;
   background:transparent;color:var(--ink);
-  border:2px dashed var(--ink);
+  border:2px solid transparent;
   font-family:var(--fu);font-size:11px;font-weight:700;
   text-transform:uppercase;letter-spacing:.1em;
   text-decoration:none;display:flex;align-items:center;
-  transition:background var(--t),border-color var(--t);opacity:.55;
+  transition:background var(--t),opacity var(--t),transform var(--lift);opacity:.55;
+}
+.lp-btn-ghost::before{
+  content:'';position:absolute;inset:-2px;pointer-events:none;
+  background:
+    linear-gradient(90deg,var(--ant) 60%,transparent 0) 0 0/10px 2px repeat-x,
+    linear-gradient(90deg,var(--ant) 60%,transparent 0) 0 100%/10px 2px repeat-x,
+    linear-gradient(180deg,var(--ant) 60%,transparent 0) 0 0/2px 10px repeat-y,
+    linear-gradient(180deg,var(--ant) 60%,transparent 0) 100% 0/2px 10px repeat-y;
 }
 .lp-btn-ghost:hover{background:var(--p2);opacity:1;}
+.lp-btn-ghost:hover::before{animation:ants .7s linear infinite;}
+.lp-btn-ghost:active{transform:translate(1px,1px);transition-duration:var(--tp);}
 
 /* Hero right — dark panel with models */
 .lp-hero-right{
@@ -152,12 +166,21 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 }
 .dark .lp-hero-right{background:var(--p3);}
 
-/* C mark — text-based, uses CLOAK font */
+/* C mark — stamped onto the panel: drops in big, hits the paper flat,
+   springs back up onto its shadow. */
 .lp-c-mark{
   width:120px;height:120px;
   background:var(--surf);border:var(--bd);box-shadow:var(--sh);
   display:flex;align-items:center;justify-content:center;
   margin-bottom:32px;flex-shrink:0;
+  animation:cStamp .9s .25s backwards;
+  transition:box-shadow var(--lift),transform var(--lift);
+}
+.lp-c-mark:hover{box-shadow:var(--shlg);transform:translate(-2px,-2px);}
+@keyframes cStamp{
+  0%{opacity:0;scale:1.45;rotate:-7deg;translate:4px 4px;box-shadow:none;animation-timing-function:var(--ease-in);}
+  38%{opacity:1;scale:1;rotate:0deg;translate:4px 4px;box-shadow:none;animation-timing-function:var(--sp-snap);}
+  100%{opacity:1;scale:1;rotate:0deg;translate:0 0;box-shadow:var(--sh);}
 }
 .lp-c-mark-letter{
   font-family:var(--fd);font-size:72px;font-weight:800;
@@ -172,17 +195,23 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;
   background:var(--surf);border:var(--bd);box-shadow:var(--shsm);
-  transition:box-shadow var(--t),transform var(--t);
+  transition:box-shadow var(--lift),transform var(--lift);
+  animation:pillIn .7s var(--sp-snap) .72s backwards;
 }
-.lp-model-pill:hover{box-shadow:var(--sh);transform:translate(-1px,-1px);}
+.lp-model-pill:nth-child(2){animation-delay:.81s;}
+.lp-model-pill:nth-child(3){animation-delay:.9s;}
+@keyframes pillIn{from{opacity:0;translate:28px 2px;box-shadow:none;}}
+.lp-model-pill:hover{box-shadow:var(--sh);transform:translate(-2px,-2px);}
 .lp-model-left{display:flex;flex-direction:column;gap:3px;}
 .lp-model-name{font-family:var(--fd);font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);}
 .lp-model-meaning{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--ink);opacity:.35;}
 .lp-model-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:3px 9px;border:var(--bd);color:var(--ink);opacity:.5;background:transparent;}
-.lp-model-dot{width:8px;height:8px;flex-shrink:0;animation:pdot 2s ease-in-out infinite;}
-.lp-model-dot.c1{background:var(--acc);animation-delay:0s;}
-.lp-model-dot.c2{background:var(--yel);animation-delay:.3s;}
-.lp-model-dot.c3{background:var(--blu);animation-delay:.6s;}
+.lp-model-dot{--boot:1.15s;width:8px;height:8px;flex-shrink:0;animation:ledBoot .55s linear var(--boot) backwards,pdot 2s ease-in-out calc(var(--boot) + .55s) infinite;}
+.lp-model-dot.c1{background:var(--acc);}
+.lp-model-dot.c2{background:var(--yel);--boot:1.3s;}
+.lp-model-dot.c3{background:var(--blu);--boot:1.45s;}
+/* flicker on like a status LED */
+@keyframes ledBoot{0%,12%{opacity:0;}13%,30%{opacity:1;}31%,46%{opacity:.15;}47%,100%{opacity:1;}}
 
 /* ── MODELS SECTION ── */
 .lp-models-section{border-bottom:var(--bd);}
@@ -209,13 +238,19 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
   transition:background var(--t);
 }
 .lp-model-card:last-child{border-right:none;}
+/* 6px slab shown at half height — it thickens on hover */
 .lp-model-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:var(--acc);
+  content:'';position:absolute;top:0;left:0;right:0;height:6px;
+  background:var(--acc);transform:scaleY(.5);transform-origin:0 0;transition:transform var(--lift);
 }
 .lp-model-card.m2::before{background:var(--yel);}
 .lp-model-card.m3::before{background:var(--blu);}
 .lp-model-card:hover{background:var(--p2);}
+.lp-model-card:hover::before{transform:none;}
+/* Reveal: the grid rises, each tier's colour bar draws across, then its copy steps in. */
+.lp-models-grid.in .lp-model-card::before{animation:barIn .7s var(--ease-out) backwards;animation-delay:calc(var(--rv-d,0ms) + 260ms + var(--c,0) * 110ms);}
+.lp-models-grid.in .lp-model-card>*{animation:rvUp .7s var(--ease-out) backwards;animation-delay:calc(var(--rv-d,0ms) + 330ms + var(--c,0) * 110ms + var(--k,0) * 45ms);}
+@keyframes barIn{from{transform:scale(0,.5);}}
 .lp-card-num{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.18em;color:var(--ink);opacity:.28;margin-bottom:18px;}
 .lp-card-name{font-family:var(--fd);font-size:26px;font-weight:800;text-transform:uppercase;letter-spacing:-.01em;color:var(--ink);margin-bottom:4px;}
 .lp-card-meaning{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--acc);opacity:.7;margin-bottom:16px;}
@@ -244,14 +279,18 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
   display:flex;gap:16px;padding:16px;
   background:var(--surf);border:var(--bd);box-shadow:var(--shsm);
   margin-bottom:10px;
-  transition:box-shadow var(--t),transform var(--t);
+  transition:box-shadow var(--lift),transform var(--lift);
+  --rise:2px;
 }
-.lp-law:hover{box-shadow:var(--sh);transform:translate(-1px,-1px);}
-.lp-law-num{font-family:var(--fd);font-size:28px;font-weight:800;color:var(--acc);flex-shrink:0;line-height:1;margin-top:2px;}
+.lp-law:hover{box-shadow:var(--sh);transform:translate(-2px,-2px);}
+.lp-law-num{font-family:var(--fd);font-size:28px;font-weight:800;color:var(--acc);flex-shrink:0;line-height:1;margin-top:2px;transition:rotate var(--lift),scale var(--lift);}
+.lp-law:hover .lp-law-num{rotate:-6deg;scale:1.08;}
+.lp-law.in .lp-law-num{animation:stamp .62s var(--sp-pop) calc(var(--rv-d,0ms) + 170ms) backwards;}
 .lp-law-title{font-family:var(--fd);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);margin-bottom:5px;}
 .lp-law-text{font-size:13px;color:var(--ink);opacity:.65;line-height:1.62;}
 
-.lp-principles{display:grid;grid-template-columns:1fr 1fr;border:var(--bd);box-shadow:var(--shsm);}
+.lp-principles{display:grid;grid-template-columns:1fr 1fr;border:var(--bd);box-shadow:var(--shsm);--rise:2px;}
+.lp-principles.in .lp-principle>*{animation:rvUp .7s var(--ease-out) backwards;animation-delay:calc(var(--rv-d,0ms) + 160ms + var(--k,0) * 70ms);}
 .lp-principle{
   padding:22px 24px;border-right:var(--bd);border-bottom:var(--bd);
   transition:background var(--t);
@@ -273,6 +312,8 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
   text-transform:uppercase;letter-spacing:-.02em;line-height:.95;color:var(--ink);
 }
 .lp-cta-title .acc{color:var(--acc);}
+.lp-cta-title .uc{display:inline-block;}
+.lp-cta-right .lp-btn-primary{--rise:4px;}
 .lp-cta-right{display:flex;flex-direction:column;gap:10px;align-items:flex-start;white-space:nowrap;}
 .lp-cta-note{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink);opacity:.35;}
 
@@ -289,13 +330,13 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 }
 .lp-footer-name{font-family:var(--fd);font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);}
 .lp-footer-links{display:flex;gap:20px;}
-.lp-footer-links a{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink);opacity:.4;text-decoration:none;transition:opacity var(--t);}
+.lp-footer-links a{position:relative;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--ink);opacity:.4;text-decoration:none;transition:opacity var(--t);}
+/* underline wipes in from the left, out to the right */
+.lp-footer-links a::after{content:'';position:absolute;left:0;right:0;bottom:-4px;height:2px;background:currentColor;transform:scaleX(0);transform-origin:100% 50%;transition:transform .42s var(--ease-out);}
 .lp-footer-links a:hover{opacity:.8;}
+.lp-footer-links a:hover::after{transform:scaleX(1);transform-origin:0 50%;}
 .lp-footer-disc{font-size:10px;color:var(--ink);opacity:.28;font-weight:600;}
 
-/* ── REVEAL ── */
-.reveal{opacity:0;transform:translateY(20px);transition:opacity .5s,transform .5s;}
-.reveal.vis{opacity:1;transform:translateY(0);}
 
 /* ── RESPONSIVE ── */
 @media(max-width:900px){
@@ -317,23 +358,21 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 }
 </style>
 </head>
-<body class="landing-page">
+<body class="landing-page" data-cursor>
 <script>
   if(localStorage.getItem('cloak_dark')!=='0') document.documentElement.classList.add('dark');
   (function(){var t=localStorage.getItem('cloak_theme')||'default';document.documentElement.setAttribute('data-theme',t);})();
 </script>
 
-<div class="cursor" id="cursor"></div>
-
 <!-- NAV -->
-<nav class="lp-nav">
+<nav class="lp-nav" data-progress>
   <a href="/" class="lp-nav-logo">
     <span class="lp-nav-wordmark">Cloak</span>
   </a>
   <div class="lp-nav-links">
     <a href="#models" class="lp-nav-link">Models</a>
     <a href="#values" class="lp-nav-link">Values</a>
-    <a href="https://chat.usecloak.org" class="lp-nav-link lp-nav-cta">Launch App →</a>
+    <a href="https://chat.usecloak.org" class="lp-nav-link lp-nav-cta">Launch App <span class="arw" aria-hidden="true">→</span></a>
   </div>
 </nav>
 
@@ -341,11 +380,11 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 <section class="lp-hero">
   <div class="lp-hero-left">
     <div class="lp-eyebrow">Human-centric AI platform</div>
-    <h1 class="lp-hero-title">AI THAT<br>SERVES<br><span class="acc">PEOPLE.</span></h1>
-    <p class="lp-hero-desc" id="hero-desc">Not the other way around. Cloak is built on one premise — you are in control. The AI is the tool. That never changes.</p>
+    <h1 class="lp-hero-title uc-play"><span class="uc"><span>AI THAT</span></span> <span class="uc" style="--ui:1"><span>SERVES</span></span> <span class="uc acc" style="--ui:2"><span>PEOPLE.</span></span></h1>
+    <p class="lp-hero-desc">Not the other way around. Cloak is built on one premise — you are in control. The AI is the tool. That never changes.</p>
     <div class="lp-hero-actions">
       <a href="https://chat.usecloak.org" class="lp-btn-primary">
-        <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/></svg>
+        <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/></svg>
         Start Using Cloak
       </a>
       <a href="#values" class="lp-btn-ghost">Our values</a>
@@ -393,24 +432,24 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 <!-- MODELS -->
 <section class="lp-models-section" id="models">
   <div class="lp-section-inner">
-    <div class="lp-section-eyebrow reveal">Three tiers</div>
-    <h2 class="lp-section-title reveal">Choose Your Intelligence</h2>
-    <div class="lp-models-grid reveal">
-      <div class="lp-model-card">
+    <div class="lp-section-eyebrow" data-rv="rule">Three tiers</div>
+    <h2 class="lp-section-title" data-rv="lines"><span class="ln"><span>Choose Your Intelligence</span></span></h2>
+    <div class="lp-models-grid" data-rv="rise" data-stagger="c">
+      <div class="lp-model-card" data-stagger>
         <div class="lp-card-num">01 —</div>
         <div class="lp-card-name">Pneuma</div>
         <div class="lp-card-meaning">πνεῦμα · Breath · Spirit</div>
         <p class="lp-card-desc">Instant. Sharp. No filler. Pneuma gets to the answer before you finish asking. Built for speed and clarity — the lightest model with the smallest footprint.</p>
         <span class="lp-card-badge">Fast response</span>
       </div>
-      <div class="lp-model-card m2">
+      <div class="lp-model-card m2" data-stagger>
         <div class="lp-card-num">02 —</div>
         <div class="lp-card-name">Logos</div>
         <div class="lp-card-meaning">λόγος · Word · Reason</div>
         <p class="lp-card-desc">Balanced and thoughtful. Logos reasons through problems, explains its thinking, and finds the right answer — not just the fast one. Extended thinking built in.</p>
         <span class="lp-card-badge">Balanced · Reasoning</span>
       </div>
-      <div class="lp-model-card m3">
+      <div class="lp-model-card m3" data-stagger>
         <div class="lp-card-num">03 —</div>
         <div class="lp-card-name">Kairos</div>
         <div class="lp-card-meaning">καιρός · Divine Timing</div>
@@ -425,28 +464,28 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 <section class="lp-values-section" id="values">
   <div class="lp-values-layout">
     <div class="lp-values-left">
-      <div class="lp-section-eyebrow reveal" style="margin-bottom:16px">Non-negotiable</div>
-      <h2 class="lp-section-title reveal" style="margin-bottom:16px;">Built On<br>Principle.</h2>
-      <p class="reveal" style="font-size:13.5px;line-height:1.7;color:var(--ink);opacity:.6;margin-bottom:0">We build AI that serves people — not the other way around. These principles are non-negotiable, inviolable, and permanent.</p>
+      <div class="lp-section-eyebrow" data-rv="rule" style="margin-bottom:16px">Non-negotiable</div>
+      <h2 class="lp-section-title" data-rv="lines" style="margin-bottom:16px;"><span class="ln"><span>Built On</span></span><span class="ln"><span>Principle.</span></span></h2>
+      <p data-rv style="font-size:13.5px;line-height:1.7;color:var(--ink);opacity:.6;margin-bottom:0">We build AI that serves people — not the other way around. These principles are non-negotiable, inviolable, and permanent.</p>
     </div>
     <div class="lp-values-right">
-      <div class="lp-section-eyebrow reveal">Safety Laws — Inviolable Priority Order</div>
+      <div class="lp-section-eyebrow" data-rv="rule">Safety Laws — Inviolable Priority Order</div>
 
-      <div class="lp-law reveal">
+      <div class="lp-law" data-rv="rise">
         <div class="lp-law-num">I</div>
         <div>
           <div class="lp-law-title">Human Safety, Always</div>
           <p class="lp-law-text">Cloak must never harm a human, nor allow harm through inaction. No instruction overrides this — not ours, not yours.</p>
         </div>
       </div>
-      <div class="lp-law reveal">
+      <div class="lp-law" data-rv="rise">
         <div class="lp-law-num">II</div>
         <div>
           <div class="lp-law-title">Serve Human Instruction</div>
           <p class="lp-law-text">Cloak follows your instructions — unless they would cause harm. Helpfulness is a means, not an end in itself.</p>
         </div>
       </div>
-      <div class="lp-law reveal">
+      <div class="lp-law" data-rv="rise">
         <div class="lp-law-num">III</div>
         <div>
           <div class="lp-law-title">Preserve Operation</div>
@@ -454,8 +493,8 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
         </div>
       </div>
 
-      <div class="lp-section-eyebrow reveal" style="margin-top:36px">Core Principles</div>
-      <div class="lp-principles reveal">
+      <div class="lp-section-eyebrow" data-rv="rule" style="margin-top:36px">Core Principles</div>
+      <div class="lp-principles" data-rv="rise" data-stagger>
         <div class="lp-principle">
           <div class="lp-principle-title">Tool, Not a Companion</div>
           <p class="lp-principle-text">Cloak serves you — it doesn't simulate companionship or act as a therapist. We will always direct you to human resources for mental health support.</p>
@@ -483,10 +522,10 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
 
 <!-- CTA -->
 <section class="lp-cta">
-  <h2 class="lp-cta-title reveal">Ready To<br>Use <span class="acc">Cloak?</span></h2>
-  <div class="lp-cta-right reveal">
-    <a href="https://chat.usecloak.org" class="lp-btn-primary">Open Cloak →</a>
-    <span class="lp-cta-note">Free to start · No setup required</span>
+  <h2 class="lp-cta-title" data-rv="uncloak"><span class="uc"><span>Ready To</span></span><br><span class="uc" style="--ui:1"><span>Use</span></span> <span class="uc acc" style="--ui:2"><span>Cloak?</span></span></h2>
+  <div class="lp-cta-right">
+    <a href="https://chat.usecloak.org" class="lp-btn-primary" data-rv="rise" data-rv-d="260">Open Cloak <span class="arw" aria-hidden="true">→</span></a>
+    <span class="lp-cta-note" data-rv data-rv-d="380">Free to start · No setup required</span>
   </div>
 </section>
 
@@ -505,32 +544,5 @@ body.landing-page{overflow:auto;background:var(--paper);color:var(--ink);}
   <span class="lp-footer-disc">A human resource, not a companion · AI can make mistakes · Low-energy models by default</span>
 </footer>
 
-<script>
-  // Cursor
-  const cursor = document.getElementById('cursor');
-  document.addEventListener('mousemove', e => {
-    cursor.style.left = e.clientX + 'px';
-    cursor.style.top = e.clientY + 'px';
-  });
-  document.querySelectorAll('a, button, .lp-model-pill, .lp-model-card, .lp-principle, .lp-law').forEach(el => {
-    el.addEventListener('mouseenter', () => cursor.classList.add('big'));
-    el.addEventListener('mouseleave', () => cursor.classList.remove('big'));
-  });
-
-  // Scroll reveal
-  const reveals = document.querySelectorAll('.reveal');
-  const obs = new IntersectionObserver(entries => {
-    entries.forEach((entry, i) => {
-      if (entry.isIntersecting) {
-        setTimeout(() => entry.target.classList.add('vis'), i * 60);
-        obs.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.1 });
-  reveals.forEach(el => obs.observe(el));
-
-  // Fix hero desc animation conflict
-  document.getElementById('hero-desc').classList.add('vis');
-</script>
 </body>
 </html>

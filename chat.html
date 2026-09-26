@@ -11,14 +11,14 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Cloak — A human resource, not a companion. Ethical AI that serves you.">
 <title>Cloak</title>
-<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260926o">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260926o">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260926o">
-<link rel="manifest" href="/manifest.json?v=20260926o">
+<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260926p">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260926p">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260926p">
+<link rel="manifest" href="/manifest.json?v=20260926p">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20260926o">
-<link rel="stylesheet" href="search.css?v=20260926o">
+<link rel="stylesheet" href="cloak.css?v=20260926p">
+<link rel="stylesheet" href="search.css?v=20260926p">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -34,29 +34,35 @@
   background:var(--surf);border:var(--bd);box-shadow:var(--shsm);
   cursor:pointer;font-family:var(--fd);text-transform:uppercase;font-weight:800;
   font-size:11px;letter-spacing:.1em;color:var(--ink);white-space:nowrap;
-  transition:box-shadow 140ms ease,transform 140ms ease,background 140ms ease;
+  transition:box-shadow var(--lift),transform var(--lift),background var(--t),color var(--t);
 }
-.model-btn:hover{box-shadow:var(--sh);transform:translate(-1px,-1px)}
+.model-btn:hover{box-shadow:var(--sh);transform:translate(-2px,-2px)}
 .model-btn.open{background:var(--ink);color:var(--paper);box-shadow:none;transform:translate(2px,2px)}
-.model-btn .mdl-chevron{display:flex;transition:transform .2s ease}
+.model-btn .mdl-chevron{display:flex;transition:transform .5s var(--sp-pop)}
 .model-btn.open .mdl-chevron{transform:rotate(180deg)}
 
+/* Unfolds out of the button and folds back up on close; options step in. */
 .model-dropdown{
   position:absolute;top:calc(100% + 6px);left:0;min-width:264px;
   background:var(--surf);border:var(--bd);box-shadow:var(--shlg);
-  z-index:600;display:none;
+  z-index:600;display:block;
+  visibility:hidden;opacity:0;translate:0 -6px;clip-path:inset(0 -10px 100% 0);
+  transition:clip-path .2s var(--ease-in),translate .2s var(--ease-in),opacity .12s ease .08s,visibility 0s .2s;
 }
-.model-dropdown.open{display:block;animation:mdlDrop .2s cubic-bezier(.16,1,.3,1)}
-@keyframes mdlDrop{
-  0%{opacity:0;transform:translateY(-6px) scale(.97);transform-origin:top left}
-  100%{opacity:1;transform:translateY(0) scale(1)}
+.model-dropdown.open{
+  visibility:visible;opacity:1;translate:0 0;clip-path:inset(0 -10px -10px 0);
+  transition:clip-path .42s var(--ease-out),translate .5s var(--sp-snap),opacity .1s ease,visibility 0s;
 }
 
 .model-option{
   display:flex;flex-direction:column;padding:13px 16px;
   border-bottom:var(--bdt);cursor:pointer;
-  transition:background .15s;position:relative;
+  transition:background .15s,opacity .12s ease,translate .12s ease;position:relative;
+  opacity:0;translate:0 -8px;
 }
+.model-dropdown.open .model-option{opacity:1;translate:0 0;transition:background .15s,opacity .3s ease var(--od,0s),translate .5s var(--sp-snap) var(--od,0s)}
+.model-dropdown.open .model-option:nth-child(2){--od:.05s}
+.model-dropdown.open .model-option:nth-child(3){--od:.1s}
 .model-option:last-child{border-bottom:none}
 .model-option:hover{background:var(--p2)}
 .model-option.active{background:var(--ink)}
@@ -77,7 +83,7 @@
   position:absolute;right:14px;top:50%;transform:translateY(-50%);
   width:6px;height:6px;background:var(--acc);display:none;
 }
-.model-option.active .model-option-dot{display:block}
+.model-option.active .model-option-dot{display:block;animation:checkPop .5s var(--sp-pop) .15s backwards}
 </style>
 </head>
 <body>
@@ -487,7 +493,7 @@
             <!-- Input box -->
             <div class="input-box" id="input-box">
               <input type="file" id="img-upload" accept="image/*" multiple style="display:none" onchange="onImgPick(this)">
-              <button class="plus-btn" id="plus-btn" onclick="togglePlusMenu(event)" title="Modes">+</button>
+              <button class="plus-btn" id="plus-btn" onclick="togglePlusMenu(event)" title="Modes" aria-label="Modes"><span class="plus-glyph" aria-hidden="true">+</span></button>
               <textarea class="chat-input" id="chat-input" placeholder="Message Cloak…" rows="1"
                 oninput="onInput(this)" onkeydown="onKey(event)" onpaste="onPaste(event)"></textarea>
               <button class="send-btn" id="mic-btn" style="background:var(--surf);color:var(--ink);border:var(--bd);" onclick="startVoiceMode()" title="Voice mode">
@@ -511,7 +517,7 @@
   <!-- VOICE OVERLAY -->
   <div class="voice-overlay" id="voice-overlay">
     <button class="voice-close" onclick="stopVoiceMode()" title="Exit voice mode">&times;</button>
-    <div class="voice-ascii" id="voice-ascii">[ - - - - - ]</div>
+    <div class="voice-viz" id="voice-ascii" data-state="idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <div class="voice-status" id="voice-status">Idle</div>
     <div class="voice-transcript" id="voice-transcript">Say something...</div>
   </div>
@@ -594,7 +600,8 @@ function selectModel(optEl) {
   const modelId = optEl.dataset.model;
   window.cloakModel = modelId;
   const name = optEl.querySelector('.model-option-name').textContent;
-  document.getElementById('model-btn-label').textContent = name;
+  const label = document.getElementById('model-btn-label');
+  if (window.CloakMotion) CloakMotion.roll(label, name); else label.textContent = name;
   document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
   optEl.classList.add('active');
   document.getElementById('model-dropdown').classList.remove('open');
@@ -687,10 +694,12 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 };
 </script>
 
+<!-- motion.js first: cloak.js calls CloakMotion for theme wipes, rolls and exits -->
+<script src="motion.js?v=20260926p" defer></script>
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20260926o"></script>
-<script src="cloak.js?v=20260926o" defer></script>
+<script src="search.js?v=20260926p"></script>
+<script src="cloak.js?v=20260926p" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="search-patch.js?v=20260926o" defer></script>
+<script src="search-patch.js?v=20260926p" defer></script>
 </body>
 </html>

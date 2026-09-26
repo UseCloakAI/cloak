@@ -166,7 +166,6 @@ function _thoughtDelay(model, stepIndex) {
 let voiceMode = false;
 let voiceState = 'idle';
 let asciiInterval = null;
-let asciiFrame = 0;
 let recognition = null;
 let synth = window.speechSynthesis;
 
@@ -191,10 +190,13 @@ async function loadAppConfig() {
 /* ── THEME ── */
 function setTheme(t){
   hapticTap();
-  currentTheme=t;localStorage.setItem('cloak_theme',t);
-  document.documentElement.setAttribute('data-theme',t);
-  document.querySelectorAll('.theme-card').forEach(el=>el.classList.toggle('active',el.id==='theme-'+t));
-  syncThemeColor();
+  if(t===currentTheme)return;
+  mTheme(()=>{
+    currentTheme=t;localStorage.setItem('cloak_theme',t);
+    document.documentElement.setAttribute('data-theme',t);
+    document.querySelectorAll('.theme-card').forEach(el=>el.classList.toggle('active',el.id==='theme-'+t));
+    syncThemeColor();
+  });
 }
 function initThemeUI(){document.querySelectorAll('.theme-card').forEach(el=>el.classList.toggle('active',el.id==='theme-'+currentTheme));}
 
@@ -205,6 +207,14 @@ function initThemeUI(){document.querySelectorAll('.theme-card').forEach(el=>el.c
 function hapticTap(){ try{ if(navigator.vibrate) navigator.vibrate(8); }catch(_){ } }
 function hapticImpact(){ try{ if(navigator.vibrate) navigator.vibrate([14]); }catch(_){ } }
 function hapticError(){ try{ if(navigator.vibrate) navigator.vibrate([18,40,18]); }catch(_){ } }
+
+/* ── MOTION HOOKS ──
+   motion.js (loaded before this file) animates these; without it they fall
+   back to the plain change. */
+function mTheme(fn){ if(window.CloakMotion) CloakMotion.swapTheme(fn); else fn(); }
+function mRoll(el,text){ if(!el) return; if(window.CloakMotion) CloakMotion.roll(el,text); else el.textContent=text; }
+function mMorph(el,fn){ if(window.CloakMotion) CloakMotion.morph(el,fn); else fn(); }
+function mLeave(el,done){ if(window.CloakMotion) CloakMotion.leave(el,done); else done(); }
 
 /* ── STATUS-BAR / THEME-COLOR SYNC ──
    Keep <meta name=theme-color> matching the active theme's paper so the iOS
@@ -672,26 +682,18 @@ function stopVoiceMode() {
   synth.cancel();
 }
 
+// The visualiser blocks animate in CSS per data-state (.voice-viz in
+// cloak.css); this just follows voiceState and rolls the status label.
 function startAsciiAnim() {
   if(asciiInterval) clearInterval(asciiInterval);
-  asciiInterval = setInterval(() => {
-    asciiFrame++;
-    let art = "", stat = "";
-    if(voiceState === 'listening') {
-      const frames = ["[ = - - - - - ]","[ - = - - - - ]","[ - - = - - - ]","[ - - - = - - ]","[ - - - - = - ]","[ - - - - - = ]","[ - - - - = - ]","[ - - - = - - ]","[ - - = - - - ]","[ - = - - - - ]"];
-      art = frames[asciiFrame % frames.length]; stat = "Listening";
-    } else if(voiceState === 'thinking') {
-      const frames = ["[ .           ]","[ . .         ]","[ . . .       ]","[ . . . .     ]","[ . . . . .   ]","[ . . . . . . ]","[   . . . . . ]","[     . . . . ]","[       . . . ]","[         . . ]","[           . ]","[             ]"];
-      art = frames[asciiFrame % frames.length]; stat = "Thinking";
-    } else if(voiceState === 'speaking') {
-      const frames = ["[ | | | | | | ]","[ / / / / / / ]","[ - - - - - - ]","[ \\ \\ \\ \\ \\ \\ ]"];
-      art = frames[asciiFrame % frames.length]; stat = "Speaking";
-    } else {
-      art = "[ - - - - - - ]"; stat = "Idle";
-    }
-    document.getElementById('voice-ascii').textContent = art;
-    document.getElementById('voice-status').textContent = stat;
-  }, 150);
+  const viz = document.getElementById('voice-ascii'), st = document.getElementById('voice-status');
+  const labels = {listening:'Listening', thinking:'Thinking', speaking:'Speaking'};
+  const tick = () => {
+    const state = labels[voiceState] ? voiceState : 'idle';
+    if(viz.dataset.state !== state){ viz.dataset.state = state; mRoll(st, labels[state] || 'Idle'); }
+  };
+  tick();
+  asciiInterval = setInterval(tick, 150);
 }
 
 function stopAsciiAnim() { clearInterval(asciiInterval); }
@@ -715,10 +717,13 @@ function playVoice(text) {
   synth.speak(u);
 }
 
+let _convSeen=new Set();   // ids already on screen — only new rows animate in
 function renderConvs(){
   const list=document.getElementById('conv-list');list.innerHTML='';
+  const first=!_convSeen.size;let k=0;
   convs.forEach(c=>{
-    const d=document.createElement('div');d.className='conv-item'+(c.id===chatId?' active':'');
+    const d=document.createElement('div');d.className='conv-item'+(c.id===chatId?' active':'');d.dataset.id=c.id;
+    if(!_convSeen.has(c.id)){d.classList.add('conv-in');d.style.setProperty('--k',first?Math.min(k++,12):0);}
     const lbl=document.createElement('div');lbl.className='conv-label';
     lbl.innerHTML='<svg class="conv-icon" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>'+hesc(c.title)+'</span>';
     lbl.title=c.title;lbl.onclick=()=>loadConv(c.id);
@@ -726,6 +731,7 @@ function renderConvs(){
     del.innerHTML='<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
     del.onclick=e=>{e.stopPropagation();delConv(c.id);};d.appendChild(lbl);d.appendChild(del);list.appendChild(d);
   });
+  _convSeen=new Set(convs.map(c=>c.id));
 }
 
 function newChat(){
@@ -740,17 +746,21 @@ function setBusy(b){
   busy=b;
   const btn=document.getElementById('send-btn');
   const inp=document.getElementById('chat-input');
+  const changed=btn.classList.contains('stop-mode')!==b, old=changed&&btn.querySelector('svg');
   if(b){
     btn.disabled=false;btn.classList.add('stop-mode');
-    btn.innerHTML='<svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><rect x="1" y="1" width="9" height="9" rx="1.5"/></svg>';
+    if(changed)btn.innerHTML='<svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><rect x="1" y="1" width="9" height="9" rx="1.5"/></svg>';
     btn.onclick=stopStream;btn.title='Stop';
   }else{
     btn.classList.remove('stop-mode');
-    btn.innerHTML='<svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/></svg>';
+    if(changed)btn.innerHTML='<svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/></svg>';
     btn.onclick=send;btn.title='Send';
     btn.disabled=!inp.value.trim();
   }
+  if(old)_flyGlyph(btn,old,b?'send-fly':'send-drop');
 }
+// Keep the outgoing icon around just long enough for its exit (cloak.css #send-btn).
+function _flyGlyph(btn,svg,cls){svg.classList.add(cls);svg.setAttribute('aria-hidden','true');btn.appendChild(svg);const rm=()=>svg.remove();svg.addEventListener('animationend',rm,{once:true});setTimeout(rm,700);}
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
@@ -1177,11 +1187,11 @@ function toggleThinkMode() {
 function onImgPick(inp){Array.from(inp.files).forEach(f=>{const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:f.name,data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});inp.value='';}
 function onPaste(e){const items=Array.from(e.clipboardData?.items||[]);const imageItems=items.filter(i=>i.type.startsWith('image/'));if(!imageItems.length)return;e.preventDefault();imageItems.forEach(item=>{const f=item.getAsFile();if(!f)return;const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:'pasted.png',data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});}
 function renderImgStrip(){
-  const strip=document.getElementById('img-strip');strip.innerHTML='';
+  const strip=document.getElementById('img-strip');const had=strip.children.length;strip.innerHTML='';
   if(attachedImgs.length){
     strip.classList.add('show');
     attachedImgs.forEach((img,i)=>{
-      const w=document.createElement('div');w.className='img-thumb-wrap';
+      const w=document.createElement('div');w.className='img-thumb-wrap'+(i>=had?' is-new':'');
       w.innerHTML='<img class="img-thumb" src="'+img.data+'" alt="img"><button class="img-thumb-del" onclick="removeImg('+i+')">&times;</button>';
       strip.appendChild(w);
     });
@@ -1197,19 +1207,20 @@ document.addEventListener('click',()=>{document.getElementById('plus-menu')?.cla
 let _onboardChecked=false;
 function showOnboarding(){document.getElementById('onboard-modal').style.display='flex';}
 function toggleOnboardCheck(){_onboardChecked=!_onboardChecked;document.getElementById('onboard-checkbox').classList.toggle('checked',_onboardChecked);const btn=document.getElementById('onboard-btn');btn.disabled=!_onboardChecked;btn.style.opacity=_onboardChecked?'1':'0.35';btn.style.cursor=_onboardChecked?'pointer':'not-allowed';}
-async function confirmOnboarding(){document.getElementById('onboard-modal').style.display='none';onboardingDone=true;if(uid)await sb.from('profiles').update({onboarding_done:true}).eq('id',uid);}
+async function confirmOnboarding(){const m=document.getElementById('onboard-modal');mLeave(m,()=>{m.style.display='none';});onboardingDone=true;if(uid)await sb.from('profiles').update({onboarding_done:true}).eq('id',uid);}
 
 /* ── AD CONSENT ── */
 let _adDisagreeClicks=0;
 function checkAdConsent(){const c=localStorage.getItem('cloak_ad_consent');if(c==='yes')loadAdSense();else if(!c)document.getElementById('ad-modal').style.display='flex';}
 function loadAdSense(){if(document.getElementById('adsense-script'))return;const s=document.createElement('script');s.id='adsense-script';s.async=true;s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6774734854152622';s.crossOrigin='anonymous';document.head.appendChild(s);}
-function handleAdAgree(){localStorage.setItem('cloak_ad_consent','yes');document.getElementById('ad-modal').style.display='none';loadAdSense();}
-function handleAdDisagree(){_adDisagreeClicks++;const btn=document.getElementById('ad-disagree-btn');if(_adDisagreeClicks===1){btn.textContent='Are you sure?';btn.style.borderColor='var(--acc)';btn.style.color='var(--acc)';btn.style.fontWeight='800';}else{localStorage.setItem('cloak_ad_consent','no');document.getElementById('ad-modal').style.display='none';}}
+function closeAdModal(){const m=document.getElementById('ad-modal');mLeave(m,()=>{m.style.display='none';});}
+function handleAdAgree(){localStorage.setItem('cloak_ad_consent','yes');closeAdModal();loadAdSense();}
+function handleAdDisagree(){_adDisagreeClicks++;const btn=document.getElementById('ad-disagree-btn');if(_adDisagreeClicks===1){btn.classList.add('sure');mRoll(btn,'Are you sure?');}else{localStorage.setItem('cloak_ad_consent','no');closeAdModal();}}
 
 /* ── LINK INTERCEPT ── */
 let _pendingLink='';
-function interceptLink(e,href){e.preventDefault();e.stopPropagation();if(!href||href==='#')return;_pendingLink=href;document.getElementById('link-url-display').textContent=href;document.getElementById('link-go-btn').onclick=()=>{window.open(_pendingLink,'_blank','noopener,noreferrer');closeLinkModal();};document.getElementById('link-modal').style.display='flex';}
-function closeLinkModal(){document.getElementById('link-modal').style.display='none';_pendingLink='';}
+function interceptLink(e,href){e.preventDefault();e.stopPropagation();if(!href||href==='#')return;_pendingLink=href;document.getElementById('link-url-display').textContent=href;document.getElementById('link-go-btn').onclick=()=>{window.open(_pendingLink,'_blank','noopener,noreferrer');closeLinkModal();};const lm=document.getElementById('link-modal');lm.classList.remove('is-leaving');lm.style.display='flex';}
+function closeLinkModal(){const lm=document.getElementById('link-modal');mLeave(lm,()=>{lm.style.display='none';});_pendingLink='';}
 document.addEventListener('DOMContentLoaded',()=>{const lm=document.getElementById('link-modal');if(lm)lm.addEventListener('click',function(e){if(e.target===this)closeLinkModal();});});
 
 /* ── INIT ── */
@@ -1290,7 +1301,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateGree
 
 /* ── AUTH ── */
 let signingIn=true;
-function authMode(m){signingIn=m==='in';document.getElementById('tab-in').classList.toggle('active',signingIn);document.getElementById('tab-up').classList.toggle('active',!signingIn);document.getElementById('field-name').style.display=signingIn?'none':'block';document.getElementById('field-confirm').style.display=signingIn?'none':'block';document.getElementById('btn-submit').textContent=signingIn?'Sign in':'Create account';clearE('auth-err');}
+function authMode(m){signingIn=m==='in';document.getElementById('tab-in').classList.toggle('active',signingIn);document.getElementById('tab-up').classList.toggle('active',!signingIn);mMorph(document.querySelector('#s-auth .auth-card'),()=>{document.getElementById('field-name').style.display=signingIn?'none':'block';document.getElementById('field-confirm').style.display=signingIn?'none':'block';clearE('auth-err');});mRoll(document.getElementById('btn-submit'),signingIn?'Sign in':'Create account');}
 function authKey(e,nextId,isPass=false){if(e.key==='Enter'){e.preventDefault();if(isPass&&signingIn){handleAuth();return;}if(nextId){const next=document.getElementById(nextId);if(next&&next.offsetParent!==null){next.focus();return;}}handleAuth();}}
 async function handleAuth(){
   const em=document.getElementById('inp-email').value.trim();const pw=document.getElementById('inp-pass').value;
@@ -1332,7 +1343,7 @@ async function loadProfile(){
 async function saveName(){
   const n=document.getElementById('s-name-inp').value.trim();if(!n)return;
   name=n;if(!guest){const{error}=await sb.from('profiles').upsert({id:uid,display_name:n},{onConflict:'id'});if(error)log('err','Name save: '+error.message);else log('inf','Name saved: '+n);}
-  refreshUI();updateGreeting();const b=document.querySelector('#spane-general .cta');if(b){b.textContent='Saved';setTimeout(()=>b.textContent='Save',1800);}
+  refreshUI();updateGreeting();const b=document.querySelector('#spane-general .cta');if(b){mRoll(b,'Saved');setTimeout(()=>mRoll(b,'Save'),1800);}
 }
 
 /* ── ANNOUNCEMENTS ── */
@@ -1347,7 +1358,7 @@ async function deactAnn(id){await sb.from('announcements').delete().eq('id',id);
 /* ── GUEST LIMIT ── */
 function showLimit(){if(document.getElementById('limit-modal'))return;const d=document.createElement('div');d.id='limit-modal';d.className='limit-overlay';d.innerHTML='<div class="limit-card"><div class="limit-title">You\'re loving Cloak!</div><div class="limit-body">You\'ve used your '+GUEST_MAX+' guest messages.<br>Create a free account to keep going.</div><button class="btn-primary" onclick="goSignUp()">Create free account</button><br><button class="limit-skip" onclick="dismissLimit()">Maybe later</button></div>';document.body.appendChild(d);}
 function goSignUp(){const d=document.getElementById('limit-modal');if(d)d.remove();show('auth');authMode('up');}
-function dismissLimit(){const d=document.getElementById('limit-modal');if(d)d.remove();}
+function dismissLimit(){const d=document.getElementById('limit-modal');if(d)mLeave(d,()=>d.remove());}
 
 /* ── UI HELPERS ── */
 function show(id){hideLoading();document.querySelectorAll('.screen').forEach(el=>{el.classList.remove('active');el.style.display='';});const chatEl=document.getElementById('s-chat');if(chatEl)chatEl.classList.remove('active');const valuesEl=document.getElementById('s-values');if(valuesEl)valuesEl.style.display='none';var el=document.getElementById('s-'+id);if(!el)return;el.classList.add('active');if(id!=='chat')el.style.display='flex';}
@@ -1361,7 +1372,7 @@ function refreshUI(){
   document.querySelectorAll('.moon').forEach(el=>el.style.display=dark?'none':'block');
   document.querySelectorAll('.sun').forEach(el=>el.style.display=dark?'block':'none');
 }
-function toggleDark(){hapticTap();dark=!dark;document.body.classList.toggle('dark',dark);document.documentElement.classList.toggle('dark',dark);localStorage.setItem('cloak_dark',dark?'1':'0');const ml=document.getElementById('mode-label');if(ml)ml.textContent=dark?'dark':'light';refreshUI();syncThemeColor();}
+function toggleDark(){hapticTap();mTheme(()=>{dark=!dark;document.body.classList.toggle('dark',dark);document.documentElement.classList.toggle('dark',dark);localStorage.setItem('cloak_dark',dark?'1':'0');const ml=document.getElementById('mode-label');if(ml)ml.textContent=dark?'dark':'light';refreshUI();syncThemeColor();});}
 function toggleSidebar(){hapticTap();const el=document.getElementById('sidebar');const mobile=window.innerWidth<=640;if(mobile){const open=!el.classList.contains('collapsed');if(open){el.classList.add('collapsed');document.getElementById('sb-overlay').classList.remove('show');}else{el.classList.remove('collapsed');document.getElementById('sb-overlay').classList.add('show');}}else el.classList.toggle('collapsed');}
 function closeMobileSidebar(){document.getElementById('sidebar').classList.add('collapsed');document.getElementById('sb-overlay').classList.remove('show');}
 
@@ -1401,7 +1412,13 @@ async function loadConvs(){const{data,error}=await sb.from('chats').select('id,t
 async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}chatId=id;hist=data.messages||[];document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));trimToLatest();showMessages();renderConvs();}
 function _makeTitle(first){const clean=first.replace(/\n+/g,' ').replace(/\s+/g,' ').trim();const sentenceEnd=clean.search(/[.!?](?:\s|$)/);let candidate=sentenceEnd>4&&sentenceEnd<70?clean.slice(0,sentenceEnd+1):clean;if(candidate.length>60)candidate=candidate.slice(0,58).replace(/\s+\S*$/,'')+'\u2026';return candidate||'New chat';}
 async function saveConv(first){if(!uid||guest)return;let currentUid=uid;try{const{data:{session}}=await sb.auth.getSession();if(!session?.user){log('err','Save aborted: no session');return;}currentUid=session.user.id;uid=currentUid;}catch(e){log('err','Save: session check failed');return;}const ex=convs.find(c=>c.id===chatId);const title=ex?ex.title:_makeTitle(first);if(!ex)convs.unshift({id:chatId,title});renderConvs();const{error}=await sb.from('chats').upsert({id:chatId,user_id:currentUid,title,messages:hist,updated_at:new Date().toISOString()},{onConflict:'user_id,id'});if(error){log('err','Save: '+error.message);}else{log('inf','Chat saved: '+title.slice(0,30));}}
-async function delConv(id){const{error}=await sb.from('chats').delete().eq('id',id).eq('user_id',uid);if(error){log('err','Delete: '+error.message);return;}convs=convs.filter(c=>c.id!==id);if(chatId===id)newChat();else renderConvs();}
+async function delConv(id){
+  // The row folds away straight away; a failed delete re-renders it.
+  const row=document.querySelector('.conv-item[data-id="'+CSS.escape(String(id))+'"]');
+  if(row&&row.animate&&!(window.CloakMotion&&CloakMotion.reduced())){row.style.pointerEvents='none';row.style.overflow='hidden';row.animate([{opacity:1,transform:'none',height:row.offsetHeight+'px'},{opacity:0,transform:'translateX(-16px)',height:'0px'}],{duration:260,easing:'cubic-bezier(.55,0,1,.45)',fill:'forwards'});}
+  const{error}=await sb.from('chats').delete().eq('id',id).eq('user_id',uid);if(error){log('err','Delete: '+error.message);renderConvs();return;}
+  convs=convs.filter(c=>c.id!==id);if(chatId===id)newChat();else renderConvs();
+}
 
 /* ── MENTAL HEALTH INTERCEPT ── */
 const MH_PATTERNS=/\b(suicide|suicidal|kill myself|end my life|want to die|self[- ]?harm|cut myself|overdose|no reason to live|don't want to be here|can't go on|hopeless|worthless|crisis)\b/i;
@@ -1562,6 +1579,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926o').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926p').catch(e=>console.warn('SW registration failed',e));
   });
 }

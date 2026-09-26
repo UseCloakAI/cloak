@@ -22,6 +22,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `admin-management.html` — internal admin dashboard. Separate design system (yellow accent). Ships with a placeholder anon key.
 - `cloak.css` — shared design system used by chat / values / landing.
 - `cloak.js` — app logic, auth, Supabase client, settings, theming, chat.
+- `motion.js` — shared motion layer (index, landing, values, design-system, chat, agents): scroll reveals (`data-rv`), the crop-mark cursor (`<body data-cursor>`), nav scroll progress (`data-progress`), and `CloakMotion.swapTheme / roll / morph / leave`. No-ops under reduced motion.
 - `agent-orbit.js` — standalone "agents working" orb animation (`CloakAgentOrbit.mount(el,{state})`, states `starting`/`looping`/`completed`). Not wired into any page yet.
 - `search.js` + `search-patch.js` — web-search overlay used inside chat.
 - `api-worker/` — the `cloak-api` Worker serving `https://api.usecloak.org` (chat, streaming, search). This is what `chat.html` / `cloak.js` / `search-patch.js` call. Deploys via Cloudflare Workers Builds; see `api-worker/README.md`.
@@ -37,6 +38,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - **Borders**: `--bd: 2px solid #0A0A0A`. Hard, not soft rgba.
 - **Shadows**: hard offset, no blur — `--sh: 4px 4px 0 #0A0A0A`, `--shsm: 2px 2px 0`, `--shlg: 6px 6px 0`. Neobrutalist aesthetic.
 - **Fonts**: `--fd: 'Syne'` (display, 700/800), `--fu: 'Space Grotesk'` (body, 400/500/600/700).
+- **Motion**: the shadow is the floor. Hover lifts by exactly the shadow gained (`translate(-2px,-2px)`, 2→4 / 4→6), press slams flat by the resting shadow (`2px`, `4px` on primary), on `--lift` (spring) / `--tp` (90ms). Spring tokens `--sp-snap/--sp-pop/--sp-soft` are real `linear()` curves with cubic-bezier fallbacks; `--ease-out/-in/-io` for entrances, exits, wipes. Entrances animate the individual `translate`/`scale`/`rotate` properties, never `transform`, so they stack with hover/press. Primitives (`[data-rv]`, `.ln`, `.uc`, `stamp`, theme wipe) live in `cloak.css` "MOTION PRIMITIVES" and are mirrored in `index.html`. Full spec: `design-system.md` §6–7.
 - **Themes**: `default`, `eco`, `aqua` × `light`/`dark`. Toggled via `localStorage.cloak_theme` and `localStorage.cloak_dark`. Each themed page has an early inline `<script>` that reads localStorage before paint to prevent FOUC — don't move or remove these.
 - **`index.html` is its own world**: it has a self-contained `<style>` block and uses `prefers-color-scheme` for dark mode (not the `.dark` class). Its tokens are kept in sync with `cloak.css` manually. When changing tokens, change BOTH places.
 
@@ -61,6 +63,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `agents.html` lines ~22–58 (`:root` token block). Page is standalone; these are its only theme source.
 - `cloak.css` tokens. Shared by chat/values/landing. Token shifts ripple through the whole app — when unifying, sync `index.html` to match `cloak.css`, never the other direction.
 - The early `localStorage.cloak_dark` / `cloak_theme` inline scripts in `<head>`. They prevent FOUC.
+- The early `m-js` inline script on index / landing / values / design-system. It opts the page into hide-until-revealed and drops the class after 3s if `motion.js` never loads — without it, `[data-rv]` content either flashes or never appears.
 - Supabase URL + anon key in `cloak.js` (top), `agents.html` (~line 802). Anon keys are publishable (RLS-protected), but extracting them properly needs a build step. Treat as known follow-up.
 - `admin-management.html` body. Internal tool, separate design system, currently non-functional (placeholder anon key).
 - `chat.html` and `agents.html` body content. Tons of state, IDs read by JS, inline `onclick` handlers. Edit head meta only unless the change is targeted and tested.

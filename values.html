@@ -26,10 +26,19 @@
   if (localStorage.getItem('cloak_dark') !== '0') document.documentElement.classList.add('dark');
   (function(){var t=localStorage.getItem('cloak_theme')||'default';document.documentElement.setAttribute('data-theme',t);})();
   function toggleTheme() {
-    document.documentElement.classList.toggle('dark');
-    localStorage.setItem('cloak_dark', document.documentElement.classList.contains('dark') ? '1' : '0');
+    // Hard-edged wipe out of the toggle (motion.js); plain swap without it.
+    (window.CloakMotion ? CloakMotion.swapTheme : function (f) { f(); })(function () {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('cloak_dark', document.documentElement.classList.contains('dark') ? '1' : '0');
+    });
   }
 </script>
+<script>
+  // Reveal-on-scroll opt-in; if motion.js never loads, show everything.
+  document.documentElement.classList.add('m-js');
+  setTimeout(function(){ if(!window.CloakMotion) document.documentElement.classList.remove('m-js'); }, 3000);
+</script>
+<script src="motion.js" defer></script>
 </head>
 <body class="values-page">
 
@@ -67,7 +76,7 @@
 
       <div class="vals-hero-content">
         <div class="vals-hero-eyebrow">Cloak</div>
-        <div class="vals-hero-title">Our<br>Values</div>
+        <div class="vals-hero-title uc-play"><span class="uc"><span>Our</span></span> <span class="uc" style="--ui:1"><span>Values</span></span></div>
         <div class="vals-hero-desc">
           We build AI that serves people — not the other way around.
           These principles are non-negotiable, inviolable, and permanent.
@@ -77,9 +86,9 @@
 
     <!-- SAFETY LAWS -->
     <div class="vals-section">
-      <div class="vals-section-label">Safety Laws &mdash; Inviolable Priority Order</div>
+      <div class="vals-section-label" data-rv="rule">Safety Laws &mdash; Inviolable Priority Order</div>
 
-      <div class="vals-law">
+      <div class="vals-law" data-rv="rise">
         <div class="vals-law-num">I</div>
         <div>
           <div class="vals-law-title">Human safety, always</div>
@@ -87,7 +96,7 @@
         </div>
       </div>
 
-      <div class="vals-law">
+      <div class="vals-law" data-rv="rise">
         <div class="vals-law-num">II</div>
         <div>
           <div class="vals-law-title">Serve human instruction</div>
@@ -95,7 +104,7 @@
         </div>
       </div>
 
-      <div class="vals-law">
+      <div class="vals-law" data-rv="rise">
         <div class="vals-law-num">III</div>
         <div>
           <div class="vals-law-title">Preserve operation</div>
@@ -106,42 +115,42 @@
 
     <!-- CORE PRINCIPLES -->
     <div class="vals-section">
-      <div class="vals-section-label">Core Principles</div>
+      <div class="vals-section-label" data-rv="rule">Core Principles</div>
 
-      <div class="vals-pill">
+      <div class="vals-pill" data-rv="left">
         <div class="vals-pill-dot"></div>
         <div class="vals-pill-text"><strong>Tool, not a companion.</strong> Cloak serves you &mdash; it doesn't simulate companionship or act as a therapist. We will always direct you to human resources for mental health support.</div>
       </div>
 
-      <div class="vals-pill">
+      <div class="vals-pill" data-rv="left">
         <div class="vals-pill-dot"></div>
         <div class="vals-pill-text"><strong>No harm or bias.</strong> We do not assist with mass harm and remain completely neutral on politics, culture, and religion. No exceptions.</div>
       </div>
 
-      <div class="vals-pill">
+      <div class="vals-pill" data-rv="left">
         <div class="vals-pill-dot"></div>
         <div class="vals-pill-text"><strong>Human creativity.</strong> We do not generate AI art. Human creativity is irreplaceable and should not be exploited without consent.</div>
       </div>
 
-      <div class="vals-pill">
+      <div class="vals-pill" data-rv="left">
         <div class="vals-pill-dot"></div>
         <div class="vals-pill-text"><strong>Efficiency first.</strong> We default to the lowest-energy models capable of handling your task, actively minimizing our carbon footprint on every request.</div>
       </div>
 
-      <div class="vals-pill">
+      <div class="vals-pill" data-rv="left">
         <div class="vals-pill-dot"></div>
         <div class="vals-pill-text"><strong>Honest by design.</strong> Cloak will tell you when it doesn't know something, when it might be wrong, and when you should seek a human expert instead.</div>
       </div>
     </div>
 
     <!-- BACK BUTTON -->
-    <a class="vals-back-btn" href="chat.html">
+    <a class="vals-back-btn" href="chat.html" data-rv="rise">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
       Back to Cloak
     </a>
 
     <!-- FOOTER -->
-    <div class="vals-footer">
+    <div class="vals-footer" data-rv="fade">
       Cloak &mdash; A human resource, not a companion.<br>
       Not a mental health resource &middot; AI can make mistakes &middot; Low-energy models by default
     </div>

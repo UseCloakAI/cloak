@@ -7,6 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2L19.5 12.5L30 16L19.5 19.5L16 30L12.5 19.5L2 16L12.5 12.5Z' fill='%23D44D2A'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="motion.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -57,13 +58,35 @@ html,body{height:100%;overflow:hidden;}
   --sh:3px 3px 0 rgba(168,216,234,.45);--shlg:5px 5px 0 rgba(168,216,234,.35);--shsm:2px 2px 0 rgba(168,216,234,.35);
 }
 
+/* ── MOTION (mirrors cloak.css) — the shadow is the floor: lift on a spring,
+   press flat with a slam. Separate from the theme tokens above. ── */
+:root{
+  --ease-out:cubic-bezier(.16,1,.3,1);--ease-in:cubic-bezier(.55,0,1,.45);--ease-io:cubic-bezier(.65,0,.35,1);
+  --sp-snap:cubic-bezier(.3,1.35,.55,1);--sp-pop:cubic-bezier(.34,1.56,.64,1);
+  --tl:380ms;--tp:90ms;--lift:var(--tl) var(--sp-snap);
+}
+@supports(transition-timing-function:linear(0,1)){
+  :root{
+    --sp-snap:linear(0,.007 1.2%,.028 2.5%,.068 4%,.12 5.5%,.17 6.8%,.237 8.2%,.516 14%,.631 16.5%,.745 19.2%,.834 21.8%,.909 24.2%,.968 26.8%,1.013 29.2%,1.048 32%,1.065 34%,1.076 36%,1.082 38.2%,1.083 40.8%,1.072 46%,1.018 60.2%,1 68.5%,.993 80%,1);
+    --sp-pop:linear(0,.007 1%,.036 2.2%,.081 3.5%,.141 4.8%,.212 6%,.29 7.2%,.592 11.8%,.719 13.8%,.834 15.8%,.932 17.8%,1.013 19.8%,1.075 21.8%,1.119 23.8%,1.147 25.8%,1.158 27.3%,1.163 28.7%,1.154 32%,1.13 35%,1.052 42.2%,1.018 46%,.992 50%,.977 54.2%,.975 61%,.996 74.5%,1.003 81.8%,1);
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.001ms!important;transition-delay:0s!important;}
+}
+/* Theme wipe — the new theme grows out of the toggle (motion.js swapTheme). */
+html.vt-theme,html.vt-theme *,html.vt-theme *::before,html.vt-theme *::after{transition:none!important;}
+html.vt-theme::view-transition-old(root),html.vt-theme::view-transition-new(root){animation:none;mix-blend-mode:normal;}
+html.vt-theme::view-transition-new(root){animation:vtWipe .72s var(--ease-io) both;}
+@keyframes vtWipe{from{clip-path:inset(var(--vt-t) var(--vt-r) var(--vt-b) var(--vt-l));}to{clip-path:inset(0);}}
+
 body{font-family:var(--fu);font-size:14px;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;transition:background .15s,color .15s;}
 
 /* ── KEYFRAMES ── */
 @keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.18;transform:scale(.6)}}
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes taskIn{from{opacity:0;transform:translateX(9px)}to{opacity:1;transform:translateX(0)}}
-@keyframes bubblePop{0%{opacity:0;transform:translateX(-50%) scale(.8) translateY(4px)}100%{opacity:1;transform:translateX(-50%) scale(1) translateY(0)}}
+@keyframes taskIn{from{opacity:0;translate:14px 0;box-shadow:none}}
+@keyframes bubblePop{0%{opacity:0;transform:translateX(-50%) scale(.6) translateY(6px)}100%{opacity:1;transform:translateX(-50%) scale(1) translateY(0)}}
 @keyframes workGlow{0%,100%{box-shadow:var(--shsm)}50%{box-shadow:0 0 0 5px rgba(245,200,66,.22),var(--shsm)}}
 @keyframes agWalk{0%,100%{transform:translateY(0) rotate(0deg)}25%{transform:translateY(-3px) rotate(-2deg)}75%{transform:translateY(-3px) rotate(2deg)}}
 @keyframes slideUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
@@ -87,24 +110,25 @@ body{font-family:var(--fu);font-size:14px;background:var(--paper);color:var(--in
 .brand-sub{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--acc);}
 
 /* Shared icon-btn from cloak.css */
-.icon-btn{width:36px;height:36px;border:var(--bd);background:var(--surf);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:var(--shsm);transition:box-shadow var(--t),transform var(--t);text-decoration:none;}
+.icon-btn{width:36px;height:36px;border:var(--bd);background:var(--surf);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift);text-decoration:none;}
 .icon-btn:hover{box-shadow:var(--sh);transform:translate(-1px,-1px);}
-.icon-btn:active{box-shadow:none;transform:translate(2px,2px);}
+.icon-btn:active{box-shadow:none;transform:translate(2px,2px);transition-duration:var(--tp);}
 .moon{display:block;}.sun{display:none;}
 .dark .moon{display:none;}.dark .sun{display:block;}
 .live-dot{width:7px;height:7px;background:var(--acc);flex-shrink:0;animation:pdot 2s infinite;}
 
 /* Super toggle */
-.super-toggle{display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:var(--bd);background:var(--p2);cursor:pointer;transition:background var(--t),box-shadow var(--t),transform var(--t);box-shadow:var(--shsm);white-space:nowrap;user-select:none;}
+.super-toggle{display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;border:var(--bd);background:var(--p2);cursor:pointer;transition:background var(--t),box-shadow var(--lift),transform var(--lift);box-shadow:var(--shsm);white-space:nowrap;user-select:none;}
 .super-toggle:hover{box-shadow:var(--sh);transform:translate(-1px,-1px);}
-.super-toggle:active{box-shadow:none;transform:translate(2px,2px);}
+.super-toggle:active{box-shadow:none;transform:translate(2px,2px);transition-duration:var(--tp);}
 .super-toggle.on{background:var(--ink);}
 .super-toggle.on .st-label,.super-toggle.on .st-sub{color:var(--paper);}
 .super-toggle.on .st-sub{color:var(--yel);opacity:1;}
 .super-toggle.on .st-pip{background:var(--yel);border-color:var(--yel);}
 .st-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ink);font-family:var(--fd);}
 .st-sub{font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ink);opacity:.4;}
-.st-pip{width:7px;height:7px;border:1.5px solid var(--ink);background:var(--p3);flex-shrink:0;transition:background var(--t);}
+.st-pip{width:7px;height:7px;border:1.5px solid var(--ink);background:var(--p3);flex-shrink:0;transition:background var(--t),rotate .5s var(--sp-pop);}
+.super-toggle.on .st-pip{rotate:180deg;}
 
 /* Status pill */
 .status-pill{font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;padding:4px 10px;border:var(--bd);background:var(--p3);white-space:nowrap;transition:background var(--t);}
@@ -176,7 +200,7 @@ body{font-family:var(--fu);font-size:14px;background:var(--paper);color:var(--in
   background:var(--surf);border:var(--bd);box-shadow:var(--sh);
   padding:6px 9px;font-size:9px;font-weight:600;color:var(--ink);
   max-width:160px;line-height:1.45;z-index:30;white-space:normal;
-  animation:bubblePop .18s cubic-bezier(.16,1,.3,1);
+  animation:bubblePop .45s var(--sp-pop);transform-origin:50% 100%;
   font-family:var(--fu);pointer-events:none;
 }
 .bubble::after{content:'';position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);border:4px solid transparent;border-top:5px solid var(--ink);}
@@ -184,21 +208,21 @@ body{font-family:var(--fu);font-size:14px;background:var(--paper);color:var(--in
 .bubble.boss::after{border-top-color:var(--ink);}
 
 /* ── TASK PANEL ── */
-#panel{width:280px;flex-shrink:0;border-left:var(--bd);background:var(--surf);display:flex;flex-direction:column;overflow:hidden;transition:width .26s cubic-bezier(.16,1,.3,1);}
+#panel{width:280px;flex-shrink:0;border-left:var(--bd);background:var(--surf);display:flex;flex-direction:column;overflow:hidden;transition:width .44s var(--ease-out);}
 #panel.collapsed{width:44px;}
 .ph{padding:10px 11px;border-bottom:var(--bd);background:var(--p2);display:flex;align-items:center;gap:7px;cursor:pointer;flex-shrink:0;user-select:none;transition:background var(--t);}
 .ph:hover{background:var(--p3);}
 .ph-title{flex:1;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;font-family:var(--fd);white-space:nowrap;overflow:hidden;transition:opacity .18s;}
 .ph-count{font-size:8.5px;opacity:.4;font-weight:700;white-space:nowrap;transition:opacity .18s;}
 #panel.collapsed .ph-title,#panel.collapsed .ph-count{opacity:0;}
-.ph-arrow{display:flex;align-items:center;flex-shrink:0;transition:transform .22s;}
+.ph-arrow{display:flex;align-items:center;flex-shrink:0;transition:transform .5s var(--sp-pop);}
 #panel.collapsed .ph-arrow{transform:rotate(180deg);}
 #task-scroll{flex:1;overflow-y:auto;padding:7px;display:flex;flex-direction:column;gap:5px;transition:opacity .18s;}
 #task-scroll::-webkit-scrollbar{width:2px;}
 #task-scroll::-webkit-scrollbar-thumb{background:var(--ink);opacity:.3;}
 #panel.collapsed #task-scroll{opacity:0;pointer-events:none;}
 .et{font-size:11.5px;color:var(--ink);opacity:.32;text-align:center;padding:20px 12px;line-height:1.7;}
-.task-card{border:var(--bd);background:var(--paper);padding:8px 10px;animation:taskIn .2s ease;box-shadow:var(--shsm);}
+.task-card{border:var(--bd);background:var(--paper);padding:8px 10px;animation:taskIn .55s var(--sp-snap) backwards;box-shadow:var(--shsm);}
 .tc-head{display:flex;align-items:center;gap:5px;margin-bottom:5px;}
 .tc-badge{font-size:7px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:2px 6px;border:1.5px solid var(--ink);color:#fff;flex-shrink:0;}
 .tc-step{font-size:7px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink);opacity:.45;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -229,7 +253,7 @@ body{font-family:var(--fu);font-size:14px;background:var(--paper);color:var(--in
 /* ── BOTTOM BAR ── */
 .chat-bottom{border-top:var(--bd);background:var(--surf);flex-shrink:0;}
 .report{max-height:190px;overflow-y:auto;padding:12px 16px;border-bottom:var(--bdt);display:none;}
-.report.show{display:block;animation:slideUp .2s ease;}
+.report.show{display:block;animation:slideUp .45s var(--ease-out);}
 .report::-webkit-scrollbar{width:2px;}
 .report::-webkit-scrollbar-thumb{background:var(--ink);}
 .report-lbl{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.15em;color:var(--acc);margin-bottom:8px;font-family:var(--fd);}
@@ -246,13 +270,14 @@ body{font-family:var(--fu);font-size:14px;background:var(--paper);color:var(--in
 
 /* Input row — matches cloak.css input-area */
 .input-row{display:flex;align-items:center;gap:8px;padding:10px 14px;}
-.chat-ta{flex:1;background:var(--paper);border:var(--bd);color:var(--ink);font-family:var(--fu);font-size:14px;font-weight:500;padding:8px 10px;outline:none;resize:none;height:36px;max-height:72px;overflow-y:auto;transition:box-shadow var(--t);}
+.chat-ta{flex:1;background:var(--paper);border:var(--bd);color:var(--ink);font-family:var(--fu);font-size:14px;font-weight:500;padding:8px 10px;outline:none;resize:none;height:36px;max-height:72px;overflow-y:auto;transition:box-shadow var(--lift),border-color var(--t);}
 .chat-ta:focus{box-shadow:var(--sh);border-color:var(--acc);}
 .chat-ta::placeholder{color:var(--ink);opacity:.28;}
-.send{height:36px;padding:0 14px;background:var(--acc);border:var(--bd);box-shadow:var(--shsm);color:#fff;font-family:var(--fu);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;flex-shrink:0;white-space:nowrap;transition:box-shadow var(--t),transform var(--t),background var(--t);}
+.send{height:36px;padding:0 14px;background:var(--acc);border:var(--bd);box-shadow:var(--shsm);color:#fff;font-family:var(--fu);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;flex-shrink:0;white-space:nowrap;transition:box-shadow var(--lift),transform var(--lift),background var(--t),opacity var(--t);}
 .send:hover:not(:disabled){box-shadow:var(--sh);transform:translate(-1px,-1px);background:var(--acc2);}
-.send:active:not(:disabled){box-shadow:none;transform:translate(2px,2px);}
-.send:disabled{opacity:.28;cursor:not-allowed;box-shadow:none;}
+.send:active:not(:disabled){box-shadow:none;transform:translate(2px,2px);transition-duration:var(--tp);}
+/* disabled sits pressed flat; typing pops it up */
+.send:disabled{opacity:.28;cursor:not-allowed;box-shadow:none;transform:translate(2px,2px);}
 .foot-hint{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--ink);opacity:.2;padding:0 14px 9px;display:flex;justify-content:space-between;}
 </style>
 </head>
@@ -350,10 +375,13 @@ const NO_EMOJI = 'Do not use any emojis at all in your response. Use plain text 
 // ═══════════════════════════════════════════════════════════════
 let dark = localStorage.getItem('cloak_dark') !== '0';
 function toggleDark() {
-  dark = !dark;
-  document.body.classList.toggle('dark', dark);
-  document.documentElement.classList.toggle('dark', dark);
-  localStorage.setItem('cloak_dark', dark ? '1' : '0');
+  // Hard-edged wipe out of the toggle (motion.js); plain swap without it.
+  (window.CloakMotion ? CloakMotion.swapTheme : function (f) { f(); })(function () {
+    dark = !dark;
+    document.body.classList.toggle('dark', dark);
+    document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('cloak_dark', dark ? '1' : '0');
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
