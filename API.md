@@ -182,6 +182,28 @@ Cloak supports multiple models, each optimized for different use cases:
 - **`logos`** — Balanced model for general-purpose chat
 - **`kairos`** — Advanced model for complex reasoning and detailed analysis
 
+## Memory & Context Endpoints
+
+Used by the web app's memory system (see `memory-system.md`). Both run on Cloak's cheapest model tier.
+
+### `POST /v1/memory/extract`
+
+```json
+{ "turns": [{ "user": "I'm building a budgeting app in Svelte", "assistant": "Nice — ..." }],
+  "existing": [{ "path": "project/app.md", "title": "...", "type": "project", "tags": [], "body": "- ..." }],
+  "today": "2026-09-26" }
+```
+
+Returns `{ "ops": [{ "op": "add" | "update" | "delete", "path": "project/budget-app.md", "title": "...", "type": "project", "tags": ["svelte"], "importance": 0.7, "body": "- ..." }] }` (max 5 ops).
+
+### `POST /v1/context/compress`
+
+`{ "mode": "chunk", "messages": [{ "role": "user", "content": "..." }], "words": 160 }` or `{ "mode": "merge", "summaries": ["- ...", "- ..."], "words": 300 }` → `{ "summary": "- ..." }`.
+
+### `GET /v1/usage`
+
+Key cooldowns and learned free-tier limits as seen by the serving isolate. Key ids are hashes; no key material.
+
 ## Error Handling
 
 If a request fails, the API returns an error response:
