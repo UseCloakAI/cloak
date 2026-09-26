@@ -244,6 +244,15 @@
           return false;
         });
     }
+    // Carried: memories the model's thinking pulled up last turn.
+    (o.include || []).forEach((path) => {
+      const s = scored.find((x) => x.file.path === path);
+      if (!s || picked.some((p) => p.file === s.file)) return;
+      const c = est(lineFor(s.file));
+      if (used + c > o.budget) return;
+      picked.push(Object.assign({}, s, { why: 'carried' }));
+      used += c;
+    });
     scored.filter((s) => s.rel >= o.minRel && !picked.some((p) => p.file === s.file))
       .map((s) => (self ? Object.assign({}, s, { score: s.score + s.file.importance }) : s))
       .sort((a, b) => b.score - a.score)

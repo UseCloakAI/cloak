@@ -59,7 +59,9 @@ The Brain lights up recalled nodes and sends a signal from the brainstem to each
 
 ## Think-time recall
 
-For models that stream reasoning (Kairos, Linus), the client scans the live thoughts before the first answer token: first once ~80 chars have formed, then every ~200 chars or at a sentence end. It runs them through local recall with a stricter floor (0.38). If the thoughts point at memories the prompt doesn't have yet, the stream is stopped once and re-asked. The re-ask carries those memories plus the reasoning so far ("continue from it"), so the answer uses them. This costs at most one extra request per turn, and only when something new surfaces. The Brain fires and the status log shows "Recalled while thinking: …".
+For models that stream reasoning (Kairos, Linus), the client scans the live thoughts before the first answer token: first once ~80 chars have formed, then every ~200 chars or at a sentence end. It runs them through local recall with a stricter floor (0.38). If the thoughts point at memories the prompt doesn't have yet, the stream is stopped once and re-asked. The re-ask carries those memories plus the reasoning so far ("continue from it"), so the answer uses them. This costs at most one extra request per turn, and only when something new surfaces.
+
+The system prompt tells the model about this (`## MEMORY IN YOUR THINKING`): it should name the topics, projects, tools and people it's weighing in its thinking, because that's what pulls memories up. Memories its thinking surfaced, whether mid-thought or found in a final scan of the whole reasoning after the turn, are **carried into the next turn** (up to 5, marked `carried`, in the same chat) so it keeps that context. The Brain fires and the status log shows "Recalled while thinking: …".
 
 ## Writing memories (batched, cheap)
 

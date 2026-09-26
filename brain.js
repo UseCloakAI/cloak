@@ -353,7 +353,7 @@
     list.innerHTML = r.hits.map((h, i) => `
       <li><button class="brow" type="button" data-open="${esc(h.path)}">
         <span class="brow-rank">${i + 1}</span>
-        <span class="brow-main"><span class="brow-title">${esc(h.title)}</span><span class="brow-sub"><i class="brain-leg-dot t-${h.type}"></i>${esc(M().TYPE_LABEL[h.type] || h.type)} · ${h.why === 'core' ? 'always on' : h.why === 'thought' ? 'surfaced while thinking' : 'match ' + Math.round(h.rel * 100) + '%'}</span></span>
+        <span class="brow-main"><span class="brow-title">${esc(h.title)}</span><span class="brow-sub"><i class="brain-leg-dot t-${h.type}"></i>${esc(M().TYPE_LABEL[h.type] || h.type)} · ${h.why === 'core' ? 'always on' : h.why === 'thought' ? 'surfaced while thinking' : h.why === 'carried' ? 'pulled up by last turn’s thinking' : 'match ' + Math.round(h.rel * 100) + '%'}</span></span>
         <span class="brow-bar" aria-hidden="true"><span style="width:${Math.round(Math.min(1, h.why === 'core' ? 1 : h.rel) * 100)}%"></span></span>
       </button></li>`).join('');
   }
