@@ -342,16 +342,35 @@ function _prepareContext(txt, userMsg, model) {
     }
     const budget = (CloakContext.BUDGETS[model] || CloakContext.BUDGETS.pneuma).memory;
     const recent = hist.slice(-4, -1).map((m, i, a) => ({ text: String(m.message || '').slice(0, 600), w: i === a.length - 1 ? 0.45 : 0.3 }));
-    const recall = CloakMemory.recall(txt || userMsg, { context: recent, budget });
+    const carry = _thoughtCarry.chat === chatId ? _thoughtCarry.paths : [];
+    _thoughtCarry = { chat: null, paths: [] };
+    const recall = CloakMemory.recall(txt || userMsg, { context: recent, budget, include: carry });
     const cx = CloakContext.build({ hist, model, memory: recall.block });
     const who = (!guest && typeof name === 'string' && name.trim()) ? '\n\n## ACCOUNT\nThe signed-in user\'s display name is "' + name.trim().slice(0, 60) + '". You know at least this about them; use it if they ask who they are.' : '';
-    const system = (recall.block ? '\n\n' + recall.block : '') + who + (cx.system ? '\n\n' + cx.system : '');
+    const system = (recall.block ? '\n\n' + recall.block : '') + who + (CloakMemory.enabled() ? THINK_MEMORY_NOTE : '') + (cx.system ? '\n\n' + cx.system : '');
     log('inf', `context: ${cx.plan.used}/${cx.plan.budget} tok · live=${cx.plan.liveCount} · mem=${recall.hits.length}`);
     return { messages: cx.messages, system, recall };
   } catch (e) {
     log('err', 'context build failed: ' + e.message);
     return fallback();
   }
+}
+
+// Tells the model its reasoning drives recall (see think-time recall in send()).
+const THINK_MEMORY_NOTE = '\n\n## MEMORY IN YOUR THINKING\nYour thinking is scanned for keywords and matched against the user\'s saved memories. When you reason, name the specific topics, projects, tools, people and preferences you are weighing. Memories your thoughts point to are pulled up for you: mid-thought when they matter for this answer, and carried into the next turn so you keep that context. Memories marked as carried came from your own thinking last turn.';
+
+// Memories surfaced by this turn's thinking ride along into the next turn.
+let _thoughtCarry = { chat: null, paths: [] };
+function _carryThoughts(thinkText, recallRes) {
+  try {
+    if (!window.CloakMemory || !thinkText) return;
+    const have = recallRes ? recallRes.hits.filter(h => h.why !== 'thought').map(h => h.path) : [];
+    const fromThought = recallRes ? recallRes.hits.filter(h => h.why === 'thought').map(h => h.path) : [];
+    const more = CloakMemory.probe(thinkText.slice(-2000), have.concat(fromThought)).map(h => h.path);
+    const paths = [...new Set(fromThought.concat(more))].slice(0, 5);
+    _thoughtCarry = { chat: chatId, paths };
+    if (paths.length) log('inf', 'thought carry → next turn: ' + paths.join(', '));
+  } catch (e) { log('err', 'thought carry: ' + e.message); }
 }
 
 function _afterTurn(txt, answer, model) {
@@ -454,8 +473,8 @@ window.send = async function () {
      with those memories plus the reasoning so far, so the answer uses them. */
   let _thinkBuf = '', _lastProbe = 0, _extra = null, _recallAbort = false, _reasked = false;
   const onThink = (chunk) => {
-    if (_reasked || _recallAbort || !window.CloakMemory || !CloakMemory.enabled()) return;
     _thinkBuf += chunk;
+    if (_reasked || _recallAbort || !window.CloakMemory || !CloakMemory.enabled()) return;
     // First scan once a thought has formed, then every ~200 chars or at a sentence end.
     const grown = _thinkBuf.length - _lastProbe;
     if (_thinkBuf.length < 80 || (grown < 200 && !(grown >= 60 && /[.!?\n]\s*$/.test(_thinkBuf)))) return;
@@ -619,6 +638,7 @@ window.send = async function () {
         if (voiceMode) playVoice(finalText);
         if (guest) { guestN++; if (guestN >= GUEST_MAX) setTimeout(showLimit, 500); }
         else saveConv(txt || '[Image]').catch(e => log('err', 'Save: ' + e.message));
+        _carryThoughts(_thinkBuf, _cx.recall);
         _afterTurn(txt, finalText, model);
 
         return; // Done — search path handled
@@ -639,6 +659,7 @@ window.send = async function () {
     if (voiceMode) playVoice(firstResponse);
     if (guest) { guestN++; if (guestN >= GUEST_MAX) setTimeout(showLimit, 500); }
     else saveConv(txt || '[Image]').catch(e => log('err', 'Save: ' + e.message));
+    _carryThoughts(_thinkBuf, _cx.recall);
     _afterTurn(txt, firstResponse, model);
 
   } catch (ex) {
