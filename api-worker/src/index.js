@@ -1,10 +1,14 @@
 // CloakAPI — Cloudflare Worker serving https://api.usecloak.org
 // Routes: native /v1/chat, OpenAI /v1/chat/completions, Anthropic /v1/messages,
-// /v1/search, /v1/extract, /admin/provider-keys. All chat routes support live token streaming.
+// /v1/search, /v1/extract, /v1/memory/extract, /v1/context/compress, /v1/usage,
+// /admin/provider-keys. All chat routes support live token streaming.
+// Every upstream call goes through the free-tier governor (./governor.js).
 
 import { PNEUMA, LOGOS, KAIROS, LINUS } from "./prompts.js";
+import * as gov from "./governor.js";
+import { handleMemoryExtract, handleContextCompress } from "./memory.js";
 
-const VERSION = "4.4.0";
+const VERSION = "4.5.0";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -60,6 +64,20 @@ const MODEL_CONFIG = {
 };
 const VALID_MODELS = Object.keys(MODEL_CONFIG);
 
+// Background work (memory extraction, context compression) runs on the models
+// with the most free quota so chat tiers keep theirs. Not selectable by clients.
+const TIERS = {
+  ...MODEL_CONFIG,
+  utility: {
+    name: "Utility",
+    systemPrompt: "",
+    providers: ["groq", "nvidia", "gemini"],
+    groqModel: "llama-3.1-8b-instant",
+    nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
+    temperature: 0.1,
+  },
+};
+
 const UNAVAILABLE = "Cloak AI is currently unavailable. Please try again later.";
 const DEFAULT_MAX_TOKENS = 2048;
 const MAX_MAX_TOKENS = 8192;
@@ -104,6 +122,7 @@ function resolveTier(model) {
 
 function buildSystemPrompt(config, extraSystem) {
   const extra = normalizeSystem(extraSystem);
+  if (!config.systemPrompt) return extra;
   if (!extra) return config.systemPrompt;
   return `${config.systemPrompt}\n\n## ADDITIONAL INSTRUCTIONS FROM THE CLOAK APP\n${extra}`;
 }
@@ -139,14 +158,7 @@ function sanitizeMessages(messages) {
 }
 
 async function getKeys(env, provider) {
-  const raw = await env.PROVIDER_KEYS.get("keys");
-  if (!raw) throw new UpstreamError("No keys found in KV");
-  let keys;
-  try {
-    keys = JSON.parse(raw);
-  } catch {
-    throw new UpstreamError("PROVIDER_KEYS.keys is not valid JSON");
-  }
+  const keys = await gov.readKeyring(env);
   const list = Array.isArray(keys[provider]) ? keys[provider].filter(Boolean) : [];
   if (list.length === 0) throw new UpstreamError(`No keys for provider: ${provider}`);
   return list;
@@ -258,8 +270,9 @@ const OPENAI_COMPAT = {
   nvidia: "https://integrate.api.nvidia.com/v1/chat/completions",
 };
 
-function openAIBody({ model, messages, temperature, maxTokens, tools, toolChoice, stream }) {
+function openAIBody({ model, messages, temperature, maxTokens, tools, toolChoice, stream, json: wantJson }, provider) {
   const body = { model, messages, temperature, max_tokens: maxTokens };
+  if (wantJson && provider === "groq") body.response_format = { type: "json_object" };
   if (tools && tools.length) {
     body.tools = tools;
     if (toolChoice !== undefined) body.tool_choice = toolChoice;
@@ -269,7 +282,7 @@ function openAIBody({ model, messages, temperature, maxTokens, tools, toolChoice
 }
 
 // Gemini: OpenAI-style messages → contents + systemInstruction.
-function toGeminiRequest(messages, temperature, maxTokens) {
+function toGeminiRequest(messages, temperature, maxTokens, wantJson) {
   const systemParts = [];
   const contents = [];
   for (const m of messages) {
@@ -288,6 +301,7 @@ function toGeminiRequest(messages, temperature, maxTokens) {
     contents,
     generationConfig: { temperature, maxOutputTokens: maxTokens },
   };
+  if (wantJson) req.generationConfig.responseMimeType = "application/json";
   if (systemParts.length) req.systemInstruction = { parts: systemParts };
   return req;
 }
@@ -319,7 +333,7 @@ function geminiFinish(data) {
 }
 
 // Sends one request with one key. Returns the upstream Response or throws UpstreamError.
-async function sendUpstream(provider, apiKey, spec, stream, signal) {
+async function sendUpstream(provider, apiKey, spec, stream, signal, ctx) {
   let url;
   let headers;
   let body;
@@ -327,30 +341,32 @@ async function sendUpstream(provider, apiKey, spec, stream, signal) {
     const method = stream ? "streamGenerateContent?alt=sse" : "generateContent";
     url = `https://generativelanguage.googleapis.com/v1beta/models/${spec.model}:${method}`;
     headers = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
-    body = toGeminiRequest(spec.messages, spec.temperature, spec.maxTokens);
+    body = toGeminiRequest(spec.messages, spec.temperature, spec.maxTokens, spec.json);
   } else {
     url = OPENAI_COMPAT[provider];
     headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
-    body = openAIBody({ ...spec, stream });
+    body = openAIBody({ ...spec, stream }, provider);
   }
 
+  gov.noteCall(gov.keyId(provider, apiKey));
   let res;
   try {
     res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal });
   } catch (e) {
     throw new UpstreamError(`${provider} network: ${e.name === "AbortError" ? "timeout" : e.message}`);
   }
-  if (res.status === 429) {
-    res.body?.cancel().catch(() => {});
-    throw new UpstreamError(`${provider} (${spec.model}) 429 rate limited`, { rateLimited: true });
-  }
   if (!res.ok) {
     let detail = "";
     try {
-      detail = (await res.text()).slice(0, 300);
+      detail = (await res.text()).slice(0, 600);
     } catch {}
-    throw new UpstreamError(`${provider} (${spec.model}) HTTP ${res.status}: ${detail}`);
+    gov.observe({ provider, model: spec.model, key: apiKey, res, bodyText: detail, ctx });
+    if (res.status === 429) {
+      throw new UpstreamError(`${provider} (${spec.model}) 429 rate limited: ${detail.slice(0, 160)}`, { rateLimited: true });
+    }
+    throw new UpstreamError(`${provider} (${spec.model}) HTTP ${res.status}: ${detail.slice(0, 300)}`);
   }
+  gov.observe({ provider, model: spec.model, key: apiKey, res, ctx });
   return res;
 }
 
@@ -425,7 +441,7 @@ function withImage(messages, imageBase64, mimeType) {
 }
 
 function prepare(tierKey, req) {
-  const config = MODEL_CONFIG[tierKey];
+  const config = TIERS[tierKey];
   const hasImage = !!(req.imageBase64 && String(req.imageBase64).trim());
   const hasTools = !!(req.tools && req.tools.length);
   const system = { role: "system", content: buildSystemPrompt(config, req.system) };
@@ -441,22 +457,39 @@ function prepare(tierKey, req) {
   };
 }
 
-// Iterates every (attempt × key) combination.
+// Every (attempt × key) combination: healthy keys first (round-robin), keys on
+// cooldown or dead models last, so quota-exhausted keys aren't spent first.
 async function* candidates(env, plan, errors) {
   const groups = [
     ...plan.attempts.map((a) => ({ ...a, messages: plan.visionMessages || plan.textMessages })),
     ...plan.textFallback.map((a) => ({ ...a, messages: plan.textMessages })),
   ];
+  const withKeys = [];
   for (const g of groups) {
-    let keys;
     try {
-      keys = await getKeys(env, g.provider);
+      withKeys.push({ ...g, keys: await getKeys(env, g.provider) });
     } catch (e) {
       errors.push(`${g.provider}: ${e.message}`);
-      continue;
     }
-    for (const key of keys) yield { ...g, key };
   }
+  await gov.syncCooldowns(withKeys.flatMap((g) => g.keys.map((k) => gov.keyId(g.provider, k))));
+  const { healthy, cold } = gov.orderCandidates(withKeys);
+  for (const c of healthy) yield c;
+  for (const c of cold) yield c;
+}
+
+// Request spec for one candidate, sized to the model's free-tier caps.
+function specFor(c, plan, req) {
+  const gemini = c.provider === "gemini";
+  return gov.fitSpec(c.provider, c.model, {
+    model: c.model,
+    messages: c.messages,
+    temperature: plan.config.temperature,
+    maxTokens: req.maxTokens,
+    tools: gemini ? undefined : req.tools,
+    toolChoice: gemini ? undefined : req.toolChoice,
+    json: req.json,
+  });
 }
 
 // Non-streaming: returns an OpenAI-style choice { message, finish_reason }.
@@ -464,16 +497,9 @@ async function completeOnce(env, tierKey, req) {
   const plan = prepare(tierKey, req);
   const errors = [];
   for await (const c of candidates(env, plan, errors)) {
-    const spec = {
-      model: c.model,
-      messages: c.messages,
-      temperature: plan.config.temperature,
-      maxTokens: req.maxTokens,
-      tools: c.provider === "gemini" ? undefined : req.tools,
-      toolChoice: c.provider === "gemini" ? undefined : req.toolChoice,
-    };
+    const spec = specFor(c, plan, req);
     try {
-      const res = await sendUpstream(c.provider, c.key, spec, false, AbortSignal.timeout(FULL_RESPONSE_TIMEOUT_MS));
+      const res = await sendUpstream(c.provider, c.key, spec, false, AbortSignal.timeout(FULL_RESPONSE_TIMEOUT_MS), req.ctx);
       const data = await res.json();
       let choice;
       if (c.provider === "gemini") {
@@ -492,6 +518,7 @@ async function completeOnce(env, tierKey, req) {
         message: { ...choice.message, content: content || null },
         finish_reason: choice.finish_reason || "stop",
         provider: c.provider,
+        usage: { in: spec.inTokens, dropped: spec.dropped },
       };
     } catch (e) {
       errors.push(e.name === "TimeoutError" ? `${c.provider} (${c.model}) timeout` : e.message);
@@ -508,18 +535,11 @@ async function openStream(env, tierKey, req) {
   const plan = prepare(tierKey, req);
   const errors = [];
   for await (const c of candidates(env, plan, errors)) {
-    const spec = {
-      model: c.model,
-      messages: c.messages,
-      temperature: plan.config.temperature,
-      maxTokens: req.maxTokens,
-      tools: c.provider === "gemini" ? undefined : req.tools,
-      toolChoice: c.provider === "gemini" ? undefined : req.toolChoice,
-    };
+    const spec = specFor(c, plan, req);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FIRST_TOKEN_TIMEOUT_MS);
     try {
-      const res = await sendUpstream(c.provider, c.key, spec, true, ctrl.signal);
+      const res = await sendUpstream(c.provider, c.key, spec, true, ctrl.signal, req.ctx);
       const stripper = makeThinkStripper();
       const raw = upstreamDeltas(c.provider, res);
       const cleaned = (async function* () {
@@ -554,7 +574,7 @@ async function openStream(env, tierKey, req) {
         yield* buffered;
         yield* cleaned;
       })();
-      return { provider: c.provider, model: c.model, deltas };
+      return { provider: c.provider, model: c.model, deltas, usage: { in: spec.inTokens, dropped: spec.dropped } };
     } catch (e) {
       clearTimeout(timer);
       errors.push(ctrl.signal.aborted ? `${c.provider} (${c.model}) first-token timeout` : e.message);
@@ -593,7 +613,7 @@ function sseResponse(produce) {
 //           SSE data: {delta} … {done, model, response}  |  {error}   (stream: true)
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function handleNativeChat(env, request) {
+async function handleNativeChat(env, request, ctx) {
   const body = await readJson(request);
   if (!body || !Array.isArray(body.messages)) return json({ error: "messages array required" }, 400);
 
@@ -604,6 +624,7 @@ async function handleNativeChat(env, request) {
     maxTokens: clampMaxTokens(body.max_tokens),
     imageBase64: body.imageBase64,
     mimeType: body.mimeType,
+    ctx,
   };
   const name = MODEL_CONFIG[tierKey].name;
 
@@ -624,7 +645,7 @@ async function handleNativeChat(env, request) {
             await send({ delta: d.content });
           }
         }
-        await send({ done: true, model: name, response: full });
+        await send({ done: true, model: name, response: full, usage: stream.usage });
       } catch (e) {
         console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e.message}`);
         await send({ error: "The response was interrupted. Please try again.", partial: full });
@@ -634,7 +655,7 @@ async function handleNativeChat(env, request) {
 
   try {
     const choice = await completeOnce(env, tierKey, req);
-    return json({ model: name, response: choice.message.content || "" });
+    return json({ model: name, response: choice.message.content || "", usage: choice.usage });
   } catch (e) {
     return json({ error: e.message }, 503);
   }
@@ -1034,8 +1055,7 @@ const TAVILY_ROLL = new Set([401, 403, 429, 432, 433]);
 
 async function tavilyKeys(env) {
   try {
-    const raw = await env.PROVIDER_KEYS.get("keys");
-    const list = raw ? JSON.parse(raw).tavily : null;
+    const list = (await gov.readKeyring(env)).tavily;
     return Array.isArray(list) ? list.filter(Boolean) : [];
   } catch {
     return [];
@@ -1200,6 +1220,34 @@ async function handleExtract(env, request) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Memory + context utilities (see ./memory.js). Utility tier, non-streaming.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function utilityComplete(env, ctx) {
+  return async ({ system, messages, maxTokens, json: wantJson }) => {
+    const choice = await completeOnce(env, "utility", {
+      messages: sanitizeMessages(messages),
+      system,
+      maxTokens: clampMaxTokens(maxTokens),
+      json: !!wantJson,
+      ctx,
+    });
+    return choice.message.content || "";
+  };
+}
+
+async function handleUtility(env, request, ctx, handler) {
+  const body = await readJson(request);
+  if (!body) return json({ error: "JSON body required" }, 400);
+  try {
+    const { status, data } = await handler(body, { complete: utilityComplete(env, ctx) });
+    return json(data, status);
+  } catch (e) {
+    return json({ error: e.message || UNAVAILABLE }, 503);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Admin: provider key management (X-Admin-Token)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1233,6 +1281,7 @@ async function handleAdminAddKey(env, request) {
   if (keys[provider].includes(key)) return json({ error: "Key already exists" }, 409);
   keys[provider].push(key);
   await env.PROVIDER_KEYS.put("keys", JSON.stringify(keys));
+  gov.invalidateKeyring();
   return json({ success: true, provider, total: keys[provider].length });
 }
 
@@ -1245,6 +1294,7 @@ async function handleAdminDeleteKey(env, request) {
   if (!Array.isArray(keys[provider])) return json({ error: "Provider not found" }, 404);
   keys[provider] = keys[provider].filter((k) => k !== key);
   await env.PROVIDER_KEYS.put("keys", JSON.stringify(keys));
+  gov.invalidateKeyring();
   return json({ success: true, provider, total: keys[provider].length });
 }
 
@@ -1253,7 +1303,7 @@ async function handleAdminDeleteKey(env, request) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
 
     const { pathname: path } = new URL(request.url);
@@ -1272,9 +1322,14 @@ export default {
             anthropic: "POST /v1/messages",
             search: "POST /v1/search",
             extract: "POST /v1/extract",
+            memory: "POST /v1/memory/extract",
+            compress: "POST /v1/context/compress",
+            usage: "GET /v1/usage",
           },
         });
       }
+
+      if (path === "/v1/usage" && request.method === "GET") return json({ version: VERSION, ...gov.snapshot() });
 
       if (path.startsWith("/admin")) {
         if (!adminAuth(env, request)) return json({ error: "Unauthorized" }, 401);
@@ -1287,11 +1342,13 @@ export default {
       }
 
       if (request.method === "POST") {
-        if (path === "/v1/chat") return handleNativeChat(env, request);
+        if (path === "/v1/chat") return handleNativeChat(env, request, ctx);
         if (path === "/v1/chat/completions") return handleOpenAIChat(env, request);
         if (path === "/v1/messages") return handleAnthropicMessages(env, request);
         if (path === "/v1/search") return handleSearch(env, request);
         if (path === "/v1/extract") return handleExtract(env, request);
+        if (path === "/v1/memory/extract") return handleUtility(env, request, ctx, handleMemoryExtract);
+        if (path === "/v1/context/compress") return handleUtility(env, request, ctx, handleContextCompress);
       }
 
       return json({ error: "Not found" }, 404);
