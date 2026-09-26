@@ -562,7 +562,7 @@ function addMsg(role,content,noAnim=false,imgs=[]){
   }else{
     const html=noAnim?marked.parse(content):'';
     d.innerHTML='<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content">'+html+'</div></div>';
-    if(noAnim)postProcessBotEl(d,content);
+    if(noAnim){restOrbBelow(d);postProcessBotEl(d,content);}
   }
   box.appendChild(d);if(role==='user')trimToLatest();scrollBottom(role==='user');return d;
 }
@@ -823,7 +823,8 @@ function replaceThinkWithContent(botMsgEl, rawText) {
   dropTailOrb(botMsgEl);
   bc.innerHTML = marked.parse(rawText);
   postProcessBotEl(botMsgEl, rawText);
-  setBotState(botMsgEl, /^Error:/.test(rawText) ? 'error' : 'done');
+  setBotState(botMsgEl, null);
+  restOrbBelow(botMsgEl, /^Error:/.test(rawText) ? 'error' : 'done');
   setBusy(false);
   scrollBottom();
 }
@@ -950,6 +951,25 @@ function dockTailOrb(botMsgEl, done){
   }, done===undefined?0:400);
 }
 function dropTailOrb(botMsgEl){ dockTailOrb(botMsgEl); }
+
+// Finished messages: the orb rests below the answer (no trip back up).
+function restOrbBelow(botMsgEl, state){
+  const bc=botMsgEl&&botMsgEl.querySelector('.bot-content');
+  if(!bc) return;
+  const t=botMsgEl._tail; botMsgEl._tail=null;
+  if(t) t.remove();
+  bc.classList.remove('has-tail');
+  const meta=botMsgEl.querySelector('.bot-meta .cloak-orb');
+  if(meta) meta.style.visibility='hidden';
+  botMsgEl.classList.add('orb-below');
+  let end=botMsgEl.querySelector('.bot-end-orb');
+  if(!end){
+    end=document.createElement('div'); end.className='bot-end-orb';
+    end.innerHTML=CLOAK_ORB_HTML;
+    bc.insertAdjacentElement('afterend',end);
+  }
+  if(state) setOrbState(end.querySelector('.cloak-orb'),state);
+}
 
 function createCloakStatus(botMsgEl){
   if(!botMsgEl || !botMsgEl.querySelector('.bot-meta')) return null;
@@ -1370,6 +1390,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926e').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926f').catch(e=>console.warn('SW registration failed',e));
   });
 }

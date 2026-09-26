@@ -1565,6 +1565,10 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
 .orb-tail .cloak-orb { pointer-events: none; }
 .bot-body { position: relative; }
 .bot-content.has-tail { padding-bottom: 30px; }
+/* Drop the "Cloak" label — only status text (thinking/searching) shows */
+.bot-label:not(.cs-thinking-label) { display: none; }
+.msg.orb-below .bot-meta { display: none; }
+.bot-end-orb { margin-top: 8px; height: 15px; display: flex; }
 @keyframes orbSettle {
   0%   { transform: scale(1.22, .8); }
   45%  { transform: scale(.92, 1.08); }

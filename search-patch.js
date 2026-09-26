@@ -236,14 +236,16 @@ function finishLive(botMsgEl, text) {
   botMsgEl._status = null;
   setBusy(false);
   const bc = botMsgEl.querySelector('.bot-content');
-  if (!bc) { dockTailOrb(botMsgEl, () => setBotState(botMsgEl, 'done')); return; }
+  if (!bc) return;
   _renderLive(bc, text);
   placeTailOrb(botMsgEl, bc);
-  dockTailOrb(botMsgEl, () => setBotState(botMsgEl, 'done'));
+  setBotState(botMsgEl, null);
+  if (botMsgEl._tail) setOrbState(botMsgEl._tail.querySelector('.cloak-orb'), 'done');
   const wait = Math.max(0, (bc._tk ? bc._tk.last : 0) + TK_MS - performance.now());
   setTimeout(() => {
     bc._tk = null;
     bc.innerHTML = marked.parse(text);
+    restOrbBelow(botMsgEl);
     postProcessBotEl(botMsgEl, text);
     scrollBottom();
   }, wait);
