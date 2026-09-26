@@ -19,7 +19,6 @@ let annId=null;
 let hwMode=false, thinkModeActive=false, attachedImgs=[];
 let onboardingDone=false;
 let _fetchController=null;
-let _streamAbort=false;
 let _thinkTimer=null, _thinkPhaseIdx=0;
 
 /* ── THOUGHT SYSTEM STATE ── */
@@ -340,10 +339,6 @@ function createThoughtChain(botMsgEl) {
     labelEl.textContent = s > 0 ? `Thinking · ${s}s` : 'Thinking';
   }, 500);
 
-  // Activate the bot-dot reactive animation
-  const botDot = botMsgEl.querySelector('.bot-dot');
-  if (botDot) botDot.classList.add('thinking');
-
   return wrap;
 }
 
@@ -431,10 +426,6 @@ function finaliseThoughts(botMsgEl) {
   }
   _thoughtStartTime = 0;
 
-  // Stop the bot-dot reactive animation
-  const botDot = botMsgEl?.querySelector('.bot-dot');
-  if (botDot) botDot.classList.remove('thinking');
-
   // Auto-collapse the step list after a brief delay
   setTimeout(() => {
     const inner = document.getElementById('thought-step-list');
@@ -509,80 +500,8 @@ function stopThinkAnimation() {
   if (_thinkTimer) { clearTimeout(_thinkTimer); _thinkTimer = null; }
 }
 
-/* ════════════════════════════════════════
-   STREAM CONTENT
-   ════════════════════════════════════════ */
-function streamContent(container, rawText, onComplete) {
-  _streamAbort=false;
-  let pos=0;
-  const total=rawText.length;
-
-  function renderPartial(text){
-    if(!text){container.innerHTML='<span class="sc"></span>';return;}
-    const lastBlock=text.lastIndexOf('\n\n');
-    let html;
-    if(lastBlock===-1){
-      html='<p>'+hesc(text)+'<span class="sc"></span></p>';
-    }else{
-      const complete=text.slice(0,lastBlock+2);
-      const trailing=text.slice(lastBlock+2);
-      html=marked.parse(complete);
-      if(trailing)html+='<p>'+hesc(trailing)+'<span class="sc"></span></p>';
-      else html+='<span class="sc"></span>';
-    }
-    container.innerHTML=html;
-    scrollBottom();
-  }
-
-  function tick(){
-    if(_streamAbort||pos>=total){
-      container.innerHTML=marked.parse(rawText);
-      postProcessBotEl(container.closest('.msg'),rawText);
-      scrollBottom();
-      if(onComplete)onComplete();
-      return;
-    }
-    const prevChar=pos>0?rawText[pos-1]:'';
-    let chunk,delay;
-    if('.!?'.includes(prevChar)&&rawText[pos]===' '){
-      chunk=1;delay=55+Math.random()*75;
-    } else if(',;'.includes(prevChar)){
-      chunk=1;delay=12+Math.random()*18;
-    } else if(prevChar==='\n'){
-      chunk=1;delay=25+Math.random()*40;
-    } else {
-      const r=Math.random();
-      if(r<0.08){chunk=1;delay=40+Math.random()*30;}
-      else if(r<0.25){chunk=1;delay=12+Math.random()*10;}
-      else if(r<0.65){chunk=Math.floor(2+Math.random()*3);delay=8+Math.random()*6;}
-      else{chunk=Math.floor(4+Math.random()*6);delay=4+Math.random()*4;}
-    }
-    pos=Math.min(pos+chunk,total);
-    renderPartial(rawText.slice(0,pos));
-    setTimeout(tick,delay);
-  }
-  tick();
-}
-
 function stopStream(){
-  _streamAbort=true;
   if(_fetchController){_fetchController.abort();_fetchController=null;}
-}
-
-/* ── WORD ANIMATION (history replay) ── */
-function animWords(el){
-  const SKIP=new Set(['CODE','PRE','SCRIPT','STYLE','BUTTON']);let i=0;
-  const n=(el.innerText||'').split(/\s+/).filter(Boolean).length;const d=n<60?20:n<150?12:7;
-  function walk(node){
-    if(node.nodeType===3){const t=node.textContent;if(!t.trim())return;const f=document.createDocumentFragment();
-      t.split(/(\s+)/).forEach(p=>{if(/^\s+$/.test(p)||!p){f.appendChild(document.createTextNode(p));return;}
-        const s=document.createElement('span');s.className='wa';
-        const jitter=Math.random()*8;
-        s.style.animationDelay=(i++*d+jitter)+'ms';s.textContent=p;f.appendChild(s);});
-      node.parentNode.replaceChild(f,node);
-    }else if(node.nodeType===1&&!SKIP.has(node.tagName))Array.from(node.childNodes).forEach(walk);
-  }
-  walk(el);
 }
 
 /* ── POST-PROCESS BOT MESSAGE ── */
@@ -633,11 +552,7 @@ function addMsg(role,content,noAnim=false,imgs=[]){
   }else{
     const html=noAnim?marked.parse(content):'';
     d.innerHTML='<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content">'+html+'</div></div>';
-    if(noAnim){
-      const bc=d.querySelector('.bot-content');
-      if(bc)requestAnimationFrame(()=>animWords(bc));
-      postProcessBotEl(d,content);
-    }
+    if(noAnim)postProcessBotEl(d,content);
   }
   box.appendChild(d);scrollBottom(role==='user');return d;
 }
@@ -681,7 +596,7 @@ function scrollBottom(force){
   if(_userScrolledUp)return;
   ca.scrollTop=ca.scrollHeight;
 }
-function onInput(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,160)+'px';if(!busy)document.getElementById('send-btn').disabled=!el.value.trim();}
+function onInput(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,160)+'px';if(!busy)document.getElementById('send-btn').disabled=!el.value.trim();setOrbState(document.getElementById('welcome-orb'),el.value.trim()?'listening':null);}
 function onKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(!document.getElementById('send-btn').disabled&&!busy)send();else if(busy){stopStream();}}}
 function showE(el,msg){el.textContent=msg;el.classList.add('show');}
 function clearE(id){const el=document.getElementById(id);if(el){el.textContent='';el.classList.remove('show');}}
@@ -787,15 +702,9 @@ function renderConvs(){
   });
 }
 
-function chipSend(text){
-  const inp=document.getElementById('chat-input');
-  if(!inp)return;
-  inp.value=text;onInput(inp);inp.focus();send();
-}
-
 function newChat(){
   chatId=null;hist=[];document.getElementById('messages').innerHTML='';
-  document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';renderConvs();
+  document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';renderConvs();updateGreeting();
 }
 function cpCode(id,btn){navigator.clipboard.writeText(document.getElementById(id)?.innerText||'').then(()=>{btn.textContent='Copied!';btn.classList.add('ok');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('ok');},1400);});}
 
@@ -897,22 +806,12 @@ function replaceThinkWithContent(botMsgEl, rawText) {
   const bc = botMsgEl.querySelector('.bot-content');
   if (!bc) return;
 
-  const status = botMsgEl._status;
-  const typing = bc.querySelector('.typing');
-  const start = () => {
-    bc.innerHTML = '';
-    streamContent(bc, rawText, () => { setBusy(false); });
-  };
-
-  if (status) {
-    botMsgEl._status = null;
-    status.exit(start);
-  } else if (typing) {
-    typing.classList.add('fade-out');
-    setTimeout(start, 160);
-  } else {
-    start();
-  }
+  // No fake typewriter — text only animates in from live token streaming.
+  if (botMsgEl._status) { botMsgEl._status.destroy(); botMsgEl._status = null; }
+  bc.innerHTML = marked.parse(rawText);
+  postProcessBotEl(botMsgEl, rawText);
+  setBotState(botMsgEl, /^Error:/.test(rawText) ? 'error' : 'done');
+  setBusy(false);
   scrollBottom();
 }
 
@@ -956,36 +855,48 @@ function _csShape(kind, N){
   return _csResample([[0,-1.12],[0.99,0.64],[-0.99,0.64],[0,-1.12]], N);
 }
 
+/* ── ORB STATE MACHINE ──
+   The orb acts out the current step (see ORB STATES in cloak.css):
+   thinking → squish · searching → scan · streaming → hop · done → settle ·
+   error → shake · listening → perk. null = rest. */
+const ORB_STATES=['thinking','searching','streaming','done','error','listening'];
+const BOT_STATE_LABELS={thinking:'Cloak is thinking…',searching:'Cloak is searching…'};
+
+function setOrbState(orb, state){
+  if(!orb) return;
+  const cur=orb.dataset.state||null;
+  if(cur===state && state!=='done' && state!=='error') return; // don't restart a running loop
+  clearTimeout(orb._stateT);
+  ORB_STATES.forEach(k=>orb.classList.remove('orb-'+k));
+  if(!state){ delete orb.dataset.state; return; }
+  void orb.offsetWidth;            // reflow so one-shot animations can replay
+  orb.classList.add('orb-'+state);
+  orb.dataset.state=state;
+  if(state==='done'||state==='error'){
+    orb._stateT=setTimeout(()=>setOrbState(orb,null), state==='done'?650:500);
+  }
+}
+
+// Orb + label for a bot message. Labels only show for pre-answer steps.
+function setBotState(botMsgEl, state){
+  if(!botMsgEl) return;
+  setOrbState(botMsgEl.querySelector('.cloak-orb'), state);
+  const label=botMsgEl.querySelector('.bot-label');
+  if(!label) return;
+  const t=BOT_STATE_LABELS[state];
+  label.textContent=t||'Cloak';
+  label.classList.toggle('cs-thinking-label',!!t);
+}
+
 function createCloakStatus(botMsgEl){
-  const meta = botMsgEl && botMsgEl.querySelector('.bot-meta');
-  if(!meta) return null;
-  const dot   = meta.querySelector('.bot-dot');
-  const label = meta.querySelector('.bot-label');
-  const origLabel = label ? label.textContent : 'Cloak';
-
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  // While Cloak thinks, the orb itself gently bounces like a bouncy ball —
-  // squishing as it lands and springing back up. No separate glyph; we just
-  // animate the resting orb (reliable, always visible) and dim the label.
-  if(dot) dot.classList.add('orb-thinking');
-  if(label){
-    label.textContent='Cloak is thinking…';
-    label.classList.add('cs-thinking-label');
-  }
-
-  // Restore the normal orb + label.
-  function restore(){
-    if(dot) dot.classList.remove('orb-thinking');
-    if(label){ label.textContent=origLabel; label.classList.remove('cs-thinking-label'); }
-  }
-
+  if(!botMsgEl || !botMsgEl.querySelector('.bot-meta')) return null;
+  setBotState(botMsgEl,'thinking');
   return {
-    el: dot,
-    setLabel(){ /* fixed 'Cloak is thinking…' label — no-op */ },
+    el: botMsgEl.querySelector('.cloak-orb'),
+    setLabel(){ /* labels follow the state — no-op */ },
     dock(){ /* stays in place — no docking */ },
-    exit(cb){ restore(); if(cb) cb(); },
-    destroy(){ restore(); }
+    exit(cb){ setBotState(botMsgEl,'streaming'); if(cb) cb(); },
+    destroy(){ setBotState(botMsgEl,null); }
   };
 }
 
@@ -1082,7 +993,38 @@ async function enterChat(){
 }
 
 function startGuest(){guest=true;guestN=0;name='';email='';uid='';entering=false;hideLoading();enterChat();}
-function updateGreeting(){const el=document.getElementById('empty-greeting');if(el)el.textContent=name?'Hey, '+name+'!':'Hey there!';}
+/* ── WELCOME GREETING ──
+   Time of day sets the mood: the greeting, the line under it, and how the
+   welcome orb idles (data-mood → cloak.css). */
+const GREET_MOODS={
+  morning:  {hi:'Morning',    solo:'Good morning!',    lines:['Fresh start. What are we tackling?','Coffee first, then let\'s get into it.','Early focus hits different. What\'s up?']},
+  afternoon:{hi:'Afternoon',  solo:'Good afternoon!',  lines:['Midday momentum. What\'s on deck?','Let\'s keep the afternoon moving.','What are we knocking out today?']},
+  evening:  {hi:'Evening',    solo:'Good evening!',    lines:['Winding down or just getting going?','Evening shift. What\'s on your mind?','Let\'s wrap the day up right.']},
+  night:    {hi:'Up late',    solo:'Up late?',         lines:['Quiet hours. Good time to think.','Burning the midnight oil? Let\'s make it count.','Night mode brain. What are we working on?']}
+};
+function _greetMood(d){
+  const h=d.getHours();
+  return h>=5&&h<12?'morning':h>=12&&h<17?'afternoon':h>=17&&h<22?'evening':'night';
+}
+function _moodLine(mood,d){
+  const day=d.getDay();
+  if(mood==='morning'&&day===1)return 'New week, clean slate. Where do we start?';
+  if(day===5&&(mood==='afternoon'||mood==='evening'))return 'Almost the weekend. Let\'s close it out.';
+  if((day===0||day===6)&&mood!=='night')return 'Weekend mode. What are we getting into?';
+  const lines=GREET_MOODS[mood].lines;
+  return lines[(d.getDate()+d.getHours())%lines.length]; // varies, but stable within the hour
+}
+function updateGreeting(){
+  const d=new Date(),mood=_greetMood(d),m=GREET_MOODS[mood];
+  const first=(name||'').trim().split(/\s+/)[0];
+  const el=document.getElementById('empty-greeting');
+  if(el)el.textContent=first?m.hi+', '+first+(mood==='night'?'?':'!'):m.solo;
+  const line=document.getElementById('empty-mood');
+  if(line)line.textContent=_moodLine(mood,d);
+  const w=document.getElementById('welcome');
+  if(w)w.dataset.mood=mood;
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateGreeting();});
 
 /* ── AUTH ── */
 let signingIn=true;
@@ -1339,11 +1281,25 @@ async function send(){
 }
 
 (function(){const sb=document.getElementById('sidebar');if(window.innerWidth<=640&&sb)sb.classList.add('collapsed');})();
+
+/* ── SIDEBAR FOOTER ALIGNMENT ──
+   Footer min-height = input-area height, so the line above "Account" sits on
+   the same y as the line above the message box. Only re-measured while the
+   box is empty so a growing multi-line draft doesn't drag the sidebar line. */
+(function(){
+  const ia=document.querySelector('.input-area'),sb=document.getElementById('sidebar'),inp=document.getElementById('chat-input');
+  if(!ia||!sb)return;
+  const sync=()=>{if(inp&&inp.value)return;const h=ia.getBoundingClientRect().height;if(h)sb.style.setProperty('--input-h',h+'px');};
+  if('ResizeObserver' in window)new ResizeObserver(sync).observe(ia);
+  window.addEventListener('resize',sync);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(sync);
+  sync();
+})();
 whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926a').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926b').catch(e=>console.warn('SW registration failed',e));
   });
 }

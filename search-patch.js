@@ -85,17 +85,67 @@ function _liveVisible(text) {
   return vis.trimEnd();
 }
 
+// Each word is stamped with the time it first arrived. Every repaint re-parses
+// the markdown, then wraps only words still mid-entrance in <span class="tk">
+// with a negative animation-delay equal to their age — so the push-up/blur/fade
+// carries on seamlessly across repaints instead of restarting. Words that have
+// finished animating stay plain text nodes.
+const TK_MS = 460;            // keep in sync with .tk in cloak.css
+const TK_STAGGER_MAX = 220;   // a burst of new words cascades in over at most this
+const ORB_STALL_MS = 650;     // no tokens for this long → orb drops from hop to squish
+
 function _renderLive(container, text) {
-  const lastBlock = text.lastIndexOf('\n\n');
-  let html;
-  if (lastBlock === -1) {
-    html = '<p>' + hesc(text) + '<span class="sc"></span></p>';
-  } else {
-    html = marked.parse(text.slice(0, lastBlock + 2));
-    const trailing = text.slice(lastBlock + 2);
-    html += trailing ? '<p>' + hesc(trailing) + '<span class="sc"></span></p>' : '<span class="sc"></span>';
+  const st = container._tk || (container._tk = { births: [], last: 0 });
+  const births = st.births;
+  const now = performance.now();
+  container.innerHTML = marked.parse(text);
+
+  const nodes = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  for (let n; (n = walker.nextNode());) {
+    if (!n.parentElement.closest('button')) nodes.push(n);
   }
-  container.innerHTML = html;
+  let total = 0;
+  const split = nodes.map(n => {
+    const parts = n.textContent.split(/(\s+)/);
+    for (const p of parts) if (p && !/^\s/.test(p)) total++;
+    return parts;
+  });
+
+  // Markdown can swallow earlier words (e.g. "1." becoming a list marker);
+  // drop stale stamps so the next real word still gets a fresh entrance.
+  if (total < births.length) births.length = total;
+  const fresh = total - births.length;
+  if (fresh > 0) {
+    const step = Math.min(28, TK_STAGGER_MAX / fresh);
+    for (let k = 0; k < fresh; k++) births.push(now + k * step);
+    st.last = births[births.length - 1];
+  }
+
+  let w = 0;
+  nodes.forEach((node, ni) => {
+    const parts = split[ni];
+    let words = 0, live = false;
+    for (const p of parts) {
+      if (!p || /^\s/.test(p)) continue;
+      if (now - births[w + words] < TK_MS) live = true;
+      words++;
+    }
+    if (!live) { w += words; return; }
+    const frag = document.createDocumentFragment();
+    for (const p of parts) {
+      if (!p) continue;
+      if (/^\s/.test(p)) { frag.appendChild(document.createTextNode(p)); continue; }
+      const age = now - births[w++];
+      if (age >= TK_MS) { frag.appendChild(document.createTextNode(p)); continue; }
+      const s = document.createElement('span');
+      s.className = 'tk';
+      s.style.animationDelay = (-age).toFixed(0) + 'ms';
+      s.textContent = p;
+      frag.appendChild(s);
+    }
+    node.parentNode.replaceChild(frag, node);
+  });
   scrollBottom();
 }
 
@@ -117,9 +167,12 @@ async function streamChat(bodyObj, botMsgEl, signal) {
   }
 
   const bc = botMsgEl.querySelector('.bot-content');
+  if (bc) bc._tk = null;
+  const orb = botMsgEl.querySelector('.cloak-orb');
   let full = '';
   let shown = false;
   let raf = 0;
+  let stallT = 0;
   const paint = () => {
     raf = 0;
     const vis = _liveVisible(full);
@@ -127,8 +180,13 @@ async function streamChat(bodyObj, botMsgEl, signal) {
     if (!shown) {
       shown = true;
       stopThinkAnimation();
-      if (botMsgEl._status) { botMsgEl._status.exit(); botMsgEl._status = null; }
+      botMsgEl._status = null;
+      setBotState(botMsgEl, 'streaming');
     }
+    // Hop while tokens flow; squish if the stream stalls mid-answer.
+    setOrbState(orb, 'streaming');
+    clearTimeout(stallT);
+    stallT = setTimeout(() => setOrbState(orb, 'thinking'), ORB_STALL_MS);
     _renderLive(bc, vis);
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
@@ -157,26 +215,34 @@ async function streamChat(bodyObj, botMsgEl, signal) {
     }
   } catch (e) {
     if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    clearTimeout(stallT);
     // User pressed stop mid-answer: keep what already arrived.
     if (e.name === 'AbortError' && full) return { text: full, streamed: shown, aborted: true };
     throw e;
   }
   if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  clearTimeout(stallT);
   return { text: full, streamed: shown };
 }
 
-// Final render for a bubble whose tokens were painted live.
+// Final render for a bubble whose tokens were painted live. Lets the last
+// words finish their entrance, then swaps in a clean (span-free) render.
 function finishLive(botMsgEl, text) {
   stopThinkAnimation();
   finaliseThoughts(botMsgEl);
-  if (botMsgEl._status) { botMsgEl._status.destroy(); botMsgEl._status = null; }
+  botMsgEl._status = null;
+  setBotState(botMsgEl, 'done');
+  setBusy(false);
   const bc = botMsgEl.querySelector('.bot-content');
-  if (bc) {
+  if (!bc) return;
+  _renderLive(bc, text);
+  const wait = Math.max(0, (bc._tk ? bc._tk.last : 0) + TK_MS - performance.now());
+  setTimeout(() => {
+    bc._tk = null;
     bc.innerHTML = marked.parse(text);
     postProcessBotEl(botMsgEl, text);
-  }
-  scrollBottom();
-  setBusy(false);
+    scrollBottom();
+  }, wait);
 }
 
 /* ── SEARCH-AWARE SEND ── */
@@ -217,11 +283,10 @@ window.send = async function () {
 
   showMessages();
 
-  // ── Instant on-brand thinking indicator ──
-  // A morphing glyph sits in the bot-dot's place (just bigger) and smoothly
-  // switches shapes while we wait, with a "Cloak is thinking…" label. Created
-  // BEFORE the request fires so the wait is never a blank screen. This same
-  // bubble is reused for the rest of the turn.
+  // ── Instant thinking indicator ──
+  // The orb squishes with a "Cloak is thinking…" label. Created BEFORE the
+  // request fires so the wait is never a blank screen. This same bubble is
+  // reused for the rest of the turn; the orb follows each step after that.
   let botMsgEl = insertBotBubbleForThoughts();
   try { botMsgEl._status = createCloakStatus(botMsgEl); } catch (_) { botMsgEl._status = null; }
   if (!botMsgEl._status) {
@@ -270,12 +335,12 @@ window.send = async function () {
       const toolCalls = CLOAK_SEARCH.parseToolCalls(firstResponse);
 
       if (toolCalls.length > 0) {
-        // Search path takes over the bubble — retire the status glyph
-        // (restores the dot + label) and hand a clean bot-content to the
-        // search/thought UI.
-        if (botMsgEl._status) { botMsgEl._status.destroy(); botMsgEl._status = null; }
+        // Search path takes over the bubble — orb switches to its scanning
+        // state and the search/thought UI gets a clean bot-content.
+        botMsgEl._status = null;
+        setBotState(botMsgEl, 'searching');
         const _sbc = botMsgEl.querySelector('.bot-content');
-        if (_sbc) _sbc.innerHTML = '';
+        if (_sbc) { _sbc.innerHTML = ''; _sbc._tk = null; }
 
         // Run thoughts in parallel with search if applicable
         let thoughtsPromise = null;
@@ -320,6 +385,7 @@ window.send = async function () {
         }
 
         CLOAK_SEARCH.updateTicker('Composing answer…');
+        setBotState(botMsgEl, 'thinking');
 
         // Build context with search results for synthesis
         const searchContext = allGathered
@@ -386,8 +452,7 @@ window.send = async function () {
     hist.push({ role: 'CHATBOT', message: firstResponse });
     if (hist.length > 20) hist = hist.slice(-20);
 
-    // The status glyph already animated through the wait — dismiss it
-    // (restores the square dot) and stream the answer.
+    // Streamed → let the last tokens land, then settle the orb.
     if (round1.streamed) finishLive(botMsgEl, firstResponse);
     else replaceThinkWithContent(botMsgEl, firstResponse);
 

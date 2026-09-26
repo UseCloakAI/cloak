@@ -11,14 +11,14 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Cloak — A human resource, not a companion. Ethical AI that serves you.">
 <title>Cloak</title>
-<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260926a">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260926a">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260926a">
-<link rel="manifest" href="/manifest.json?v=20260926a">
+<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260926b">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260926b">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260926b">
+<link rel="manifest" href="/manifest.json?v=20260926b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20260926a">
-<link rel="stylesheet" href="search.css?v=20260926a">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="cloak.css?v=20260926b">
+<link rel="stylesheet" href="search.css?v=20260926b">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -339,7 +339,7 @@
     <div class="sb-overlay" id="sb-overlay" onclick="closeMobileSidebar()"></div>
 
     <!-- ── SIDEBAR ── -->
-    <div class="sidebar collapsed" id="sidebar">
+    <div class="sidebar" id="sidebar">
       <div class="sb-logo">
         <span class="sb-logo-name">Cloak</span>
       </div>
@@ -351,13 +351,14 @@
       <div class="conv-list" id="conv-list"></div>
       <div id="guest-note" style="display:none" class="guest-note">Guest &mdash; <a onclick="show('auth');closeMobileSidebar()">Sign up</a> to save chats.</div>
 
-      <div class="sb-footer">
-        <div id="sb-ann-bar">
-          <div style="display:flex;align-items:flex-start;gap:6px">
-            <div id="sb-ann-msg" style="flex:1"></div>
-            <button onclick="dismissAnn()" style="background:var(--ink);border:none;color:var(--paper);width:18px;height:18px;font-size:10px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">&times;</button>
-          </div>
+      <div id="sb-ann-bar">
+        <div style="display:flex;align-items:flex-start;gap:6px">
+          <div id="sb-ann-msg" style="flex:1"></div>
+          <button onclick="dismissAnn()" style="background:var(--ink);border:none;color:var(--paper);width:18px;height:18px;font-size:10px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">&times;</button>
         </div>
+      </div>
+
+      <div class="sb-footer" id="sb-footer">
         <div class="sb-label" style="margin-bottom:2px">Account</div>
         <div class="user-row">
           <div class="user-av" id="sb-av">?</div>
@@ -366,14 +367,16 @@
             <div class="user-email" id="sb-email">—</div>
           </div>
         </div>
+        <div class="sb-actions">
         <button class="sb-btn" onclick="openSettings()">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
           Settings
         </button>
-        <button class="sb-btn" onclick="window.location.href='values.html'">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+        <a class="sb-btn" href="values.html">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
           Our Values
-        </button>
+        </a>
+        </div>
       </div>
     </div>
 
@@ -425,15 +428,12 @@
       <!-- Chat area -->
       <div class="chat-area" id="chat-area">
         <div class="empty" id="empty-state">
-          <div class="empty-inner">
-            <div class="empty-greeting" id="empty-greeting">Hey there!</div>
-            <div class="empty-slogan">A human resource, not a companion.</div>
-            <div class="chip-row" id="chip-row">
-              <button class="chip" onclick="chipSend('Explain something complex simply')">Explain simply</button>
-              <button class="chip" onclick="chipSend('Help me write or edit something')">Write &amp; edit</button>
-              <button class="chip" onclick="chipSend('Debug or review my code')">Debug code</button>
-              <button class="chip" onclick="chipSend('Research and summarize a topic')">Research</button>
+          <div class="empty-inner" id="welcome">
+            <div class="welcome-row">
+              <span class="welcome-orb cloak-orb" id="welcome-orb" role="button" tabindex="0" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span>
+              <h1 class="empty-greeting" id="empty-greeting">Hey there!</h1>
             </div>
+            <div class="empty-mood" id="empty-mood">What are we working on?</div>
           </div>
         </div>
         <div class="messages" id="messages" style="display:none"></div>
@@ -689,9 +689,9 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 </script>
 
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20260926a"></script>
-<script src="cloak.js?v=20260926a" defer></script>
+<script src="search.js?v=20260926b"></script>
+<script src="cloak.js?v=20260926b" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="search-patch.js?v=20260926a" defer></script>
+<script src="search-patch.js?v=20260926b" defer></script>
 </body>
 </html>
