@@ -181,6 +181,7 @@ async function streamChat(bodyObj, botMsgEl, signal) {
       shown = true;
       stopThinkAnimation();
       botMsgEl._status = null;
+      closeLiveThink(botMsgEl);
       setBotState(botMsgEl, 'streaming');
       const t = tailOrb(botMsgEl);
       orb = t && t.querySelector('.cloak-orb');
@@ -212,6 +213,7 @@ async function streamChat(bodyObj, botMsgEl, signal) {
           if (evt.partial) full = evt.partial;
           throw new Error(evt.error);
         }
+        if (typeof evt.think === 'string' && evt.think) liveThink(botMsgEl, evt.think);
         if (typeof evt.delta === 'string') { full += evt.delta; schedule(); }
         if (evt.done && typeof evt.response === 'string') full = evt.response;
       }
@@ -228,9 +230,42 @@ async function streamChat(bodyObj, botMsgEl, signal) {
   return { text: full, streamed: shown };
 }
 
+// ── LIVE THINKING ──
+// Reasoning tokens stream into a muted block above the answer; it collapses
+// to "Thought for Ns" (click to reopen) once the answer starts.
+function liveThink(botMsgEl, chunk) {
+  let box = botMsgEl._think;
+  if (!box) {
+    const body = botMsgEl.querySelector('.bot-body');
+    const bc = botMsgEl.querySelector('.bot-content');
+    if (!body || !bc) return;
+    box = document.createElement('div');
+    box.className = 'think-live open';
+    box.innerHTML = '<button class="think-live-head" type="button"><span class="think-live-label">Thinking</span><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="think-live-body"></div>';
+    box.querySelector('.think-live-head').addEventListener('click', () => box.classList.toggle('open'));
+    body.insertBefore(box, bc);
+    box._t0 = Date.now();
+    box._text = '';
+    botMsgEl._think = box;
+  }
+  box._text += chunk;
+  const b = box.querySelector('.think-live-body');
+  _renderLive(b, box._text.trim());
+  b.scrollTop = b.scrollHeight;
+}
+function closeLiveThink(botMsgEl) {
+  const box = botMsgEl._think;
+  if (!box || box._closed) return;
+  box._closed = true;
+  const s = Math.max(1, Math.round((Date.now() - box._t0) / 1000));
+  box.querySelector('.think-live-label').textContent = 'Thought for ' + s + 's';
+  box.classList.remove('open');
+}
+
 // Final render for a bubble whose tokens were painted live. Lets the last
 // words finish their entrance, then swaps in a clean (span-free) render.
 function finishLive(botMsgEl, text) {
+  closeLiveThink(botMsgEl);
   stopThinkAnimation();
   finaliseThoughts(botMsgEl);
   botMsgEl._status = null;

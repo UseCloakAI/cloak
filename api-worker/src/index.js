@@ -160,6 +160,7 @@ function makeThinkStripper() {
   let inThink = false;
   let buf = "";
   let started = false;
+  let think = "";
 
   const partialSuffix = (s, tag) => {
     for (let k = Math.min(tag.length - 1, s.length); k > 0; k--) {
@@ -183,9 +184,12 @@ function makeThinkStripper() {
         if (inThink) {
           const i = buf.indexOf(CLOSE);
           if (i === -1) {
-            buf = buf.slice(buf.length - partialSuffix(buf, CLOSE));
+            const keep = partialSuffix(buf, CLOSE);
+            think += buf.slice(0, buf.length - keep);
+            buf = buf.slice(buf.length - keep);
             return emit(out);
           }
+          think += buf.slice(0, i);
           buf = buf.slice(i + CLOSE.length);
           inThink = false;
           continue;
@@ -201,6 +205,12 @@ function makeThinkStripper() {
         buf = buf.slice(i + OPEN.length);
         inThink = true;
       }
+    },
+    // Reasoning text captured since the last call.
+    takeThink() {
+      const t = think;
+      think = "";
+      return t;
     },
     flush() {
       const rest = inThink ? "" : buf;
@@ -366,9 +376,11 @@ async function* upstreamDeltas(provider, res) {
     const d = choice.delta || {};
     const out = {};
     if (typeof d.content === "string" && d.content) out.content = d.content;
+    const r = d.reasoning_content ?? d.reasoning;
+    if (typeof r === "string" && r) out.reasoning = r;
     if (Array.isArray(d.tool_calls) && d.tool_calls.length) out.tool_calls = d.tool_calls;
     if (choice.finish_reason) out.finish_reason = choice.finish_reason;
-    if (out.content || out.tool_calls || out.finish_reason) yield out;
+    if (out.content || out.reasoning || out.tool_calls || out.finish_reason) yield out;
   }
 }
 
@@ -514,7 +526,10 @@ async function openStream(env, tierKey, req) {
         for await (const d of raw) {
           const out = { ...d };
           if (d.content) out.content = stripper.push(d.content);
-          if (out.content || out.tool_calls || out.finish_reason) yield out;
+          const think = (d.reasoning || "") + stripper.takeThink();
+          if (think) out.reasoning = think;
+          else delete out.reasoning;
+          if (out.content || out.reasoning || out.tool_calls || out.finish_reason) yield out;
         }
         const tail = stripper.flush();
         if (tail) yield { content: tail };
@@ -527,7 +542,7 @@ async function openStream(env, tierKey, req) {
         const { value, done } = await cleaned.next();
         if (done) break;
         buffered.push(value);
-        if (value.content || value.tool_calls) {
+        if (value.content || value.reasoning || value.tool_calls) {
           committed = true;
           break;
         }
@@ -603,6 +618,7 @@ async function handleNativeChat(env, request) {
       let full = "";
       try {
         for await (const d of stream.deltas) {
+          if (d.reasoning) await send({ think: d.reasoning });
           if (d.content) {
             full += d.content;
             await send({ delta: d.content });
