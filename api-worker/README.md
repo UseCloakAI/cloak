@@ -19,4 +19,6 @@ Configured in `MODEL_CONFIG` in `src/index.js`. Each tier fails over provider �
 ## Config
 
 - `PROVIDER_KEYS` KV, key `keys`: `{"groq":[…], "nvidia":[…], "gemini":[…]}`
-- Secrets: `ADMIN_TOKEN`; optional `API_KEY` (OpenAI/Anthropic endpoints), `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX` (otherwise search uses DuckDuckGo)
+- Secrets: `ADMIN_TOKEN`; optional `API_KEY` (OpenAI/Anthropic endpoints), `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX`
+- Search order: Tavily → Google CSE → DuckDuckGo. Tavily keys are pooled from `PROVIDER_KEYS` KV under `tavily` (add each free key with `POST /admin/provider-keys {"provider":"tavily","key":"tvly-…"}`); a random key is used per call and it rolls to the next on 401/429/432/433.
+- `POST /v1/extract {url, format:"text"|"raw", maxChars}` — page text (Tavily extract → direct fetch) or the raw page body (HTML/JSON/CSV/text, 2 MB cap, public URLs only)
