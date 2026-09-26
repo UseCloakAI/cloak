@@ -22,6 +22,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `admin-management.html` — internal admin dashboard. Separate design system (yellow accent). Ships with a placeholder anon key.
 - `cloak.css` — shared design system used by chat / values / landing.
 - `cloak.js` — app logic, auth, Supabase client, settings, theming, chat.
+- `agent-orbit.js` — standalone "agents working" orb animation (`CloakAgentOrbit.mount(el,{state})`, states `starting`/`looping`/`completed`). Not wired into any page yet.
 - `search.js` + `search-patch.js` — web-search overlay used inside chat.
 - `api-worker/` — the `cloak-api` Worker serving `https://api.usecloak.org` (chat, streaming, search). This is what `chat.html` / `cloak.js` / `search-patch.js` call. Deploys via Cloudflare Workers Builds; see `api-worker/README.md`.
 - `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA). Used by `agents.html` and the Telegram bot, not the main chat.
