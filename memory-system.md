@@ -55,6 +55,12 @@ source: auto
 
 The Brain lights up recalled nodes and sends a signal from the brainstem to each one. Replies that used a non-core memory get a small "N memories" chip.
 
+**Identity is always on**: every `profile` note (plus preferences ≥ 0.6) is included on every message. Questions like "who am I", "what's my name", or "what do you remember about me" are all stopwords to BM25, so they trigger a broad, importance-ranked recall instead. Signed-in users' display name is always sent as a baseline. The memory block tells the model explicitly that it *does* know the user, which overrides the persona's default "I don't know who you are".
+
+## Think-time recall
+
+For models that stream reasoning (Kairos, Linus), the client scans the live thoughts before the first answer token: first once ~80 chars have formed, then every ~200 chars or at a sentence end. It runs them through local recall with a stricter floor (0.38). If the thoughts point at memories the prompt doesn't have yet, the stream is stopped once and re-asked. The re-ask carries those memories plus the reasoning so far ("continue from it"), so the answer uses them. This costs at most one extra request per turn, and only when something new surfaces. The Brain fires and the status log shows "Recalled while thinking: …".
+
 ## Writing memories (batched, cheap)
 
 - **Explicit**: "remember that …" / "remember: …" / "forget …" are handled instantly, locally (no model call). A near-duplicate is folded into the existing file.

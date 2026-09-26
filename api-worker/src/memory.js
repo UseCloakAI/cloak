@@ -27,7 +27,7 @@ Rules:
 - Delete a note only when the user contradicts or retracts it.
 - body: 1-4 terse bullet lines starting with "- ", third person ("User ..."), max 400 characters.
 - path: "<type>/<slug>.md", slug lowercase a-z 0-9 and hyphens, e.g. "project/cloak.md".
-- title: max 60 characters. tags: 1-5 lowercase keywords. importance: 0.1-1 (1 = shapes almost every answer).
+- title: max 60 characters. tags: 1-5 lowercase keywords. importance: 0.1-1 (1 = shapes almost every answer). The user's name and core identity are always 0.9+.
 - At most ${MAX_OPS} ops. If nothing is worth saving, return {"ops":[]}.
 
 Return ONLY JSON: {"ops":[{"op":"add"|"update"|"delete","path":"...","title":"...","type":"...","tags":["..."],"importance":0.5,"body":"- ..."}]}`;
