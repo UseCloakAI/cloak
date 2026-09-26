@@ -50,10 +50,18 @@ const REACTIONS = new Set([
 const normEmoji = (e: string) => e.replace(/\uFE0F/g, "");
 
 const REACTION_GUIDE = `
+TEXT LIKE A REAL PERSON — this is a Telegram chat, not an essay:
+- Mirror the user: match their length, energy and formality. Short message in → short message back. Casual → casual.
+- Plain conversational language, contractions, no headers, no bullet lists, no bold unless they asked for something structured (steps, code, a list).
+- Don't open with "Great question" or restate what they said. Don't sign off every message with "Let me know if…". Don't end every message with a question.
+- Emoji sparingly, only when they fit the vibe.
+- Split naturally into a few bubbles when a person would (reaction/thought, then the point, then a follow-up) — see <break/> below.
+- For real questions that need depth, still answer properly — just keep it readable on a phone.
 TELEGRAM REACTIONS — you can react to the user's message like a person would:
 - Put <react emoji="👍"/> anywhere in your reply to react to their latest message. Pick from: 👍 ❤ 🔥 😁 🤣 🤔 👀 🙏 👏 🎉 💯 😢 🤯 🫡 😎 🤝 🥰 😭 🗿 🆒.
 - Put <silent/> to send NO text reply (they'll just see "delivered" or your reaction). Use it the way a person would: for "ok", "thanks", "lol", "👍", sign-offs, or anything that doesn't need an answer. Usually pair it with a reaction.
 - Most messages that ask something still get a normal text reply. Don't react to everything — only when it feels natural.
+- To text in a chain like a person (several short bubbles instead of one block), put <break/> between the messages, e.g. "I'm Cloak, an AI assistant.<break/>How can I help?" Use it for casual back-and-forth, not for long structured answers. 2–4 bubbles max.
 - If the user reacted to one of your messages, you'll see "[User reacted ❤ to your message]". Usually do nothing (<silent/>); only reply or react if it genuinely calls for it.`;
 
 // Pull <react emoji="…"/> and <silent/> directives out of the model's reply.
@@ -66,7 +74,23 @@ function parseDirectives(raw: string) {
   }
   const silent = /<silent\s*\/?>/i.test(raw);
   const text = raw.replace(/<react[^>]*\/?>|<silent\s*\/?>|<\/react>/gi, "").trim();
-  return { react, silent: silent || !text, text };
+  // <break/> splits the reply into a chain of separate messages.
+  const parts = text.split(/<break\s*\/?>/i).map((t) => t.trim()).filter(Boolean).slice(0, 6);
+  return { react, silent: silent || !parts.length, text: parts.join("\n\n"), parts };
+}
+
+// Send a chain of bubbles with a short "typing…" pause between them.
+async function sendChain(chatId: number | string, parts: string[]) {
+  for (let i = 0; i < parts.length; i++) {
+    if (i === 0) {
+      await tg("sendChatAction", { chat_id: chatId, action: "typing" });
+      await new Promise((r) => setTimeout(r, Math.min(1400, 250 + parts[0].length * 8)));
+    } else {
+      await tg("sendChatAction", { chat_id: chatId, action: "typing" });
+      await new Promise((r) => setTimeout(r, Math.min(2200, 450 + parts[i].length * 18)));
+    }
+    await sendTelegram(chatId, parts[i]);
+  }
 }
 
 async function reactTo(chatId: number | string, messageId: number, emoji: string) {
@@ -281,13 +305,13 @@ serve(async (req) => {
       const session = await getOrCreateSession(db, String(mr.chat.id));
       const note = `[User reacted ${emojis.join(" ")} to your message]`;
       const raw = await callChatMessage(note, session.history, session.model);
-      const { react, silent, text } = parseDirectives(raw);
+      const { react, silent, parts } = parseDirectives(raw);
       if (react) await reactTo(mr.chat.id, mr.message_id, react);
-      if (!silent) await sendTelegram(mr.chat.id, text);
+      if (!silent) await sendChain(mr.chat.id, parts);
       await saveHistory(db, session.id, [
         ...session.history,
         { role: "USER", message: note },
-        { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : text) },
+        { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : parts.join("<break/>")) },
       ]);
     } catch (e) {
       console.error("telegram-bot reaction error:", e instanceof Error ? e.message : String(e));
@@ -359,7 +383,7 @@ serve(async (req) => {
     }
 
     const raw = await callChatMessage(userText, session.history, session.model, image);
-    const { react, silent, text: reply } = parseDirectives(raw);
+    const { react, silent, parts } = parseDirectives(raw);
     if (react) await reactTo(chatId, msg.message_id, react);
 
     // Store [Image] as user turn text — base64 is too large to persist
@@ -368,12 +392,12 @@ serve(async (req) => {
     const newHistory = [
       ...session.history,
       { role: "USER", message: userHistoryText },
-      { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : reply) },
+      { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : parts.join("<break/>")) },
     ];
     await saveHistory(db, session.id, newHistory);
 
     // Left on "delivered" (or just a reaction) when Cloak chose silence.
-    if (!silent) await sendTelegram(chatId, reply);
+    if (!silent) await sendChain(chatId, parts);
   } catch (e) {
     console.error("telegram-bot error:", e instanceof Error ? e.message : String(e));
     await sendTelegram(chatId, "Something went wrong. Try again in a moment.");
