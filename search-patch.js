@@ -182,7 +182,7 @@ function _renderLive(container, text) {
 }
 
 // Returns { text, streamed } — streamed=true means tokens were already painted.
-async function streamChat(bodyObj, botMsgEl, signal) {
+async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
   const res = await fetch(CLOAK_API + '/v1/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -246,7 +246,11 @@ async function streamChat(bodyObj, botMsgEl, signal) {
           if (evt.partial) full = evt.partial;
           throw new Error(evt.error);
         }
-        if (typeof evt.think === 'string' && evt.think) liveThink(botMsgEl, evt.think);
+        if (typeof evt.think === 'string' && evt.think) {
+          liveThink(botMsgEl, evt.think);
+          if (opts.onThink && !full) opts.onThink(evt.think);
+          if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        }
         if (typeof evt.delta === 'string') { full += evt.delta; schedule(); }
         if (evt.done && typeof evt.response === 'string') full = evt.response;
       }
@@ -340,7 +344,8 @@ function _prepareContext(txt, userMsg, model) {
     const recent = hist.slice(-4, -1).map((m, i, a) => ({ text: String(m.message || '').slice(0, 600), w: i === a.length - 1 ? 0.45 : 0.3 }));
     const recall = CloakMemory.recall(txt || userMsg, { context: recent, budget });
     const cx = CloakContext.build({ hist, model, memory: recall.block });
-    const system = (recall.block ? '\n\n' + recall.block : '') + (cx.system ? '\n\n' + cx.system : '');
+    const who = (!guest && typeof name === 'string' && name.trim()) ? '\n\n## ACCOUNT\nThe signed-in user\'s display name is "' + name.trim().slice(0, 60) + '". You know at least this about them; use it if they ask who they are.' : '';
+    const system = (recall.block ? '\n\n' + recall.block : '') + who + (cx.system ? '\n\n' + cx.system : '');
     log('inf', `context: ${cx.plan.used}/${cx.plan.budget} tok · live=${cx.plan.liveCount} · mem=${recall.hits.length}`);
     return { messages: cx.messages, system, recall };
   } catch (e) {
@@ -442,11 +447,53 @@ window.send = async function () {
     mimeType: mimeType || undefined,
   };
 
+  /* ── THINK-TIME RECALL ──
+     While the model reasons (before any answer token), its thoughts are scanned
+     for keywords every ~200 chars and run through local recall. If they point at
+     memories the prompt doesn't have, the stream is stopped once and re-asked
+     with those memories plus the reasoning so far, so the answer uses them. */
+  let _thinkBuf = '', _lastProbe = 0, _extra = null, _recallAbort = false, _reasked = false;
+  const onThink = (chunk) => {
+    if (_reasked || _recallAbort || !window.CloakMemory || !CloakMemory.enabled()) return;
+    _thinkBuf += chunk;
+    // First scan once a thought has formed, then every ~200 chars or at a sentence end.
+    const grown = _thinkBuf.length - _lastProbe;
+    if (_thinkBuf.length < 80 || (grown < 200 && !(grown >= 60 && /[.!?\n]\s*$/.test(_thinkBuf)))) return;
+    _lastProbe = _thinkBuf.length;
+    const have = _cx.recall ? _cx.recall.hits.map(h => h.path) : [];
+    const hits = CloakMemory.probe(_thinkBuf.slice(-700), have);
+    if (!hits.length) return;
+    _extra = hits;
+    _recallAbort = true;
+    if (_fetchController) _fetchController.abort();
+  };
+
   /* ── ROUND 1: Get model's initial response (may include tool calls) ── */
   _fetchController = new AbortController();
 
   try {
-    const round1 = await streamChat(bodyObj, botMsgEl, _fetchController.signal);
+    let round1;
+    for (;;) {
+      try {
+        round1 = await streamChat(bodyObj, botMsgEl, _fetchController.signal, { onThink });
+        break;
+      } catch (e) {
+        if (!(e.name === 'AbortError' && _recallAbort && !_reasked)) throw e;
+        _reasked = true;
+        const merged = CloakMemory.extend(_cx.recall, _extra);
+        const oldBlock = _cx.recall ? _cx.recall.block : '';
+        _cx.system = oldBlock ? _cx.system.replace(oldBlock, merged.block) : '\n\n' + merged.block + _cx.system;
+        _cx.system += '\n\n## MID-THOUGHT RECALL\nWhile you were reasoning, these memories surfaced and were added to USER MEMORY: ' +
+          _extra.map(h => h.title).join('; ') + '. Use them. Your reasoning so far (continue from it, don\'t start over):\n' + _thinkBuf.slice(-1500);
+        _cx.recall = merged;
+        bodyObj.system = _system();
+        addStatus(botMsgEl, 'Recalled while thinking: ' + _extra.map(h => h.title).join(' · '));
+        if (window.CloakBrain) CloakBrain.attachRecall(botMsgEl, merged);
+        log('inf', 'think-time recall: +' + _extra.length + ' memories, re-asking');
+        stats.req++;
+        _fetchController = new AbortController();
+      }
+    }
     _fetchController = null;
 
     // A stopped answer may end mid tool-tag; keep only the readable part.
