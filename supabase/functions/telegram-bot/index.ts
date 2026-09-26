@@ -40,8 +40,58 @@ function modelMenuText(current: string) {
     "\n\nPick one below, or send /model <name>.";
 }
 
+// Reactions Telegram lets bots use (standard emoji set).
+const REACTIONS = new Set([
+  "👍","👎","❤","🔥","🥰","👏","😁","🤔","🤯","😱","🤬","😢","🎉","🤩","🤮","💩","🙏","👌","🕊","🤡",
+  "🥱","🥴","😍","🐳","❤‍🔥","🌚","🌭","💯","🤣","⚡","🍌","🏆","💔","🤨","😐","🍓","🍾","💋","🖕","😈",
+  "😴","😭","🤓","👻","👨‍💻","👀","🎃","🙈","😇","😨","🤝","✍","🤗","🫡","🎅","🎄","☃","💅","🤪","🗿",
+  "🆒","💘","🙉","🦄","😘","💊","🙊","😎","👾","🤷‍♂","🤷","🤷‍♀","😡",
+]);
+const normEmoji = (e: string) => e.replace(/\uFE0F/g, "");
+
+const REACTION_GUIDE = `
+TELEGRAM REACTIONS — you can react to the user's message like a person would:
+- Put <react emoji="👍"/> anywhere in your reply to react to their latest message. Pick from: 👍 ❤ 🔥 😁 🤣 🤔 👀 🙏 👏 🎉 💯 😢 🤯 🫡 😎 🤝 🥰 😭 🗿 🆒.
+- Put <silent/> to send NO text reply (they'll just see "delivered" or your reaction). Use it the way a person would: for "ok", "thanks", "lol", "👍", sign-offs, or anything that doesn't need an answer. Usually pair it with a reaction.
+- Most messages that ask something still get a normal text reply. Don't react to everything — only when it feels natural.
+- If the user reacted to one of your messages, you'll see "[User reacted ❤ to your message]". Usually do nothing (<silent/>); only reply or react if it genuinely calls for it.`;
+
+// Pull <react emoji="…"/> and <silent/> directives out of the model's reply.
+function parseDirectives(raw: string) {
+  let react: string | null = null;
+  const m = raw.match(/<react\s+emoji\s*=\s*["']([^"']+)["']\s*\/?>/i);
+  if (m) {
+    const e = normEmoji(m[1].trim());
+    react = [...REACTIONS].find((r) => normEmoji(r) === e) ?? null;
+  }
+  const silent = /<silent\s*\/?>/i.test(raw);
+  const text = raw.replace(/<react[^>]*\/?>|<silent\s*\/?>|<\/react>/gi, "").trim();
+  return { react, silent: silent || !text, text };
+}
+
+async function reactTo(chatId: number | string, messageId: number, emoji: string) {
+  await tg("setMessageReaction", {
+    chat_id: chatId, message_id: messageId,
+    reaction: [{ type: "emoji", emoji }],
+  });
+}
+
+// Make sure the webhook also delivers button taps and reactions
+// (keeps the current URL + secret, just widens allowed_updates).
+async function ensureWebhookUpdates() {
+  const info = await (await tg("getWebhookInfo", {})).json().catch(() => null);
+  const url = info?.result?.url;
+  if (!url) return;
+  await tg("setWebhook", {
+    url,
+    ...(TELEGRAM_SECRET ? { secret_token: TELEGRAM_SECRET } : {}),
+    allowed_updates: ["message", "callback_query", "message_reaction"],
+  });
+}
+
 // Register the command menu shown in Telegram's "/" picker.
 async function registerCommands() {
+  await ensureWebhookUpdates();
   await tg("setMyCommands", {
     commands: [
       { command: "model", description: "Show or switch the AI model" },
@@ -154,7 +204,7 @@ async function callChatMessage(
     body: JSON.stringify({
       model: MODELS[model] ? model : "pneuma",
       messages,
-      system: `Current date and time (UTC): ${new Date().toISOString()}. You are replying in Telegram: keep formatting simple.`,
+      system: `Current date and time (UTC): ${new Date().toISOString()}. You are replying in Telegram: keep formatting simple, and text like a person — short when short fits.\n${REACTION_GUIDE}`,
       ...(image ? { imageBase64: image.base64, mimeType: image.mimeType } : {}),
     }),
     signal: AbortSignal.timeout(55_000),
@@ -181,8 +231,15 @@ serve(async (req) => {
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
   let update: {
+    message_reaction?: {
+      chat: { id: number };
+      message_id: number;
+      user?: { id: number; is_bot?: boolean };
+      new_reaction: { type: string; emoji?: string }[];
+    };
     callback_query?: { id: string; data?: string; message?: { chat: { id: number }; message_id: number } };
     message?: {
+      message_id: number;
       chat: { id: number };
       from?: { id: number };
       text?: string;
@@ -210,6 +267,30 @@ serve(async (req) => {
         chat_id: cb.message.chat.id, message_id: cb.message.message_id,
         text: modelMenuText(m), parse_mode: "Markdown", reply_markup: modelKeyboard(m),
       });
+    }
+    return new Response("ok", { status: 200 });
+  }
+
+  // User reacted to a message — let Cloak decide whether that deserves anything.
+  const mr = update?.message_reaction;
+  if (mr?.chat?.id && !mr.user?.is_bot) {
+    const emojis = mr.new_reaction.filter((r) => r.type === "emoji" && r.emoji).map((r) => r.emoji!);
+    if (!emojis.length) return new Response("ok", { status: 200 }); // reaction removed
+    try {
+      const db = createClient(SUPABASE_URL, SERVICE_KEY);
+      const session = await getOrCreateSession(db, String(mr.chat.id));
+      const note = `[User reacted ${emojis.join(" ")} to your message]`;
+      const raw = await callChatMessage(note, session.history, session.model);
+      const { react, silent, text } = parseDirectives(raw);
+      if (react) await reactTo(mr.chat.id, mr.message_id, react);
+      if (!silent) await sendTelegram(mr.chat.id, text);
+      await saveHistory(db, session.id, [
+        ...session.history,
+        { role: "USER", message: note },
+        { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : text) },
+      ]);
+    } catch (e) {
+      console.error("telegram-bot reaction error:", e instanceof Error ? e.message : String(e));
     }
     return new Response("ok", { status: 200 });
   }
@@ -277,7 +358,9 @@ serve(async (req) => {
       image = await downloadPhotoAsBase64(largest.file_id);
     }
 
-    const reply = await callChatMessage(userText, session.history, session.model, image);
+    const raw = await callChatMessage(userText, session.history, session.model, image);
+    const { react, silent, text: reply } = parseDirectives(raw);
+    if (react) await reactTo(chatId, msg.message_id, react);
 
     // Store [Image] as user turn text — base64 is too large to persist
     const userHistoryText = hasPhoto ? (userText ? `[Image] ${userText}` : "[Image]") : userText;
@@ -285,11 +368,12 @@ serve(async (req) => {
     const newHistory = [
       ...session.history,
       { role: "USER", message: userHistoryText },
-      { role: "CHATBOT", message: reply },
+      { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : reply) },
     ];
     await saveHistory(db, session.id, newHistory);
 
-    await sendTelegram(chatId, reply);
+    // Left on "delivered" (or just a reaction) when Cloak chose silence.
+    if (!silent) await sendTelegram(chatId, reply);
   } catch (e) {
     console.error("telegram-bot error:", e instanceof Error ? e.message : String(e));
     await sendTelegram(chatId, "Something went wrong. Try again in a moment.");
