@@ -1,10 +1,10 @@
 // CloakAPI — Cloudflare Worker serving https://api.usecloak.org
 // Routes: native /v1/chat, OpenAI /v1/chat/completions, Anthropic /v1/messages,
-// /v1/search, /admin/provider-keys. All chat routes support live token streaming.
+// /v1/search, /v1/extract, /admin/provider-keys. All chat routes support live token streaming.
 
 import { PNEUMA, LOGOS, KAIROS, LINUS } from "./prompts.js";
 
-const VERSION = "4.3.0";
+const VERSION = "4.4.0";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -934,10 +934,12 @@ async function handleAnthropicMessages(env, request) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Web search proxy: POST /v1/search  { query, start? } → { items: [{title, link, snippet}] }
-// Uses Google Programmable Search when GOOGLE_CSE_KEY + GOOGLE_CSE_CX are set,
-// otherwise DuckDuckGo's HTML endpoint.
+// Web search proxy: POST /v1/search  { query, start? } → { items: [{title, link, snippet, content?}], provider }
+// Order: Tavily (pooled keys in KV) → Google Programmable Search (GOOGLE_CSE_KEY +
+// GOOGLE_CSE_CX) → DuckDuckGo's HTML endpoint. Falls through on error or no results.
 // ─────────────────────────────────────────────────────────────────────────────
+
+const NAMED_ENTITIES = { mdash: "—", ndash: "–", hellip: "…", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", copy: "©", reg: "®", trade: "™", middot: "·", bull: "•" };
 
 function decodeEntities(s) {
   return s
@@ -948,6 +950,7 @@ function decodeEntities(s) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&nbsp;/g, " ")
+    .replace(/&(mdash|ndash|hellip|lsquo|rsquo|ldquo|rdquo|copy|reg|trade|middot|bull);/g, (_, n) => NAMED_ENTITIES[n])
     .replace(/&amp;/g, "&");
 }
 
@@ -1023,18 +1026,176 @@ async function searchDuckDuckGo(query, start) {
     .slice(0, 10);
 }
 
+// ── Tavily (multi-key) ──
+// Keys live in PROVIDER_KEYS KV under "tavily" (add via /admin/provider-keys).
+// Each call starts at a random key and rolls to the next on auth/quota/rate errors,
+// so several free-tier keys pool their monthly credits.
+const TAVILY_ROLL = new Set([401, 403, 429, 432, 433]);
+
+async function tavilyKeys(env) {
+  try {
+    const raw = await env.PROVIDER_KEYS.get("keys");
+    const list = raw ? JSON.parse(raw).tavily : null;
+    return Array.isArray(list) ? list.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function tavilyCall(env, endpoint, payload) {
+  const keys = await tavilyKeys(env);
+  if (!keys.length) return null;
+  const first = Math.floor(Math.random() * keys.length);
+  let lastErr = "no keys";
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[(first + i) % keys.length];
+    const res = await fetch(`https://api.tavily.com/${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.ok) return res.json();
+    lastErr = `Tavily ${endpoint} HTTP ${res.status} (key …${key.slice(-4)})`;
+    if (!TAVILY_ROLL.has(res.status)) break;
+  }
+  throw new Error(lastErr);
+}
+
+async function searchTavily(env, query) {
+  const data = await tavilyCall(env, "search", { query, max_results: 10, search_depth: "basic" });
+  if (!data) return null;
+  return (data.results || []).map((r) => ({
+    title: r.title || "",
+    link: r.url || "",
+    snippet: (r.content || "").replace(/\s+/g, " ").trim().slice(0, 400),
+    content: r.content || "",
+  }));
+}
+
 async function handleSearch(env, request) {
   const body = await readJson(request);
   const query = typeof body?.query === "string" ? body.query.trim().slice(0, 400) : "";
   if (!query) return json({ error: "query required" }, 400);
   const start = Math.max(1, Math.min(91, Number(body.start) || 1));
+  // Tavily first (no pagination → page 1 only), then Google CSE, then DuckDuckGo.
+  const chain = [];
+  if (start === 1) chain.push(["tavily", () => searchTavily(env, query)]);
+  if (env.GOOGLE_CSE_KEY && env.GOOGLE_CSE_CX) chain.push(["google", () => searchGoogle(env, query, start)]);
+  chain.push(["duckduckgo", () => searchDuckDuckGo(query, start)]);
+  for (const [provider, run] of chain) {
+    try {
+      const items = await run();
+      if (items && items.length) return json({ items, provider });
+    } catch (e) {
+      console.error(`[cloak-api] search via ${provider} failed: ${e.message}`);
+    }
+  }
+  return json({ error: "Search unavailable", items: [] }, 502);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page extraction: POST /v1/extract  { url, format?: "text"|"raw", maxChars? }
+//   text → readable page text (Tavily extract, else fetched + stripped here)
+//   raw  → the page's raw response body (HTML / JSON / plain text), untouched
+// → { url, format, contentType, content, truncated, provider }
+// ─────────────────────────────────────────────────────────────────────────────
+
+const RAW_MAX_BYTES = 2_000_000;
+
+function isPublicUrl(u) {
+  if (!/^https?:$/.test(u.protocol)) return false;
+  const h = u.hostname.toLowerCase();
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal") || h.endsWith(".local")) return false;
+  if (/^(127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h)) return false;
+  if (h.startsWith("[")) return false; // no raw IPv6 literals
+  return true;
+}
+
+async function fetchRaw(url) {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; CloakReader/1.0; +https://usecloak.org)",
+      Accept: "text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.5",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    redirect: "follow",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const contentType = res.headers.get("content-type") || "";
+  if (!/text|json|xml|javascript|csv/i.test(contentType)) throw new Error(`Unsupported content-type: ${contentType}`);
+  // Read at most RAW_MAX_BYTES so huge pages can't blow the Worker's memory.
+  const reader = res.body.getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    size += value.length;
+    if (size >= RAW_MAX_BYTES) {
+      reader.cancel();
+      break;
+    }
+  }
+  const buf = new Uint8Array(Math.min(size, RAW_MAX_BYTES));
+  let off = 0;
+  for (const c of chunks) {
+    const take = Math.min(c.length, buf.length - off);
+    buf.set(c.subarray(0, take), off);
+    off += take;
+    if (off >= buf.length) break;
+  }
+  return { contentType, body: new TextDecoder().decode(buf), finalUrl: res.url || url };
+}
+
+// Readable text from HTML: drop script/style/nav chrome, keep block breaks.
+function htmlToText(html) {
+  return decodeEntities(
+    html
+      .replace(/<(script|style|noscript|svg|template|iframe|nav|footer|header|aside|form)\b[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr|\/section|\/article)\b[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/[ \t\f\v]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function handleExtract(env, request) {
+  const body = await readJson(request);
+  let u;
   try {
-    const items =
-      env.GOOGLE_CSE_KEY && env.GOOGLE_CSE_CX ? await searchGoogle(env, query, start) : await searchDuckDuckGo(query, start);
-    return json({ items });
+    u = new URL(String(body?.url || ""));
+  } catch {
+    return json({ error: "valid url required" }, 400);
+  }
+  if (!isPublicUrl(u)) return json({ error: "url not allowed" }, 400);
+  const format = body?.format === "raw" ? "raw" : "text";
+  const maxChars = Math.max(500, Math.min(200_000, Number(body?.maxChars) || 20_000));
+  const out = (content, contentType, provider) =>
+    json({ url: u.href, format, contentType, content: content.slice(0, maxChars), truncated: content.length > maxChars, provider });
+
+  if (format === "text") {
+    try {
+      const data = await tavilyCall(env, "extract", { urls: [u.href], extract_depth: "basic", format: "text" });
+      const hit = data?.results?.[0]?.raw_content;
+      if (hit) return out(hit, "text/plain", "tavily");
+    } catch (e) {
+      console.error(`[cloak-api] tavily extract failed: ${e.message}`);
+    }
+  }
+  try {
+    const { contentType, body: raw } = await fetchRaw(u.href);
+    if (format === "raw") return out(raw, contentType, "direct");
+    const text = /html|xml/i.test(contentType) ? htmlToText(raw) : raw;
+    return out(text, "text/plain", "direct");
   } catch (e) {
-    console.error(`[cloak-api] search failed: ${e.message}`);
-    return json({ error: "Search unavailable", items: [] }, 502);
+    console.error(`[cloak-api] direct fetch failed for ${u.href}: ${e.message}`);
+    return json({ error: `Could not fetch page: ${e.message}` }, 502);
   }
 }
 
@@ -1049,7 +1210,7 @@ function adminAuth(env, request) {
 
 async function loadKeys(env) {
   const raw = await env.PROVIDER_KEYS.get("keys");
-  if (!raw) return { groq: [], nvidia: [], gemini: [] };
+  if (!raw) return { groq: [], nvidia: [], gemini: [], tavily: [] };
   return JSON.parse(raw);
 }
 
@@ -1110,6 +1271,7 @@ export default {
             openai: "POST /v1/chat/completions",
             anthropic: "POST /v1/messages",
             search: "POST /v1/search",
+            extract: "POST /v1/extract",
           },
         });
       }
@@ -1129,6 +1291,7 @@ export default {
         if (path === "/v1/chat/completions") return handleOpenAIChat(env, request);
         if (path === "/v1/messages") return handleAnthropicMessages(env, request);
         if (path === "/v1/search") return handleSearch(env, request);
+        if (path === "/v1/extract") return handleExtract(env, request);
       }
 
       return json({ error: "Not found" }, 404);

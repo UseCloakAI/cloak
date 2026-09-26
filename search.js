@@ -1,7 +1,8 @@
 /* ════════════════════════════════════════════════════════
    CLOAK SEARCH ENGINE — v1.0
    Multi-source web search with paginated crawling.
-   Uses Google Custom Search API + Jina AI reader for extraction.
+   Search + extraction via the cloak-api Worker (Tavily → Google → DDG),
+   Jina AI reader as extraction backup.
    ════════════════════════════════════════════════════════ */
 
 const CLOAK_SEARCH = (() => {
@@ -10,6 +11,7 @@ const CLOAK_SEARCH = (() => {
   const JINA_BASE = 'https://r.jina.ai/';
   // Google CSE via our API proxy (avoids CORS / key exposure)
   const SEARCH_PROXY = 'https://api.usecloak.org/v1/search';
+  const EXTRACT_PROXY = 'https://api.usecloak.org/v1/extract';
 
   /* ── SEARCH UI STATE ── */
   let _searchContainer = null;
@@ -69,17 +71,30 @@ const CLOAK_SEARCH = (() => {
       title: item.title || '',
       url: item.link || '',
       snippet: item.snippet || '',
+      content: item.content || '',   // Tavily's page summary — fallback if extraction fails
     }));
   }
 
-  /* ── URL CONTENT EXTRACTION via Jina Reader ── */
+  /* ── URL CONTENT EXTRACTION ──
+     Worker /v1/extract first (Tavily extract → direct fetch), Jina Reader as backup.
+     options.raw → the page's raw body (HTML / JSON / CSV / text), no cleanup. */
   async function extractUrl(url, options = {}) {
     const maxChars = options.maxChars || 4000;
-    const jinaUrl = JINA_BASE + url;
-    const res = await fetch(jinaUrl, {
+    try {
+      const res = await fetch(EXTRACT_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, format: options.raw ? 'raw' : 'text', maxChars }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.content) return data.content.slice(0, maxChars);
+      }
+    } catch (_) { /* fall through to Jina */ }
+    const res = await fetch(JINA_BASE + url, {
       headers: {
         'Accept': 'text/plain',
-        'X-Return-Format': 'text',
+        'X-Return-Format': options.raw ? 'html' : 'text',
         'X-Timeout': '10',
       },
     });
@@ -132,7 +147,7 @@ const CLOAK_SEARCH = (() => {
         updateSourceBadge(src.idx, 'done');
       } catch (e) {
         updateSourceBadge(src.idx, 'skip');
-        src.extracted = src.snippet || '';
+        src.extracted = src.content || src.snippet || '';
       }
       await sleep(80);
     }
