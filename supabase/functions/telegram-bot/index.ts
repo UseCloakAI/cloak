@@ -8,6 +8,49 @@ const SERVICE_KEY     = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const MAX_HISTORY = 20; // messages (pairs) to keep per session
 
+const MODELS: Record<string, string> = {
+  pneuma: "Pneuma — creative, warm, everyday chat",
+  logos:  "Logos — logical, precise reasoning",
+  kairos: "Kairos — deep, thorough thinking",
+};
+const modelName = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
+
+type Session = { id: string; history: { role: string; message: string }[]; model: string };
+
+async function tg(method: string, body: unknown) {
+  return fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function modelKeyboard(current: string) {
+  return {
+    inline_keyboard: Object.keys(MODELS).map((m) => [{
+      text: (m === current ? "● " : "") + modelName(m),
+      callback_data: "model:" + m,
+    }]),
+  };
+}
+
+function modelMenuText(current: string) {
+  return `Current model: *${modelName(current)}*\n\n` +
+    Object.entries(MODELS).map(([, d]) => "• " + d).join("\n") +
+    "\n\nPick one below, or send /model <name>.";
+}
+
+// Register the command menu shown in Telegram's "/" picker.
+async function registerCommands() {
+  await tg("setMyCommands", {
+    commands: [
+      { command: "model", description: "Show or switch the AI model" },
+      { command: "reset", description: "Start a fresh conversation" },
+      { command: "start", description: "About Cloak" },
+    ],
+  });
+}
+
 async function sendTelegram(chatId: number | string, text: string) {
   // Telegram max message length is 4096 chars; split if needed
   const chunks: string[] = [];
@@ -29,25 +72,25 @@ async function sendTelegram(chatId: number | string, text: string) {
 async function getOrCreateSession(
   db: ReturnType<typeof createClient>,
   platformId: string,
-): Promise<{ id: string; history: { role: string; message: string }[] }> {
+): Promise<Session> {
   const { data, error } = await db
     .from("messaging_sessions")
-    .select("id, history")
+    .select("id, history, model")
     .eq("platform", "telegram")
     .eq("platform_id", platformId)
     .single();
 
-  if (data) return data as { id: string; history: { role: string; message: string }[] };
+  if (data) return data as Session;
   if (error?.code !== "PGRST116") throw error; // unexpected error
 
   const { data: created, error: createErr } = await db
     .from("messaging_sessions")
     .insert({ platform: "telegram", platform_id: platformId, history: [] })
-    .select("id, history")
+    .select("id, history, model")
     .single();
 
   if (createErr) throw createErr;
-  return created as { id: string; history: { role: string; message: string }[] };
+  return created as Session;
 }
 
 async function saveHistory(
@@ -94,6 +137,7 @@ const CLOAK_API = Deno.env.get("CLOAK_API_URL") ?? "https://api.usecloak.org";
 async function callChatMessage(
   message: string,
   chatHistory: { role: string; message: string }[],
+  model: string,
   image?: { base64: string; mimeType: string },
 ): Promise<string> {
   const messages = [
@@ -108,7 +152,7 @@ async function callChatMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "pneuma",
+      model: MODELS[model] ? model : "pneuma",
       messages,
       system: `Current date and time (UTC): ${new Date().toISOString()}. You are replying in Telegram: keep formatting simple.`,
       ...(image ? { imageBase64: image.base64, mimeType: image.mimeType } : {}),
@@ -137,6 +181,7 @@ serve(async (req) => {
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
   let update: {
+    callback_query?: { id: string; data?: string; message?: { chat: { id: number }; message_id: number } };
     message?: {
       chat: { id: number };
       from?: { id: number };
@@ -152,6 +197,23 @@ serve(async (req) => {
     return new Response("Bad Request", { status: 400 });
   }
 
+  // Model picker button taps
+  const cb = update?.callback_query;
+  if (cb?.data?.startsWith("model:") && cb.message) {
+    const m = cb.data.slice(6);
+    if (MODELS[m]) {
+      const db = createClient(SUPABASE_URL, SERVICE_KEY);
+      const session = await getOrCreateSession(db, String(cb.message.chat.id));
+      await db.from("messaging_sessions").update({ model: m }).eq("id", session.id);
+      await tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Switched to ${modelName(m)}` });
+      await tg("editMessageText", {
+        chat_id: cb.message.chat.id, message_id: cb.message.message_id,
+        text: modelMenuText(m), parse_mode: "Markdown", reply_markup: modelKeyboard(m),
+      });
+    }
+    return new Response("ok", { status: 200 });
+  }
+
   const msg = update?.message;
   if (!msg?.chat?.id) return new Response("ok", { status: 200 });
 
@@ -162,8 +224,9 @@ serve(async (req) => {
   const chatId   = msg.chat.id;
   const userText = (msg.text ?? msg.caption ?? "").trim();
 
-  // Ignore bot commands other than /start
-  if (userText.startsWith("/") && !userText.startsWith("/start")) {
+  // Commands: /start, /reset, /model [name]; ignore any others.
+  const cmd = userText.startsWith("/") ? userText.slice(1).split(/\s+/)[0].split("@")[0].toLowerCase() : "";
+  if (cmd && !["start", "reset", "new", "clear", "model"].includes(cmd)) {
     return new Response("ok", { status: 200 });
   }
 
@@ -177,14 +240,35 @@ serve(async (req) => {
       body: JSON.stringify({ chat_id: chatId, action: "typing" }),
     });
 
-    if (userText === "/start") {
+    if (cmd === "start") {
+      await registerCommands();
       await sendTelegram(chatId,
-        "Hey, I'm *Cloak* — an AI assistant. Ask me anything, or send me an image."
+        "Hey, I'm *Cloak* — an AI assistant. Ask me anything, or send me an image.\n\n/model — switch AI model\n/reset — start a fresh conversation"
       );
       return new Response("ok", { status: 200 });
     }
 
     const session = await getOrCreateSession(db, String(chatId));
+
+    if (cmd === "reset" || cmd === "new" || cmd === "clear") {
+      await saveHistory(db, session.id, []);
+      await sendTelegram(chatId, "Fresh start — I've cleared our conversation. What's up?");
+      return new Response("ok", { status: 200 });
+    }
+
+    if (cmd === "model") {
+      const arg = userText.split(/\s+/)[1]?.toLowerCase();
+      if (arg && MODELS[arg]) {
+        await db.from("messaging_sessions").update({ model: arg }).eq("id", session.id);
+        await sendTelegram(chatId, `Switched to *${modelName(arg)}*.`);
+      } else {
+        const cur = MODELS[session.model] ? session.model : "pneuma";
+        await tg("sendMessage", {
+          chat_id: chatId, text: modelMenuText(cur), parse_mode: "Markdown", reply_markup: modelKeyboard(cur),
+        });
+      }
+      return new Response("ok", { status: 200 });
+    }
 
     // Download photo if present (use largest size)
     let image: { base64: string; mimeType: string } | undefined;
@@ -193,7 +277,7 @@ serve(async (req) => {
       image = await downloadPhotoAsBase64(largest.file_id);
     }
 
-    const reply = await callChatMessage(userText, session.history, image);
+    const reply = await callChatMessage(userText, session.history, session.model, image);
 
     // Store [Image] as user turn text — base64 is too large to persist
     const userHistoryText = hasPhoto ? (userText ? `[Image] ${userText}` : "[Image]") : userText;
