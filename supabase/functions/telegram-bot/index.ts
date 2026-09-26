@@ -14,11 +14,15 @@ async function sendTelegram(chatId: number | string, text: string) {
   for (let i = 0; i < text.length; i += 4000) chunks.push(text.slice(i, i + 4000));
 
   for (const chunk of chunks) {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: chunk, parse_mode: "Markdown" }),
-    });
+    const send = (parseMode?: string) =>
+      fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: chunk, ...(parseMode ? { parse_mode: parseMode } : {}) }),
+      });
+    // Model markdown doesn't always parse as Telegram Markdown — fall back to plain text.
+    const res = await send("Markdown");
+    if (!res.ok) await send();
   }
 }
 
@@ -82,21 +86,31 @@ async function downloadPhotoAsBase64(fileId: string): Promise<{ base64: string; 
   return { base64, mimeType };
 }
 
+// Answers come from cloak-api (https://api.usecloak.org) — the same backend
+// as the web chat, with provider/model failover, so a retired model on one
+// provider no longer takes the bot down.
+const CLOAK_API = Deno.env.get("CLOAK_API_URL") ?? "https://api.usecloak.org";
+
 async function callChatMessage(
   message: string,
   chatHistory: { role: string; message: string }[],
   image?: { base64: string; mimeType: string },
 ): Promise<string> {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/chat-message`, {
+  const messages = [
+    ...chatHistory.map((m) => ({
+      role: /^(assistant|chatbot|bot|model)$/i.test(m.role) ? "assistant" : "user",
+      content: m.message,
+    })),
+    { role: "user", content: message || "[Image]" },
+  ].slice(-20);
+
+  const res = await fetch(`${CLOAK_API}/v1/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${SERVICE_KEY}`,
-      "apikey": SERVICE_KEY,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      message,
-      chat_history: chatHistory,
+      model: "pneuma",
+      messages,
+      system: `Current date and time (UTC): ${new Date().toISOString()}. You are replying in Telegram: keep formatting simple.`,
       ...(image ? { imageBase64: image.base64, mimeType: image.mimeType } : {}),
     }),
     signal: AbortSignal.timeout(55_000),
@@ -104,11 +118,11 @@ async function callChatMessage(
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`chat-message ${res.status}: ${err.slice(0, 200)}`);
+    throw new Error(`cloak-api ${res.status}: ${err.slice(0, 200)}`);
   }
 
   const json = await res.json();
-  return json.text ?? "Sorry, I couldn't generate a response.";
+  return json.response ?? json.text ?? "Sorry, I couldn't generate a response.";
 }
 
 serve(async (req) => {
