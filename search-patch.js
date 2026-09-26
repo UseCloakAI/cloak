@@ -22,6 +22,9 @@ For reading specific URLs:
 For deep crawling (follow to sub-pages):
 <search>{"queries":["initial query"],"deepCrawl":["https://specific-page.com/article"]}</search>
 
+For a page's RAW data (HTML source, JSON APIs, CSV, feeds, plain-text files):
+<fetch>{"url":"https://example.com/data.json","raw":true,"maxChars":20000}</fetch>
+
 You can combine: queries + followUrls + deepCrawl in one <search> block.
 You can emit multiple <search> blocks if you need to search different topics.
 After your search block(s), end with: <done/>
@@ -34,7 +37,36 @@ RULES:
 - Be specific with queries — "React 19 concurrent features 2024" not "React features"
 - If a result page seems to have more info on sub-links, use deepCrawl on those URLs
 - You can request up to 3 search rounds if needed
-- Always synthesize into a clear, helpful answer after searching`;
+- Always synthesize into a clear, helpful answer after searching
+
+VERIFICATION — DON'T SPREAD MISINFORMATION:
+- High-stakes claims need verification before you state them as fact: deaths, illness, injuries, arrests, crimes, lawsuits, disasters, elections and results, resignations/firings, financial figures and prices, medical or legal facts, statistics, quotes, and anything "breaking".
+- Never assert a high-stakes claim about a real person or current event from memory alone. Search first.
+- Treat a claim as confirmed only when at least 2 independent, reputable sources agree (major wire services, established news outlets, official/primary sources like government sites, company filings, the person's verified channels). Several sites repeating one original report count as ONE source.
+- Be skeptical of: satire, content farms, AI-generated sites, tabloids, social posts, forums, and "death hoax" style stories. Check the publication date against the current date.
+- If sources conflict or only one weak source supports a claim, say so plainly ("I can't confirm this — only X reports it", "reports conflict") instead of picking a side. Never upgrade "reported" to "confirmed".
+- Only cite a source for what it actually says. Never invent sources, dates, numbers, or quotes. If you're not sure, say you're not sure.
+- Don't contradict something you said earlier in the conversation without flagging it and explaining what new evidence changed it.`;
+
+/* ── REAL-TIME CLOCK ──
+   Fresh on every request, so Cloak always knows "now" and can research the
+   latest info instead of guessing from its training cutoff. */
+function cloakClock() {
+  const d = new Date();
+  let tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+  const local = d.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  return `
+
+CURRENT DATE & TIME (real-time clock — this is "now"):
+- User's local time: ${local}${tz ? ' (' + tz + ')' : ''}
+- UTC: ${d.toISOString()}
+
+Use this clock:
+- Treat it as the present. Your training data is older; anything that may have changed since (news, prices, releases, scores, weather, officeholders, versions) needs a search.
+- When researching, put the current year (and month when it matters) into time-sensitive queries, prefer the most recent sources, and check publication dates against today.
+- Resolve relative dates ("today", "last week", "this year") from this clock, and say how recent your info is when it matters.`;
+}
 
 /* ── CITATION STRIP RENDERER ── */
 function renderCitationStrip(botMsgEl, sources) {
@@ -168,7 +200,8 @@ async function streamChat(bodyObj, botMsgEl, signal) {
 
   const bc = botMsgEl.querySelector('.bot-content');
   if (bc) bc._tk = null;
-  const orb = botMsgEl.querySelector('.cloak-orb');
+  botMsgEl._thinkBuf = ''; botMsgEl._thinkLine = null;
+  let orb = null;
   let full = '';
   let shown = false;
   let raf = 0;
@@ -181,13 +214,17 @@ async function streamChat(bodyObj, botMsgEl, signal) {
       shown = true;
       stopThinkAnimation();
       botMsgEl._status = null;
+      closeLiveThink(botMsgEl);
       setBotState(botMsgEl, 'streaming');
+      const t = tailOrb(botMsgEl);
+      orb = t && t.querySelector('.cloak-orb');
     }
     // Hop while tokens flow; squish if the stream stalls mid-answer.
     setOrbState(orb, 'streaming');
     clearTimeout(stallT);
     stallT = setTimeout(() => setOrbState(orb, 'thinking'), ORB_STALL_MS);
     _renderLive(bc, vis);
+    placeTailOrb(botMsgEl, bc);
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
@@ -209,6 +246,7 @@ async function streamChat(bodyObj, botMsgEl, signal) {
           if (evt.partial) full = evt.partial;
           throw new Error(evt.error);
         }
+        if (typeof evt.think === 'string' && evt.think) liveThink(botMsgEl, evt.think);
         if (typeof evt.delta === 'string') { full += evt.delta; schedule(); }
         if (evt.done && typeof evt.response === 'string') full = evt.response;
       }
@@ -225,21 +263,55 @@ async function streamChat(bodyObj, botMsgEl, signal) {
   return { text: full, streamed: shown };
 }
 
+// ── LIVE THINKING ──
+// Reasoning streams into the status log: each sentence pops in as its own
+// line; the current one fills in live.
+function liveThink(botMsgEl, chunk) {
+  let buf = (botMsgEl._thinkBuf || '') + chunk;
+  let line = botMsgEl._thinkLine;
+  for (;;) {
+    const m = buf.match(/[.!?](\s+)|\n+/);
+    if (!m) break;
+    const cut = m.index + (m[0][0] === '\n' ? 0 : 1);
+    const done = buf.slice(0, cut).trim();
+    buf = buf.slice(m.index + m[0].length);
+    if (done) {
+      if (!line) line = addStatus(botMsgEl, done, true); else line.textContent = done;
+      setStatusPreview(botMsgEl, done, true);
+      line = null;
+    }
+  }
+  const rest = buf.trim();
+  if (rest) {
+    if (!line) line = addStatus(botMsgEl, rest, true); else line.textContent = rest;
+  }
+  botMsgEl._thinkBuf = buf;
+  botMsgEl._thinkLine = line;
+}
+function closeLiveThink(botMsgEl) {
+  botMsgEl._thinkBuf = ''; botMsgEl._thinkLine = null;
+  finishStatus(botMsgEl);
+}
+
 // Final render for a bubble whose tokens were painted live. Lets the last
 // words finish their entrance, then swaps in a clean (span-free) render.
 function finishLive(botMsgEl, text) {
+  closeLiveThink(botMsgEl);
   stopThinkAnimation();
   finaliseThoughts(botMsgEl);
   botMsgEl._status = null;
-  setBotState(botMsgEl, 'done');
   setBusy(false);
   const bc = botMsgEl.querySelector('.bot-content');
   if (!bc) return;
   _renderLive(bc, text);
+  placeTailOrb(botMsgEl, bc);
+  setBotState(botMsgEl, null);
+  if (botMsgEl._tail) setOrbState(botMsgEl._tail.querySelector('.cloak-orb'), 'done');
   const wait = Math.max(0, (bc._tk ? bc._tk.last : 0) + TK_MS - performance.now());
   setTimeout(() => {
     bc._tk = null;
     bc.innerHTML = marked.parse(text);
+    restOrbBelow(botMsgEl);
     postProcessBotEl(botMsgEl, text);
     scrollBottom();
   }, wait);
@@ -311,7 +383,7 @@ window.send = async function () {
   const bodyObj = {
     model,
     messages: trimmedMessages,
-    system: SEARCH_SYSTEM_PROMPT,
+    system: SEARCH_SYSTEM_PROMPT + cloakClock(),
     imageBase64: imageBase64 || undefined,
     mimeType: mimeType || undefined,
   };
@@ -338,20 +410,10 @@ window.send = async function () {
         // Search path takes over the bubble — orb switches to its scanning
         // state and the search/thought UI gets a clean bot-content.
         botMsgEl._status = null;
+        dropTailOrb(botMsgEl);
         setBotState(botMsgEl, 'searching');
         const _sbc = botMsgEl.querySelector('.bot-content');
         if (_sbc) { _sbc.innerHTML = ''; _sbc._tk = null; }
-
-        // Run thoughts in parallel with search if applicable
-        let thoughtsPromise = null;
-        if (useThoughts) {
-          thoughtsPromise = (async () => {
-            createThoughtChain(botMsgEl);
-            addThoughtStep('Planning Search', 'Determining what to look up and which sources to target.');
-            await sleep(800);
-            addThoughtStep('Executing Queries', 'Running web searches and reading relevant pages.');
-          })();
-        }
 
         // Execute all search calls
         let allGathered = [];
@@ -367,7 +429,7 @@ window.send = async function () {
             );
             CLOAK_SEARCH.updateSourceBadge(idx, 'reading');
             try {
-              const content = await CLOAK_SEARCH.extractUrl(call.params.url, { maxChars: call.params.maxChars || 5000 });
+              const content = await CLOAK_SEARCH.extractUrl(call.params.url, { maxChars: call.params.maxChars || 5000, raw: !!call.params.raw });
               allGathered.push({ url: call.params.url, title: call.params.url, extracted: content });
               CLOAK_SEARCH.updateSourceBadge(idx, 'done');
             } catch (e) {
@@ -376,43 +438,61 @@ window.send = async function () {
           }
         }
 
-        // Finalise thoughts if running
-        if (useThoughts) {
-          await thoughtsPromise;
-          addThoughtStep('Synthesising', 'Combining search results into a coherent answer.');
-          await sleep(400);
-          finaliseThoughts(botMsgEl);
-        }
-
-        CLOAK_SEARCH.updateTicker('Composing answer…');
+        addStatus(botMsgEl, 'Writing the answer…');
         setBotState(botMsgEl, 'thinking');
 
         // Build context with search results for synthesis
-        const searchContext = allGathered
+        const _host = (u) => { try { return new URL(u).hostname.replace('www.', ''); } catch { return u; } };
+        const VERIFY_ASK = `Before answering, check every high-stakes claim (death, health, crime, disaster, election, money, statistics, quotes, breaking news) against the sources above:
+- Confirmed = at least 2 independent reputable sources agree. Same story syndicated/copied = one source.
+- If a key claim rests on a single or low-quality source, or sources conflict, and you can still verify, reply with ONLY a <search> block (no other text) with queries aimed at reputable/primary sources, then <done/>.
+- Otherwise write the answer. State confirmed facts plainly; clearly label anything unconfirmed or disputed; never state it as fact. Cite inline with [n] matching the numbers above, only for what that source actually says.`;
+        const buildContext = () => allGathered
           .filter(s => s.extracted)
-          .map((s, i) => `[${i + 1}] ${s.url}\n${s.title}\n${s.extracted.slice(0, 2000)}`)
+          .map((s, i) => `[${i + 1}] ${_host(s.url)} — ${s.url}\n${s.title}\n${s.extracted.slice(0, 2000)}`)
           .join('\n\n---\n\n');
 
-        const synthesisMessages = [
+        let synthesisMessages = [
           ...trimmedMessages,
           { role: 'assistant', content: firstResponse },
-          {
-            role: 'user',
-            content: `Here are the search results:\n\n${searchContext}\n\nNow synthesise a complete, helpful answer. Cite sources inline with [1], [2] etc. matching the source numbers above.`
-          }
+          { role: 'user', content: `Here are the search results:\n\n${buildContext()}\n\n${VERIFY_ASK}` }
         ];
 
-        // Round 2: Synthesis
-        stats.req++;
-        log('req', `Synthesis round | sources=${allGathered.length}`);
+        // Synthesis, with up to 2 extra verification rounds when the model
+        // asks to double-check a claim before stating it.
+        let synth;
+        for (let round = 0; ; round++) {
+          stats.req++;
+          log('req', `Synthesis round ${round + 1} | sources=${allGathered.length}`);
+          _fetchController = new AbortController();
+          synth = await streamChat({
+            model,
+            messages: synthesisMessages.slice(-22),
+            system: SEARCH_SYSTEM_PROMPT + cloakClock(),
+          }, botMsgEl, _fetchController.signal);
+          _fetchController = null;
 
-        _fetchController = new AbortController();
-        const synth = await streamChat({
-          model,
-          messages: synthesisMessages.slice(-22),
-          system: SEARCH_SYSTEM_PROMPT,
-        }, botMsgEl, _fetchController.signal);
-        _fetchController = null;
+          const verifyCalls = (!synth.aborted && round < 2 && CLOAK_SEARCH.hasToolCalls(synth.text))
+            ? CLOAK_SEARCH.parseToolCalls(synth.text).filter(c => c.type === 'search') : [];
+          if (!verifyCalls.length) break;
+
+          // Verify: clear any prose painted before the tag, search again, re-synthesise.
+          dropTailOrb(botMsgEl);
+          const vbc = botMsgEl.querySelector('.bot-content');
+          if (vbc) { vbc.innerHTML = ''; vbc._tk = null; }
+          setBotState(botMsgEl, 'searching');
+          addStatus(botMsgEl, 'Verifying with more sources…');
+          for (const call of verifyCalls) {
+            allGathered = allGathered.concat(await CLOAK_SEARCH.search(call.params, botMsgEl));
+          }
+          addStatus(botMsgEl, 'Writing the answer…');
+          setBotState(botMsgEl, 'thinking');
+          synthesisMessages = [
+            ...trimmedMessages,
+            { role: 'assistant', content: firstResponse },
+            { role: 'user', content: `Here are the search results (including verification searches):\n\n${buildContext()}\n\n${VERIFY_ASK}${round >= 1 ? '\n\nThis is the last round: write the answer now, labelling anything still unconfirmed.' : ''}` }
+          ];
+        }
 
         // Drop any stray tool markup the model emits during synthesis.
         const finalText = synth.text.replace(/<search>[\s\S]*?<\/search>|<fetch>[\s\S]*?<\/fetch>|<done\s*\/?>/gi, '').trim();
@@ -433,7 +513,7 @@ window.send = async function () {
 
         // Render citation strip after a short delay
         setTimeout(() => {
-          renderCitationStrip(botMsgEl, allGathered.filter(s => s.url));
+          renderCitationStrip(botMsgEl, allGathered.filter(s => s.url && s.extracted));
         }, 600);
 
         if (voiceMode) playVoice(finalText);

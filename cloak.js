@@ -526,6 +526,31 @@ function postProcessBotEl(msgEl, rawText){
   botBody.appendChild(actions);
 }
 
+/* ── FOCUS VIEW ──
+   The latest user message pins to the top of the chat: the reply after it
+   gets a min-height filling the rest of the view, so scrolling down stops
+   there. Older messages stay scrollable above. */
+function trimToLatest(scroll=true){
+  const box=document.getElementById('messages'),ca=document.getElementById('chat-area');
+  if(!box||!ca)return;
+  const users=box.querySelectorAll('.msg.user'),user=users[users.length-1];
+  if(!user){box.style.paddingBottom='';return;}
+  // Spacer so the max scroll lands exactly with the latest user message at top.
+  const pin=user.offsetTop-box.offsetTop-8;
+  const last=box.lastElementChild;
+  const contentEnd=last.offsetTop-box.offsetTop+last.offsetHeight;
+  box.style.paddingBottom=Math.max(40,pin+ca.clientHeight-contentEnd)+'px';
+  if(scroll)ca.scrollTop=pin;
+}
+(function(){
+  const box=document.getElementById('messages');
+  if(box&&'ResizeObserver' in window){
+    let raf=0;
+    new ResizeObserver(()=>{if(!raf)raf=requestAnimationFrame(()=>{raf=0;trimToLatest(false);});}).observe(box);
+    window.addEventListener('resize',()=>trimToLatest(false));
+  }
+})();
+
 /* ── ADD MESSAGE ── */
 function addMsg(role,content,noAnim=false,imgs=[]){
   const box=document.getElementById('messages');
@@ -552,9 +577,9 @@ function addMsg(role,content,noAnim=false,imgs=[]){
   }else{
     const html=noAnim?marked.parse(content):'';
     d.innerHTML='<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content">'+html+'</div></div>';
-    if(noAnim)postProcessBotEl(d,content);
+    if(noAnim){restOrbBelow(d);postProcessBotEl(d,content);}
   }
-  box.appendChild(d);scrollBottom(role==='user');return d;
+  box.appendChild(d);if(role==='user')trimToLatest();scrollBottom(role==='user');return d;
 }
 
 function editMessage(msgEl){
@@ -568,6 +593,7 @@ function editMessage(msgEl){
   removed.forEach(el=>el.remove());
   const toRemove=removed.length;
   hist=hist.slice(0,Math.max(0,hist.length-toRemove));
+  trimToLatest();
   const inp=document.getElementById('chat-input');
   inp.value=rawText;inp.focus();onInput(inp);
   if(!hist.length){document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';}
@@ -779,24 +805,28 @@ document.addEventListener('keydown', (e)=>{
 });
 
 function insertBotBubble() {
+  const from = _takeRestingOrb();
   const box = document.getElementById('messages');
   showMessages();
   const wrap = document.createElement('div');
   wrap.className = 'msg bot';
   wrap.innerHTML = '<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div></div>';
   box.appendChild(wrap);
-  scrollBottom();
+  trimToLatest();
+  travelOrb(from, wrap);
   return wrap;
 }
 
 function insertBotBubbleForThoughts() {
+  const from = _takeRestingOrb();
   const box = document.getElementById('messages');
   showMessages();
   const wrap = document.createElement('div');
   wrap.className = 'msg bot';
   wrap.innerHTML = '<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content"></div></div>';
   box.appendChild(wrap);
-  scrollBottom();
+  trimToLatest();
+  travelOrb(from, wrap);
   return wrap;
 }
 
@@ -809,9 +839,12 @@ function replaceThinkWithContent(botMsgEl, rawText) {
 
   // No fake typewriter — text only animates in from live token streaming.
   if (botMsgEl._status) { botMsgEl._status.destroy(); botMsgEl._status = null; }
+  dropTailOrb(botMsgEl);
+  finishStatus(botMsgEl);
   bc.innerHTML = marked.parse(rawText);
   postProcessBotEl(botMsgEl, rawText);
-  setBotState(botMsgEl, /^Error:/.test(rawText) ? 'error' : 'done');
+  setBotState(botMsgEl, null);
+  restOrbBelow(botMsgEl, /^Error:/.test(rawText) ? 'error' : 'done');
   setBusy(false);
   scrollBottom();
 }
@@ -868,6 +901,7 @@ function setOrbState(orb, state){
   const cur=orb.dataset.state||null;
   if(cur===state && state!=='done' && state!=='error') return; // don't restart a running loop
   clearTimeout(orb._stateT);
+  orbGlobe(orb, state==='searching');
   ORB_STATES.forEach(k=>orb.classList.remove('orb-'+k));
   if(!state){ delete orb.dataset.state; return; }
   void orb.offsetWidth;            // reflow so one-shot animations can replay
@@ -878,15 +912,235 @@ function setOrbState(orb, state){
   }
 }
 
+/* ── SEARCHING GLOBE ──
+   While searching, meridians spin in over the orb's left edge and the equator
+   is drawn in behind the first one. When searching stops no new meridians come
+   round: the ones on the face finish their pass off the right edge and the
+   equator is wiped behind the last one, leaving the plain orb. */
+function orbGlobe(orb, on){
+  let g=orb._globe;
+  if(!g){
+    if(!on) return;
+    const svg=orb.querySelector('svg'); if(!svg) return;
+    const NS='http://www.w3.org/2000/svg', R=46, N=4, TAU=Math.PI*2;
+    const mk=(t,p,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;};
+    const id='og'+Math.random().toString(36).slice(2,8);
+    mk('circle',mk('clipPath',mk('defs',svg,{}),{id}),{r:R-1});
+    const grp=mk('g',svg,{class:'orb-globe','clip-path':'url(#'+id+')'});
+    mk('circle',svg,{r:R,class:'orb-globe-ring'});    // ink outline redrawn over the lines
+    g=orb._globe={on:false,th:0,spin:0,raf:0,last:0,fill:'empty',lead:-1,drain:false,
+      eq:mk('line',grp,{y1:0,y2:0}),mer:Array.from({length:N},()=>mk('path',grp,{}))};
+    const ang=i=>g.th+i*TAU/N, front=i=>Math.cos(ang(i))>0;
+    g.alive=g.mer.map(()=>false); g.was=g.mer.map((_,i)=>front(i));
+    const vis=()=>g.mer.map((_,i)=>i).filter(i=>g.alive[i]&&front(i));
+    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    g.render=()=>{
+      const v=vis(), sn=i=>Math.sin(ang(i));
+      g.mer.forEach((p,i)=>{ if(!v.includes(i)){p.setAttribute('d','');return;} const s=sn(i);
+        p.setAttribute('d','M0 '+(-R)+'A'+Math.abs(R*s)+' '+R+' 0 0 '+(s>0?1:0)+' 0 '+R); });
+      const hi=g.fill==='full'?1:g.fill==='lead'?sn(g.lead):-1, lo=g.drain?(v.length?Math.min(...v.map(sn)):1):-1;
+      g.eq.setAttribute('x1',hi-lo<.01?0:lo*R); g.eq.setAttribute('x2',hi-lo<.01?0:hi*R);
+      g.eq.style.opacity=hi-lo<.01?0:1;
+    };
+    g.frame=now=>{
+      const dt=Math.min(.05,(now-g.last)/1000); g.last=now;
+      const busy=g.on||vis().length>0;
+      g.spin+=((busy?(g.on?3.2:4):0)-g.spin)*(1-Math.exp(-dt*4)); g.th+=g.spin*dt;
+      g.mer.forEach((_,i)=>{ const f=front(i);
+        if(f&&!g.was[i]){ g.alive[i]=g.on; if(g.alive[i]&&g.fill==='await'){g.fill='lead';g.lead=i;} }  // spun in over the left edge
+        if(!f&&g.was[i]){ g.alive[i]=false; if(g.fill==='lead'&&i===g.lead) g.fill='full'; }          // left over the right edge
+        g.was[i]=f; });
+      if(g.drain&&!vis().length){ g.drain=false; g.fill='empty'; }
+      g.render();
+      g.raf=(g.on||g.fill!=='empty')&&orb.isConnected?requestAnimationFrame(g.frame):0;
+    };
+    g.set=on=>{
+      if(on===g.on) return; g.on=on;
+      if(reduce){ g.fill=on?'full':'empty'; g.drain=false; g.th=.4; g.mer.forEach((_,i)=>{g.alive[i]=on;g.was[i]=front(i);}); g.render(); return; }
+      if(on){ g.drain=false; if(g.fill==='empty') g.fill='await'; }
+      else if(g.fill==='await') g.fill='empty'; else if(g.fill!=='empty') g.drain=true;
+      if(!g.raf){ g.last=performance.now(); g.raf=requestAnimationFrame(g.frame); }
+    };
+  }
+  g.set(on);
+}
+
 // Orb + label for a bot message. Labels only show for pre-answer steps.
 function setBotState(botMsgEl, state){
   if(!botMsgEl) return;
   setOrbState(botMsgEl.querySelector('.cloak-orb'), state);
   const label=botMsgEl.querySelector('.bot-label');
   if(!label) return;
-  const t=BOT_STATE_LABELS[state];
+  const t=BOT_STATE_LABELS[state]?(botMsgEl._preview||BOT_STATE_LABELS[state]):null;
   label.textContent=t||'Cloak';
   label.classList.toggle('cs-thinking-label',!!t);
+}
+
+/* ── STREAMING TAIL ORB ──
+   While tokens stream, the orb leaves the header and rides just under the
+   last line on the left, tweening down as each new line arrives. */
+function _orbPos(body, el){
+  const b=body.getBoundingClientRect(), r=el.getBoundingClientRect();
+  return [r.left-b.left, r.top-b.top];
+}
+function tailOrb(botMsgEl){
+  if(botMsgEl._tail) return botMsgEl._tail;
+  const body=botMsgEl.querySelector('.bot-body'), meta=botMsgEl.querySelector('.bot-meta .cloak-orb');
+  if(!body||!meta) return null;
+  const t=document.createElement('span');
+  t.className='orb-tail'; t.setAttribute('aria-hidden','true');
+  t.innerHTML=CLOAK_ORB_HTML;
+  const [x,y]=_orbPos(body,meta);
+  t.style.transform='translate('+x+'px,'+y+'px)';
+  body.appendChild(t);
+  meta.style.visibility='hidden';
+  botMsgEl.classList.add('orb-streaming');   // status row collapses: text starts where "Cloak is thinking…" was
+  botMsgEl._tail=t;
+  return t;
+}
+function placeTailOrb(botMsgEl, bc){
+  const t=botMsgEl._tail; if(!t||!bc) return;
+  bc.classList.add('has-tail');
+  const body=botMsgEl.querySelector('.bot-body');
+  const last=bc.lastElementChild||bc;
+  const b=body.getBoundingClientRect(), c=bc.getBoundingClientRect(), l=last.getBoundingClientRect();
+  const y=Math.round(l.bottom-b.top+8), x=Math.round(c.left-b.left);
+  if(t._y===y) return;
+  t._y=y;
+  t.style.transform='translate('+x+'px,'+y+'px)';
+}
+// Tween back into the header, then hand off to the real orb.
+function dockTailOrb(botMsgEl, done){
+  const t=botMsgEl._tail;
+  const meta=botMsgEl.querySelector('.bot-meta .cloak-orb');
+  const bc=botMsgEl.querySelector('.bot-content');
+  if(!t){ if(done) done(); return; }
+  botMsgEl._tail=null;
+  botMsgEl.classList.remove('orb-streaming');
+  setOrbState(t.querySelector('.cloak-orb'),null);
+  const body=botMsgEl.querySelector('.bot-body');
+  if(meta&&body){ const [x,y]=_orbPos(body,meta); t.style.transform='translate('+x+'px,'+y+'px)'; }
+  setTimeout(()=>{
+    t.remove(); if(meta) meta.style.visibility='';
+    if(bc) bc.classList.remove('has-tail');
+    if(done) done();
+  }, done===undefined?0:400);
+}
+function dropTailOrb(botMsgEl){ dockTailOrb(botMsgEl); }
+
+// Finished messages: the orb rests below the answer (no trip back up).
+function restOrbBelow(botMsgEl, state){
+  const bc=botMsgEl&&botMsgEl.querySelector('.bot-content');
+  if(!bc) return;
+  const t=botMsgEl._tail; botMsgEl._tail=null;
+  if(t) t.remove();
+  bc.classList.remove('has-tail');
+  botMsgEl.classList.remove('orb-streaming');
+  const meta=botMsgEl.querySelector('.bot-meta .cloak-orb');
+  if(meta) meta.style.visibility='hidden';
+  botMsgEl.classList.add('orb-below');
+  let end=botMsgEl.querySelector('.bot-end-orb');
+  if(!end){
+    end=document.createElement('div'); end.className='bot-end-orb';
+    end.innerHTML=CLOAK_ORB_HTML;
+    bc.insertAdjacentElement('afterend',end);
+  }
+  if(state) setOrbState(end.querySelector('.cloak-orb'),state);
+  // One orb per chat — only the newest reply keeps it.
+  document.querySelectorAll('.bot-end-orb').forEach(e=>{if(e!==end)e.remove();});
+}
+
+// Fly the resting orb from the previous reply into the new bubble's header.
+function travelOrb(fromRect, botMsgEl){
+  const meta=botMsgEl&&botMsgEl.querySelector('.bot-meta .cloak-orb');
+  if(!meta||!fromRect) return;
+  const to=meta.getBoundingClientRect();
+  const fly=document.createElement('span');
+  fly.className='orb-fly'; fly.setAttribute('aria-hidden','true');
+  fly.innerHTML=CLOAK_ORB_HTML;
+  fly.style.transform='translate('+fromRect.left+'px,'+fromRect.top+'px)';
+  document.body.appendChild(fly);
+  meta.style.opacity='0';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    fly.style.transform='translate('+to.left+'px,'+to.top+'px)';
+  }));
+  setTimeout(()=>{ fly.remove(); meta.style.opacity=''; }, 520);
+}
+function _takeRestingOrb(){
+  const end=document.querySelector('#messages .bot-end-orb');
+  if(!end) return null;
+  const r=end.getBoundingClientRect();
+  end.remove();
+  return r.width?r:null;
+}
+
+/* ── STATUS LOG ──
+   Thinking + research steps as single lines that pop in (styled like
+   "Cloak is thinking…"). When the answer starts, the log collapses to a
+   one-line summary you can click to reopen. */
+function statusLog(botMsgEl){
+  if(!botMsgEl) return null;
+  if(botMsgEl._log) return botMsgEl._log;
+  const body=botMsgEl.querySelector('.bot-body'),bc=botMsgEl.querySelector('.bot-content');
+  if(!body||!bc) return null;
+  const log=document.createElement('div');
+  log.className='status-log';
+  log.innerHTML='<button class="status-head" type="button" aria-expanded="false"><span class="status-head-label"></span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
+  const head=log.querySelector('.status-head');
+  head.addEventListener('click',()=>{
+    const o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);
+    log.querySelector('.status-head-label').textContent=o?'Hide thinking':'Show thinking';
+  });
+  log._t0=Date.now();
+  body.insertBefore(log,bc);
+  botMsgEl._log=log;
+  return log;
+}
+function addStatus(botMsgEl,text,noPreview){
+  const log=statusLog(botMsgEl);if(!log||log._done)return null;
+  const lines=log.querySelector('.status-lines');
+  const prev=lines.lastElementChild;if(prev)prev.classList.remove('live');
+  const el=document.createElement('div');
+  el.className='status-line live';el.textContent=text;
+  lines.appendChild(el);
+  if(!noPreview)setStatusPreview(botMsgEl,text,true);
+  scrollBottom();
+  return el;
+}
+// Collapsed view = one line: a preview of the latest status/thought.
+// Each new line holds for at least 1s; if they arrive faster, the newest
+// waiting one shows when the hold ends.
+const STATUS_HOLD_MS=1000;
+function setStatusPreview(botMsgEl,text,isNew){
+  const log=botMsgEl&&botMsgEl._log;if(!log)return;
+  // The preview lives in the label beside the orb (replacing "Cloak is thinking…").
+  const show=(t,pop)=>{
+    if(log._done)return;
+    botMsgEl._preview=t;
+    const lbl=botMsgEl.querySelector('.bot-label');
+    if(!lbl||!lbl.classList.contains('cs-thinking-label'))return;
+    lbl.textContent=t;
+    if(pop){lbl.classList.remove('pop');void lbl.offsetWidth;lbl.classList.add('pop');log._shownAt=Date.now();}
+  };
+  if(!isNew){ if(log._pending==null) show(text,false); else log._pending=text; return; }
+  const wait=(log._shownAt||0)+STATUS_HOLD_MS-Date.now();
+  if(wait<=0&&log._pending==null){ show(text,true); return; }
+  log._pending=text;
+  if(!log._holdT) log._holdT=setTimeout(()=>{
+    log._holdT=0;
+    const t=log._pending; log._pending=null;
+    if(t!=null) show(t,true);
+  },Math.max(0,wait));
+}
+function finishStatus(botMsgEl){
+  const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
+  log._done=true;
+  clearTimeout(log._holdT);log._holdT=0;log._pending=null;
+  botMsgEl._preview=null;
+  log.querySelectorAll('.status-line.live').forEach(l=>l.classList.remove('live'));
+  if(!log.querySelector('.status-line')){log.remove();botMsgEl._log=null;return;}
+  log.querySelector('.status-head-label').textContent='Show thinking';
+  log.classList.add('done');
 }
 
 function createCloakStatus(botMsgEl){
@@ -1144,7 +1398,7 @@ function clearLogs(){logs=[];stats={req:0,res:0,err:0,lat:[]};renderLogs();updat
 
 /* ── STORAGE ── */
 async function loadConvs(){const{data,error}=await sb.from('chats').select('id,title,updated_at').eq('user_id',uid).order('updated_at',{ascending:false});if(error){log('err','Load convs: '+error.message);return;}convs=(data||[]).map(r=>({id:r.id,title:r.title}));renderConvs();log('inf','Loaded '+convs.length+' chat(s)');}
-async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}chatId=id;hist=data.messages||[];document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));showMessages();renderConvs();}
+async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}chatId=id;hist=data.messages||[];document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));trimToLatest();showMessages();renderConvs();}
 function _makeTitle(first){const clean=first.replace(/\n+/g,' ').replace(/\s+/g,' ').trim();const sentenceEnd=clean.search(/[.!?](?:\s|$)/);let candidate=sentenceEnd>4&&sentenceEnd<70?clean.slice(0,sentenceEnd+1):clean;if(candidate.length>60)candidate=candidate.slice(0,58).replace(/\s+\S*$/,'')+'\u2026';return candidate||'New chat';}
 async function saveConv(first){if(!uid||guest)return;let currentUid=uid;try{const{data:{session}}=await sb.auth.getSession();if(!session?.user){log('err','Save aborted: no session');return;}currentUid=session.user.id;uid=currentUid;}catch(e){log('err','Save: session check failed');return;}const ex=convs.find(c=>c.id===chatId);const title=ex?ex.title:_makeTitle(first);if(!ex)convs.unshift({id:chatId,title});renderConvs();const{error}=await sb.from('chats').upsert({id:chatId,user_id:currentUid,title,messages:hist,updated_at:new Date().toISOString()},{onConflict:'user_id,id'});if(error){log('err','Save: '+error.message);}else{log('inf','Chat saved: '+title.slice(0,30));}}
 async function delConv(id){const{error}=await sb.from('chats').delete().eq('id',id).eq('user_id',uid);if(error){log('err','Delete: '+error.message);return;}convs=convs.filter(c=>c.id!==id);if(chatId===id)newChat();else renderConvs();}
@@ -1308,6 +1562,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926c').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926o').catch(e=>console.warn('SW registration failed',e));
   });
 }

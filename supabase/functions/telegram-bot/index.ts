@@ -8,42 +8,163 @@ const SERVICE_KEY     = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const MAX_HISTORY = 20; // messages (pairs) to keep per session
 
+const MODELS: Record<string, string> = {
+  pneuma: "Pneuma — creative, warm, everyday chat",
+  logos:  "Logos — logical, precise reasoning",
+  kairos: "Kairos — deep, thorough thinking",
+};
+const modelName = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
+
+type Session = { id: string; history: { role: string; message: string }[]; model: string };
+
+async function tg(method: string, body: unknown) {
+  return fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+function modelKeyboard(current: string) {
+  return {
+    inline_keyboard: Object.keys(MODELS).map((m) => [{
+      text: (m === current ? "● " : "") + modelName(m),
+      callback_data: "model:" + m,
+    }]),
+  };
+}
+
+function modelMenuText(current: string) {
+  return `Current model: *${modelName(current)}*\n\n` +
+    Object.entries(MODELS).map(([, d]) => "• " + d).join("\n") +
+    "\n\nPick one below, or send /model <name>.";
+}
+
+// Reactions Telegram lets bots use (standard emoji set).
+const REACTIONS = new Set([
+  "👍","👎","❤","🔥","🥰","👏","😁","🤔","🤯","😱","🤬","😢","🎉","🤩","🤮","💩","🙏","👌","🕊","🤡",
+  "🥱","🥴","😍","🐳","❤‍🔥","🌚","🌭","💯","🤣","⚡","🍌","🏆","💔","🤨","😐","🍓","🍾","💋","🖕","😈",
+  "😴","😭","🤓","👻","👨‍💻","👀","🎃","🙈","😇","😨","🤝","✍","🤗","🫡","🎅","🎄","☃","💅","🤪","🗿",
+  "🆒","💘","🙉","🦄","😘","💊","🙊","😎","👾","🤷‍♂","🤷","🤷‍♀","😡",
+]);
+const normEmoji = (e: string) => e.replace(/\uFE0F/g, "");
+
+const REACTION_GUIDE = `
+TEXT LIKE A REAL PERSON — this is a Telegram chat, not an essay:
+- Mirror the user: match their length, energy and formality. Short message in → short message back. Casual → casual.
+- Plain conversational language, contractions, no headers, no bullet lists, no bold unless they asked for something structured (steps, code, a list).
+- Don't open with "Great question" or restate what they said. Don't sign off every message with "Let me know if…". Don't end every message with a question.
+- Emoji sparingly, only when they fit the vibe.
+- Split naturally into a few bubbles when a person would (reaction/thought, then the point, then a follow-up) — see <break/> below.
+- For real questions that need depth, still answer properly — just keep it readable on a phone.
+TELEGRAM REACTIONS — you can react to the user's message like a person would:
+- Put <react emoji="👍"/> anywhere in your reply to react to their latest message. Pick from: 👍 ❤ 🔥 😁 🤣 🤔 👀 🙏 👏 🎉 💯 😢 🤯 🫡 😎 🤝 🥰 😭 🗿 🆒.
+- Put <silent/> to send NO text reply (they'll just see "delivered" or your reaction). Use it the way a person would: for "ok", "thanks", "lol", "👍", sign-offs, or anything that doesn't need an answer. Usually pair it with a reaction.
+- Most messages that ask something still get a normal text reply. Don't react to everything — only when it feels natural.
+- To text in a chain like a person (several short bubbles instead of one block), put <break/> between the messages, e.g. "I'm Cloak, an AI assistant.<break/>How can I help?" Use it for casual back-and-forth, not for long structured answers. 2–4 bubbles max.
+- If the user reacted to one of your messages, you'll see "[User reacted ❤ to your message]". Usually do nothing (<silent/>); only reply or react if it genuinely calls for it.`;
+
+// Pull <react emoji="…"/> and <silent/> directives out of the model's reply.
+function parseDirectives(raw: string) {
+  let react: string | null = null;
+  const m = raw.match(/<react\s+emoji\s*=\s*["']([^"']+)["']\s*\/?>/i);
+  if (m) {
+    const e = normEmoji(m[1].trim());
+    react = [...REACTIONS].find((r) => normEmoji(r) === e) ?? null;
+  }
+  const silent = /<silent\s*\/?>/i.test(raw);
+  const text = raw.replace(/<react[^>]*\/?>|<silent\s*\/?>|<\/react>/gi, "").trim();
+  // <break/> splits the reply into a chain of separate messages.
+  const parts = text.split(/<break\s*\/?>/i).map((t) => t.trim()).filter(Boolean).slice(0, 6);
+  return { react, silent: silent || !parts.length, text: parts.join("\n\n"), parts };
+}
+
+// Send a chain of bubbles with a short "typing…" pause between them.
+async function sendChain(chatId: number | string, parts: string[]) {
+  for (let i = 0; i < parts.length; i++) {
+    if (i === 0) {
+      await tg("sendChatAction", { chat_id: chatId, action: "typing" });
+      await new Promise((r) => setTimeout(r, Math.min(1400, 250 + parts[0].length * 8)));
+    } else {
+      await tg("sendChatAction", { chat_id: chatId, action: "typing" });
+      await new Promise((r) => setTimeout(r, Math.min(2200, 450 + parts[i].length * 18)));
+    }
+    await sendTelegram(chatId, parts[i]);
+  }
+}
+
+async function reactTo(chatId: number | string, messageId: number, emoji: string) {
+  await tg("setMessageReaction", {
+    chat_id: chatId, message_id: messageId,
+    reaction: [{ type: "emoji", emoji }],
+  });
+}
+
+// Make sure the webhook also delivers button taps and reactions
+// (keeps the current URL + secret, just widens allowed_updates).
+async function ensureWebhookUpdates() {
+  const info = await (await tg("getWebhookInfo", {})).json().catch(() => null);
+  const url = info?.result?.url;
+  if (!url) return;
+  await tg("setWebhook", {
+    url,
+    ...(TELEGRAM_SECRET ? { secret_token: TELEGRAM_SECRET } : {}),
+    allowed_updates: ["message", "callback_query", "message_reaction"],
+  });
+}
+
+// Register the command menu shown in Telegram's "/" picker.
+async function registerCommands() {
+  await ensureWebhookUpdates();
+  await tg("setMyCommands", {
+    commands: [
+      { command: "model", description: "Show or switch the AI model" },
+      { command: "reset", description: "Start a fresh conversation" },
+      { command: "start", description: "About Cloak" },
+    ],
+  });
+}
+
 async function sendTelegram(chatId: number | string, text: string) {
   // Telegram max message length is 4096 chars; split if needed
   const chunks: string[] = [];
   for (let i = 0; i < text.length; i += 4000) chunks.push(text.slice(i, i + 4000));
 
   for (const chunk of chunks) {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: chunk, parse_mode: "Markdown" }),
-    });
+    const send = (parseMode?: string) =>
+      fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: chunk, ...(parseMode ? { parse_mode: parseMode } : {}) }),
+      });
+    // Model markdown doesn't always parse as Telegram Markdown — fall back to plain text.
+    const res = await send("Markdown");
+    if (!res.ok) await send();
   }
 }
 
 async function getOrCreateSession(
   db: ReturnType<typeof createClient>,
   platformId: string,
-): Promise<{ id: string; history: { role: string; message: string }[] }> {
+): Promise<Session> {
   const { data, error } = await db
     .from("messaging_sessions")
-    .select("id, history")
+    .select("id, history, model")
     .eq("platform", "telegram")
     .eq("platform_id", platformId)
     .single();
 
-  if (data) return data as { id: string; history: { role: string; message: string }[] };
+  if (data) return data as Session;
   if (error?.code !== "PGRST116") throw error; // unexpected error
 
   const { data: created, error: createErr } = await db
     .from("messaging_sessions")
     .insert({ platform: "telegram", platform_id: platformId, history: [] })
-    .select("id, history")
+    .select("id, history, model")
     .single();
 
   if (createErr) throw createErr;
-  return created as { id: string; history: { role: string; message: string }[] };
+  return created as Session;
 }
 
 async function saveHistory(
@@ -82,21 +203,32 @@ async function downloadPhotoAsBase64(fileId: string): Promise<{ base64: string; 
   return { base64, mimeType };
 }
 
+// Answers come from cloak-api (https://api.usecloak.org) — the same backend
+// as the web chat, with provider/model failover, so a retired model on one
+// provider no longer takes the bot down.
+const CLOAK_API = Deno.env.get("CLOAK_API_URL") ?? "https://api.usecloak.org";
+
 async function callChatMessage(
   message: string,
   chatHistory: { role: string; message: string }[],
+  model: string,
   image?: { base64: string; mimeType: string },
 ): Promise<string> {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/chat-message`, {
+  const messages = [
+    ...chatHistory.map((m) => ({
+      role: /^(assistant|chatbot|bot|model)$/i.test(m.role) ? "assistant" : "user",
+      content: m.message,
+    })),
+    { role: "user", content: message || "[Image]" },
+  ].slice(-20);
+
+  const res = await fetch(`${CLOAK_API}/v1/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${SERVICE_KEY}`,
-      "apikey": SERVICE_KEY,
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      message,
-      chat_history: chatHistory,
+      model: MODELS[model] ? model : "pneuma",
+      messages,
+      system: `Current date and time (UTC): ${new Date().toISOString()}. You are replying in Telegram: keep formatting simple, and text like a person — short when short fits.\n${REACTION_GUIDE}`,
       ...(image ? { imageBase64: image.base64, mimeType: image.mimeType } : {}),
     }),
     signal: AbortSignal.timeout(55_000),
@@ -104,11 +236,11 @@ async function callChatMessage(
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`chat-message ${res.status}: ${err.slice(0, 200)}`);
+    throw new Error(`cloak-api ${res.status}: ${err.slice(0, 200)}`);
   }
 
   const json = await res.json();
-  return json.text ?? "Sorry, I couldn't generate a response.";
+  return json.response ?? json.text ?? "Sorry, I couldn't generate a response.";
 }
 
 serve(async (req) => {
@@ -123,7 +255,15 @@ serve(async (req) => {
   if (req.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
 
   let update: {
+    message_reaction?: {
+      chat: { id: number };
+      message_id: number;
+      user?: { id: number; is_bot?: boolean };
+      new_reaction: { type: string; emoji?: string }[];
+    };
+    callback_query?: { id: string; data?: string; message?: { chat: { id: number }; message_id: number } };
     message?: {
+      message_id: number;
       chat: { id: number };
       from?: { id: number };
       text?: string;
@@ -138,6 +278,47 @@ serve(async (req) => {
     return new Response("Bad Request", { status: 400 });
   }
 
+  // Model picker button taps
+  const cb = update?.callback_query;
+  if (cb?.data?.startsWith("model:") && cb.message) {
+    const m = cb.data.slice(6);
+    if (MODELS[m]) {
+      const db = createClient(SUPABASE_URL, SERVICE_KEY);
+      const session = await getOrCreateSession(db, String(cb.message.chat.id));
+      await db.from("messaging_sessions").update({ model: m }).eq("id", session.id);
+      await tg("answerCallbackQuery", { callback_query_id: cb.id, text: `Switched to ${modelName(m)}` });
+      await tg("editMessageText", {
+        chat_id: cb.message.chat.id, message_id: cb.message.message_id,
+        text: modelMenuText(m), parse_mode: "Markdown", reply_markup: modelKeyboard(m),
+      });
+    }
+    return new Response("ok", { status: 200 });
+  }
+
+  // User reacted to a message — let Cloak decide whether that deserves anything.
+  const mr = update?.message_reaction;
+  if (mr?.chat?.id && !mr.user?.is_bot) {
+    const emojis = mr.new_reaction.filter((r) => r.type === "emoji" && r.emoji).map((r) => r.emoji!);
+    if (!emojis.length) return new Response("ok", { status: 200 }); // reaction removed
+    try {
+      const db = createClient(SUPABASE_URL, SERVICE_KEY);
+      const session = await getOrCreateSession(db, String(mr.chat.id));
+      const note = `[User reacted ${emojis.join(" ")} to your message]`;
+      const raw = await callChatMessage(note, session.history, session.model);
+      const { react, silent, parts } = parseDirectives(raw);
+      if (react) await reactTo(mr.chat.id, mr.message_id, react);
+      if (!silent) await sendChain(mr.chat.id, parts);
+      await saveHistory(db, session.id, [
+        ...session.history,
+        { role: "USER", message: note },
+        { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : parts.join("<break/>")) },
+      ]);
+    } catch (e) {
+      console.error("telegram-bot reaction error:", e instanceof Error ? e.message : String(e));
+    }
+    return new Response("ok", { status: 200 });
+  }
+
   const msg = update?.message;
   if (!msg?.chat?.id) return new Response("ok", { status: 200 });
 
@@ -148,8 +329,9 @@ serve(async (req) => {
   const chatId   = msg.chat.id;
   const userText = (msg.text ?? msg.caption ?? "").trim();
 
-  // Ignore bot commands other than /start
-  if (userText.startsWith("/") && !userText.startsWith("/start")) {
+  // Commands: /start, /reset, /model [name]; ignore any others.
+  const cmd = userText.startsWith("/") ? userText.slice(1).split(/\s+/)[0].split("@")[0].toLowerCase() : "";
+  if (cmd && !["start", "reset", "new", "clear", "model"].includes(cmd)) {
     return new Response("ok", { status: 200 });
   }
 
@@ -163,14 +345,35 @@ serve(async (req) => {
       body: JSON.stringify({ chat_id: chatId, action: "typing" }),
     });
 
-    if (userText === "/start") {
+    if (cmd === "start") {
+      await registerCommands();
       await sendTelegram(chatId,
-        "Hey, I'm *Cloak* — an AI assistant. Ask me anything, or send me an image."
+        "Hey, I'm *Cloak* — an AI assistant. Ask me anything, or send me an image.\n\n/model — switch AI model\n/reset — start a fresh conversation"
       );
       return new Response("ok", { status: 200 });
     }
 
     const session = await getOrCreateSession(db, String(chatId));
+
+    if (cmd === "reset" || cmd === "new" || cmd === "clear") {
+      await saveHistory(db, session.id, []);
+      await sendTelegram(chatId, "Fresh start — I've cleared our conversation. What's up?");
+      return new Response("ok", { status: 200 });
+    }
+
+    if (cmd === "model") {
+      const arg = userText.split(/\s+/)[1]?.toLowerCase();
+      if (arg && MODELS[arg]) {
+        await db.from("messaging_sessions").update({ model: arg }).eq("id", session.id);
+        await sendTelegram(chatId, `Switched to *${modelName(arg)}*.`);
+      } else {
+        const cur = MODELS[session.model] ? session.model : "pneuma";
+        await tg("sendMessage", {
+          chat_id: chatId, text: modelMenuText(cur), parse_mode: "Markdown", reply_markup: modelKeyboard(cur),
+        });
+      }
+      return new Response("ok", { status: 200 });
+    }
 
     // Download photo if present (use largest size)
     let image: { base64: string; mimeType: string } | undefined;
@@ -179,7 +382,9 @@ serve(async (req) => {
       image = await downloadPhotoAsBase64(largest.file_id);
     }
 
-    const reply = await callChatMessage(userText, session.history, image);
+    const raw = await callChatMessage(userText, session.history, session.model, image);
+    const { react, silent, parts } = parseDirectives(raw);
+    if (react) await reactTo(chatId, msg.message_id, react);
 
     // Store [Image] as user turn text — base64 is too large to persist
     const userHistoryText = hasPhoto ? (userText ? `[Image] ${userText}` : "[Image]") : userText;
@@ -187,11 +392,12 @@ serve(async (req) => {
     const newHistory = [
       ...session.history,
       { role: "USER", message: userHistoryText },
-      { role: "CHATBOT", message: reply },
+      { role: "CHATBOT", message: (react ? `<react emoji="${react}"/>` : "") + (silent ? "<silent/>" : parts.join("<break/>")) },
     ];
     await saveHistory(db, session.id, newHistory);
 
-    await sendTelegram(chatId, reply);
+    // Left on "delivered" (or just a reaction) when Cloak chose silence.
+    if (!silent) await sendChain(chatId, parts);
   } catch (e) {
     console.error("telegram-bot error:", e instanceof Error ? e.message : String(e));
     await sendTelegram(chatId, "Something went wrong. Try again in a moment.");
