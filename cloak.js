@@ -1084,8 +1084,8 @@ function statusLog(botMsgEl){
   const body=botMsgEl.querySelector('.bot-body'),bc=botMsgEl.querySelector('.bot-content');
   if(!body||!bc) return null;
   const log=document.createElement('div');
-  log.className='status-log open';
-  log.innerHTML='<button class="status-head" type="button" aria-expanded="true"><span class="status-head-label"></span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
+  log.className='status-log';
+  log.innerHTML='<button class="status-head" type="button" aria-expanded="false"><span class="status-head-label"></span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
   const head=log.querySelector('.status-head');
   head.addEventListener('click',()=>{const o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);});
   log._t0=Date.now();
@@ -1100,18 +1100,37 @@ function addStatus(botMsgEl,text){
   const el=document.createElement('div');
   el.className='status-line live';el.textContent=text;
   lines.appendChild(el);
+  setStatusPreview(botMsgEl,text,true);
   scrollBottom();
   return el;
+}
+// Collapsed view = one line: a preview of the latest status/thought.
+// Each new line holds for at least 1s; if they arrive faster, the newest
+// waiting one shows when the hold ends.
+const STATUS_HOLD_MS=1000;
+function setStatusPreview(botMsgEl,text,isNew){
+  const log=botMsgEl&&botMsgEl._log;if(!log)return;
+  const lbl=log.querySelector('.status-head-label');
+  const show=(t,pop)=>{
+    lbl.textContent=t;
+    if(pop){lbl.classList.remove('pop');void lbl.offsetWidth;lbl.classList.add('pop');log._shownAt=Date.now();}
+  };
+  if(!isNew){ if(log._pending==null) show(text,false); else log._pending=text; return; }
+  const wait=(log._shownAt||0)+STATUS_HOLD_MS-Date.now();
+  if(wait<=0&&log._pending==null){ show(text,true); return; }
+  log._pending=text;
+  if(!log._holdT) log._holdT=setTimeout(()=>{
+    log._holdT=0;
+    const t=log._pending; log._pending=null;
+    if(t!=null) show(t,true);
+  },Math.max(0,wait));
 }
 function finishStatus(botMsgEl){
   const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
   log._done=true;
   log.querySelectorAll('.status-line.live').forEach(l=>l.classList.remove('live'));
   if(!log.querySelector('.status-line')){log.remove();botMsgEl._log=null;return;}
-  const s=Math.max(1,Math.round((Date.now()-log._t0)/1000));
-  log.querySelector('.status-head-label').textContent=(log._summary?log._summary+' · ':'Thought for ')+s+'s';
-  log.classList.remove('open');log.classList.add('done');
-  log.querySelector('.status-head').setAttribute('aria-expanded','false');
+  log.classList.add('done');
 }
 
 function createCloakStatus(botMsgEl){
@@ -1533,6 +1552,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926i').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926j').catch(e=>console.warn('SW registration failed',e));
   });
 }

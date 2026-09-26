@@ -168,6 +168,7 @@ async function streamChat(bodyObj, botMsgEl, signal) {
 
   const bc = botMsgEl.querySelector('.bot-content');
   if (bc) bc._tk = null;
+  botMsgEl._thinkBuf = ''; botMsgEl._thinkLine = null;
   let orb = null;
   let full = '';
   let shown = false;
@@ -243,13 +244,13 @@ function liveThink(botMsgEl, chunk) {
     const done = buf.slice(0, cut).trim();
     buf = buf.slice(m.index + m[0].length);
     if (done) {
-      if (!line) line = addStatus(botMsgEl, done); else line.textContent = done;
+      if (!line) line = addStatus(botMsgEl, done); else { line.textContent = done; setStatusPreview(botMsgEl, done); }
       line = null;
     }
   }
   const rest = buf.trim();
   if (rest) {
-    if (!line) line = addStatus(botMsgEl, rest); else line.textContent = rest;
+    if (!line) line = addStatus(botMsgEl, rest); else { line.textContent = rest; setStatusPreview(botMsgEl, rest); }
   }
   botMsgEl._thinkBuf = buf;
   botMsgEl._thinkLine = line;
