@@ -527,13 +527,22 @@ function postProcessBotEl(msgEl, rawText){
 }
 
 /* ── FOCUS VIEW ──
-   Only the latest exchange (last user message + reply) stays in the scroll;
-   everything earlier is hidden so scrolling is limited to that pair. */
+   The latest user message pins to the top of the chat: the reply after it
+   gets a min-height filling the rest of the view, so scrolling down stops
+   there. Older messages stay scrollable above. */
 function trimToLatest(){
-  const box=document.getElementById('messages');if(!box)return;
+  const box=document.getElementById('messages'),ca=document.getElementById('chat-area');
+  if(!box||!ca)return;
   const kids=Array.from(box.children);
+  kids.forEach(el=>el.style.minHeight='');
   let last=-1;kids.forEach((el,i)=>{if(el.classList.contains('user'))last=i;});
-  kids.forEach((el,i)=>el.classList.toggle('msg-past',i<last));
+  if(last<0)return;
+  const user=kids[last],reply=kids[last+1];
+  const room=ca.clientHeight-user.offsetHeight-40;
+  if(reply)reply.style.minHeight=Math.max(0,room)+'px';
+  else box.style.paddingBottom=Math.max(40,room)+'px';
+  if(reply)box.style.paddingBottom='';
+  ca.scrollTop=user.offsetTop-box.offsetTop-8;
 }
 
 /* ── ADD MESSAGE ── */
@@ -796,7 +805,7 @@ function insertBotBubble() {
   wrap.className = 'msg bot';
   wrap.innerHTML = '<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content"><div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div></div>';
   box.appendChild(wrap);
-  scrollBottom();
+  trimToLatest();
   return wrap;
 }
 
@@ -807,7 +816,7 @@ function insertBotBubbleForThoughts() {
   wrap.className = 'msg bot';
   wrap.innerHTML = '<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content"></div></div>';
   box.appendChild(wrap);
-  scrollBottom();
+  trimToLatest();
   return wrap;
 }
 
@@ -1390,6 +1399,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926f').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926g').catch(e=>console.warn('SW registration failed',e));
   });
 }
