@@ -23,7 +23,8 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `cloak.css` — shared design system used by chat / values / landing.
 - `cloak.js` — app logic, auth, Supabase client, settings, theming, chat.
 - `search.js` + `search-patch.js` — web-search overlay used inside chat.
-- `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA).
+- `api-worker/` — the `cloak-api` Worker serving `https://api.usecloak.org` (chat, streaming, search). This is what `chat.html` / `cloak.js` / `search-patch.js` call. Deploys via Cloudflare Workers Builds; see `api-worker/README.md`.
+- `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA). Used by `agents.html` and the Telegram bot, not the main chat.
 - `supabase/functions/telegram-bot/` — Telegram Bot webhook. Calls `chat-message` internally.
 - `supabase/migrations/` — SQL migrations. Apply via Supabase dashboard or CLI.
 - `robots.txt`, `sitemap.xml` — SEO.
