@@ -526,6 +526,16 @@ function postProcessBotEl(msgEl, rawText){
   botBody.appendChild(actions);
 }
 
+/* ── FOCUS VIEW ──
+   Only the latest exchange (last user message + reply) stays in the scroll;
+   everything earlier is hidden so scrolling is limited to that pair. */
+function trimToLatest(){
+  const box=document.getElementById('messages');if(!box)return;
+  const kids=Array.from(box.children);
+  let last=-1;kids.forEach((el,i)=>{if(el.classList.contains('user'))last=i;});
+  kids.forEach((el,i)=>el.classList.toggle('msg-past',i<last));
+}
+
 /* ── ADD MESSAGE ── */
 function addMsg(role,content,noAnim=false,imgs=[]){
   const box=document.getElementById('messages');
@@ -554,7 +564,7 @@ function addMsg(role,content,noAnim=false,imgs=[]){
     d.innerHTML='<div class="bot-body"><div class="bot-meta">'+CLOAK_ORB_HTML+'<span class="bot-label">Cloak</span></div><div class="bot-content">'+html+'</div></div>';
     if(noAnim)postProcessBotEl(d,content);
   }
-  box.appendChild(d);scrollBottom(role==='user');return d;
+  box.appendChild(d);if(role==='user')trimToLatest();scrollBottom(role==='user');return d;
 }
 
 function editMessage(msgEl){
@@ -568,6 +578,7 @@ function editMessage(msgEl){
   removed.forEach(el=>el.remove());
   const toRemove=removed.length;
   hist=hist.slice(0,Math.max(0,hist.length-toRemove));
+  trimToLatest();
   const inp=document.getElementById('chat-input');
   inp.value=rawText;inp.focus();onInput(inp);
   if(!hist.length){document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';}
@@ -1195,7 +1206,7 @@ function clearLogs(){logs=[];stats={req:0,res:0,err:0,lat:[]};renderLogs();updat
 
 /* ── STORAGE ── */
 async function loadConvs(){const{data,error}=await sb.from('chats').select('id,title,updated_at').eq('user_id',uid).order('updated_at',{ascending:false});if(error){log('err','Load convs: '+error.message);return;}convs=(data||[]).map(r=>({id:r.id,title:r.title}));renderConvs();log('inf','Loaded '+convs.length+' chat(s)');}
-async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}chatId=id;hist=data.messages||[];document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));showMessages();renderConvs();}
+async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}chatId=id;hist=data.messages||[];document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));trimToLatest();showMessages();renderConvs();}
 function _makeTitle(first){const clean=first.replace(/\n+/g,' ').replace(/\s+/g,' ').trim();const sentenceEnd=clean.search(/[.!?](?:\s|$)/);let candidate=sentenceEnd>4&&sentenceEnd<70?clean.slice(0,sentenceEnd+1):clean;if(candidate.length>60)candidate=candidate.slice(0,58).replace(/\s+\S*$/,'')+'\u2026';return candidate||'New chat';}
 async function saveConv(first){if(!uid||guest)return;let currentUid=uid;try{const{data:{session}}=await sb.auth.getSession();if(!session?.user){log('err','Save aborted: no session');return;}currentUid=session.user.id;uid=currentUid;}catch(e){log('err','Save: session check failed');return;}const ex=convs.find(c=>c.id===chatId);const title=ex?ex.title:_makeTitle(first);if(!ex)convs.unshift({id:chatId,title});renderConvs();const{error}=await sb.from('chats').upsert({id:chatId,user_id:currentUid,title,messages:hist,updated_at:new Date().toISOString()},{onConflict:'user_id,id'});if(error){log('err','Save: '+error.message);}else{log('inf','Chat saved: '+title.slice(0,30));}}
 async function delConv(id){const{error}=await sb.from('chats').delete().eq('id',id).eq('user_id',uid);if(error){log('err','Delete: '+error.message);return;}convs=convs.filter(c=>c.id!==id);if(chatId===id)newChat();else renderConvs();}
@@ -1359,6 +1370,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926d').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926e').catch(e=>console.warn('SW registration failed',e));
   });
 }
