@@ -10,11 +10,18 @@ Cloudflare Worker behind `https://api.usecloak.org`. Deployed by Cloudflare Work
 | `POST /v1/chat/completions` | OpenAI-compatible (needs API key) | OpenAI chunk format + `[DONE]` |
 | `POST /v1/messages` | Anthropic-compatible (needs API key) | Anthropic event format |
 | `POST /v1/search` | `{query, start?}` → `{items:[{title, link, snippet}]}` | — |
+| `POST /v1/memory/extract` | `{turns:[{user, assistant}], existing:[{path,title,type,tags,body}], today?}` → `{ops:[…]}` | — |
+| `POST /v1/context/compress` | `{mode:"chunk", messages, words?}` or `{mode:"merge", summaries, words?}` → `{summary}` | — |
+| `GET /v1/usage` | this isolate's key cooldowns + learned limits (hashed ids) | — |
 | `GET/POST/DELETE /admin/provider-keys` | `X-Admin-Token` | — |
 
 ## Models
 
 Configured in `MODEL_CONFIG` in `src/index.js`. Each tier fails over provider → provider (and key → key) until one produces a first token. Vision goes Gemini → NVIDIA vision → text-only fallback. Model IDs go stale; when chat says "Cloak AI is currently unavailable", check Workers Logs for `[cloak-api] all providers failed` — the line lists each provider's exact error.
+
+## Free-tier governor
+
+`src/governor.js` sits in front of every upstream call: caches the KV keyring (1 read/min/isolate), rotates keys round-robin, cools keys on 429/quota headers (shared across isolates via the Cache API), skips retired models for 6 h, and sizes `max_tokens` + history under each model's TPM. Memory extraction and context compression run on the `utility` tier (`llama-3.1-8b-instant` first). Limits table: `LIMITS` in `src/governor.js`; details in `/memory-system.md`.
 
 ## Config
 

@@ -593,6 +593,7 @@ function editMessage(msgEl){
   removed.forEach(el=>el.remove());
   const toRemove=removed.length;
   hist=hist.slice(0,Math.max(0,hist.length-toRemove));
+  if(window.CloakContext)CloakContext.truncate(hist.length);
   trimToLatest();
   const inp=document.getElementById('chat-input');
   inp.value=rawText;inp.focus();onInput(inp);
@@ -730,6 +731,8 @@ function renderConvs(){
 
 function newChat(){
   if(hist.length)_greetAfterChat=true;
+  if(window.CloakMemory)CloakMemory.flush();
+  if(window.CloakContext)CloakContext.reset();
   chatId=null;hist=[];document.getElementById('messages').innerHTML='';
   document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';renderConvs();updateGreeting();
 }
@@ -1222,7 +1225,7 @@ async function init(){
   sb.auth.onAuthStateChange(async(ev,sess)=>{
     if(ev==='INITIAL_SESSION'){if(_routed)return;_routed=true;if(sess?.user){email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}
     else if(ev==='SIGNED_IN'&&sess&&!_routed){_routed=true;email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}
-    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;convs=[];chatId=null;hist=[];admin=false;name='';guest=false;show('auth');}
+    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;convs=[];chatId=null;hist=[];admin=false;name='';guest=false;if(window.CloakMemory)CloakMemory.reset();if(window.CloakContext)CloakContext.reset();show('auth');}
     else if(ev==='TOKEN_REFRESHED'&&sess){email=sess.user.email||'';uid=sess.user.id;}
   });
   setTimeout(async()=>{if(_routed)return;try{const{data:{session}}=await sb.auth.getSession();if(_routed)return;_routed=true;if(session?.user){email=session.user.email||'';uid=session.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}catch(e){_routed=true;hideLoading();show('auth');}},800);
@@ -1242,6 +1245,7 @@ async function enterChat(){
     if(window._vv)window._vv();
     if(!guest)name=name||email.split('@')[0];
     refreshUI();updateGreeting();
+    if(window.CloakMemory)CloakMemory.init({sb,uid:guest?'':uid,guest}).catch(e=>log('err','Memory: '+e.message));
     if(!guest)Promise.all([loadProfile(),loadConvs(),loadAnn()]).catch(()=>{});
     else{try{document.getElementById('guest-note').style.display='block';}catch(e){}log('inf','Guest mode');}
   }finally{entering=false;}
@@ -1398,9 +1402,9 @@ function clearLogs(){logs=[];stats={req:0,res:0,err:0,lat:[]};renderLogs();updat
 
 /* ── STORAGE ── */
 async function loadConvs(){const{data,error}=await sb.from('chats').select('id,title,updated_at').eq('user_id',uid).order('updated_at',{ascending:false});if(error){log('err','Load convs: '+error.message);return;}convs=(data||[]).map(r=>({id:r.id,title:r.title}));renderConvs();log('inf','Loaded '+convs.length+' chat(s)');}
-async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}chatId=id;hist=data.messages||[];document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));trimToLatest();showMessages();renderConvs();}
+async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}if(window.CloakMemory)CloakMemory.flush();chatId=id;hist=data.messages||[];if(window.CloakContext)CloakContext.load(data.context);document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));trimToLatest();showMessages();renderConvs();}
 function _makeTitle(first){const clean=first.replace(/\n+/g,' ').replace(/\s+/g,' ').trim();const sentenceEnd=clean.search(/[.!?](?:\s|$)/);let candidate=sentenceEnd>4&&sentenceEnd<70?clean.slice(0,sentenceEnd+1):clean;if(candidate.length>60)candidate=candidate.slice(0,58).replace(/\s+\S*$/,'')+'\u2026';return candidate||'New chat';}
-async function saveConv(first){if(!uid||guest)return;let currentUid=uid;try{const{data:{session}}=await sb.auth.getSession();if(!session?.user){log('err','Save aborted: no session');return;}currentUid=session.user.id;uid=currentUid;}catch(e){log('err','Save: session check failed');return;}const ex=convs.find(c=>c.id===chatId);const title=ex?ex.title:_makeTitle(first);if(!ex)convs.unshift({id:chatId,title});renderConvs();const{error}=await sb.from('chats').upsert({id:chatId,user_id:currentUid,title,messages:hist,updated_at:new Date().toISOString()},{onConflict:'user_id,id'});if(error){log('err','Save: '+error.message);}else{log('inf','Chat saved: '+title.slice(0,30));}}
+async function saveConv(first){if(!uid||guest)return;let currentUid=uid;try{const{data:{session}}=await sb.auth.getSession();if(!session?.user){log('err','Save aborted: no session');return;}currentUid=session.user.id;uid=currentUid;}catch(e){log('err','Save: session check failed');return;}const ex=convs.find(c=>c.id===chatId);const title=ex?ex.title:_makeTitle(first);if(!ex)convs.unshift({id:chatId,title});renderConvs();const row={id:chatId,user_id:currentUid,title,messages:hist,updated_at:new Date().toISOString()};if(window.CloakContext)row.context=CloakContext.get();let{error}=await sb.from('chats').upsert(row,{onConflict:'user_id,id'});if(error&&row.context&&/context/i.test(error.message)){delete row.context;({error}=await sb.from('chats').upsert(row,{onConflict:'user_id,id'}));}if(error){log('err','Save: '+error.message);}else{log('inf','Chat saved: '+title.slice(0,30));}}
 async function delConv(id){const{error}=await sb.from('chats').delete().eq('id',id).eq('user_id',uid);if(error){log('err','Delete: '+error.message);return;}convs=convs.filter(c=>c.id!==id);if(chatId===id)newChat();else renderConvs();}
 
 /* ── MENTAL HEALTH INTERCEPT ── */
@@ -1515,7 +1519,6 @@ async function send(){
     log('res',`${ms}ms | model=${respModel} | len=${responseText.length}`);
 
     hist.push({role:'CHATBOT',message:responseText});
-    if(hist.length>20)hist=hist.slice(-20);
 
     replaceThinkWithContent(botMsgEl, responseText);
 
@@ -1562,6 +1565,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926o').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926mem1').catch(e=>console.warn('SW registration failed',e));
   });
 }
