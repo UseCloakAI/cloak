@@ -11,5 +11,6 @@
   // Keep dashboard-set vars; secrets (ADMIN_TOKEN, optional API_KEY,
   // GOOGLE_CSE_KEY, GOOGLE_CSE_CX) always persist across deploys.
   "keep_vars": true,
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  "previews": {}
 }
