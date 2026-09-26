@@ -64,6 +64,121 @@ function renderCitationStrip(botMsgEl, sources) {
   botBody.appendChild(strip);
 }
 
+/* ── LIVE TOKEN STREAMING ── */
+// Requests /v1/chat with stream:true and paints tokens into the bubble as they
+// arrive. Falls back transparently when the server answers with plain JSON.
+// Search tool markup (<search>, <fetch>, <done/>) is never painted.
+const _LIVE_TOOL_TAGS = ['<search', '<fetch', '<done'];
+
+function _liveVisible(text) {
+  let cut = text.length;
+  for (const tag of _LIVE_TOOL_TAGS) {
+    const i = text.indexOf(tag);
+    if (i !== -1 && i < cut) cut = i;
+  }
+  let vis = text.slice(0, cut);
+  // Hold back a trailing partial tag such as "<se" until we know what it is.
+  const lt = vis.lastIndexOf('<');
+  if (lt !== -1 && vis.length - lt < 8 && _LIVE_TOOL_TAGS.some(t => t.startsWith(vis.slice(lt)))) {
+    vis = vis.slice(0, lt);
+  }
+  return vis.trimEnd();
+}
+
+function _renderLive(container, text) {
+  const lastBlock = text.lastIndexOf('\n\n');
+  let html;
+  if (lastBlock === -1) {
+    html = '<p>' + hesc(text) + '<span class="sc"></span></p>';
+  } else {
+    html = marked.parse(text.slice(0, lastBlock + 2));
+    const trailing = text.slice(lastBlock + 2);
+    html += trailing ? '<p>' + hesc(trailing) + '<span class="sc"></span></p>' : '<span class="sc"></span>';
+  }
+  container.innerHTML = html;
+  scrollBottom();
+}
+
+// Returns { text, streamed } — streamed=true means tokens were already painted.
+async function streamChat(bodyObj, botMsgEl, signal) {
+  const res = await fetch(CLOAK_API + '/v1/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({ ...bodyObj, stream: true }),
+  });
+
+  const ctype = res.headers.get('content-type') || '';
+  if (!ctype.includes('text/event-stream') || !res.body) {
+    let d;
+    try { d = await res.json(); } catch (_) { throw new Error('Unreadable response.'); }
+    if (!res.ok || d.error) throw new Error(d.error || 'HTTP ' + res.status);
+    return { text: d.response || d.text || '', streamed: false };
+  }
+
+  const bc = botMsgEl.querySelector('.bot-content');
+  let full = '';
+  let shown = false;
+  let raf = 0;
+  const paint = () => {
+    raf = 0;
+    const vis = _liveVisible(full);
+    if (!vis || !bc) return;
+    if (!shown) {
+      shown = true;
+      stopThinkAnimation();
+      if (botMsgEl._status) { botMsgEl._status.exit(); botMsgEl._status = null; }
+    }
+    _renderLive(bc, vis);
+  };
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
+
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = '';
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let nl;
+      while ((nl = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nl).replace(/\r$/, '');
+        buf = buf.slice(nl + 1);
+        if (!line.startsWith('data:')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(5).trim()); } catch (_) { continue; }
+        if (evt.error) {
+          if (evt.partial) full = evt.partial;
+          throw new Error(evt.error);
+        }
+        if (typeof evt.delta === 'string') { full += evt.delta; schedule(); }
+        if (evt.done && typeof evt.response === 'string') full = evt.response;
+      }
+    }
+  } catch (e) {
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    // User pressed stop mid-answer: keep what already arrived.
+    if (e.name === 'AbortError' && full) return { text: full, streamed: shown, aborted: true };
+    throw e;
+  }
+  if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  return { text: full, streamed: shown };
+}
+
+// Final render for a bubble whose tokens were painted live.
+function finishLive(botMsgEl, text) {
+  stopThinkAnimation();
+  finaliseThoughts(botMsgEl);
+  if (botMsgEl._status) { botMsgEl._status.destroy(); botMsgEl._status = null; }
+  const bc = botMsgEl.querySelector('.bot-content');
+  if (bc) {
+    bc.innerHTML = marked.parse(text);
+    postProcessBotEl(botMsgEl, text);
+  }
+  scrollBottom();
+  setBusy(false);
+}
+
 /* ── SEARCH-AWARE SEND ── */
 // We save the original send and replace it
 const _originalSend = window.send;
@@ -140,23 +255,18 @@ window.send = async function () {
   _fetchController = new AbortController();
 
   try {
-    const res = await fetch(CLOAK_API + '/v1/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: _fetchController.signal,
-      body: JSON.stringify(bodyObj),
-    });
+    const round1 = await streamChat(bodyObj, botMsgEl, _fetchController.signal);
     _fetchController = null;
 
-    let d;
-    try { d = await res.json(); } catch (_) { throw new Error('Unreadable response.'); }
-    if (!res.ok || d.error) throw new Error(d.error || 'HTTP ' + res.status);
-
-    let firstResponse = d.response || d.text || '';
-    if (!firstResponse) throw new Error('Empty response.');
+    // A stopped answer may end mid tool-tag; keep only the readable part.
+    let firstResponse = round1.aborted ? _liveVisible(round1.text) : round1.text;
+    if (!firstResponse) {
+      if (round1.aborted) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
+      throw new Error('Empty response.');
+    }
 
     /* ── Check for search tool calls ── */
-    if (CLOAK_SEARCH.hasToolCalls(firstResponse)) {
+    if (!round1.aborted && CLOAK_SEARCH.hasToolCalls(firstResponse)) {
       const toolCalls = CLOAK_SEARCH.parseToolCalls(firstResponse);
 
       if (toolCalls.length > 0) {
@@ -231,23 +341,15 @@ window.send = async function () {
         log('req', `Synthesis round | sources=${allGathered.length}`);
 
         _fetchController = new AbortController();
-        const synthRes = await fetch(CLOAK_API + '/v1/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: _fetchController.signal,
-          body: JSON.stringify({
-            model,
-            messages: synthesisMessages.slice(-22),
-            system: SEARCH_SYSTEM_PROMPT,
-          }),
-        });
+        const synth = await streamChat({
+          model,
+          messages: synthesisMessages.slice(-22),
+          system: SEARCH_SYSTEM_PROMPT,
+        }, botMsgEl, _fetchController.signal);
         _fetchController = null;
 
-        let synthD;
-        try { synthD = await synthRes.json(); } catch { throw new Error('Synthesis response unreadable.'); }
-        if (!synthRes.ok || synthD.error) throw new Error(synthD.error || 'HTTP ' + synthRes.status);
-
-        const finalText = synthD.response || synthD.text || '';
+        // Drop any stray tool markup the model emits during synthesis.
+        const finalText = synth.text.replace(/<search>[\s\S]*?<\/search>|<fetch>[\s\S]*?<\/fetch>|<done\s*\/?>/gi, '').trim();
         if (!finalText) throw new Error('Empty synthesis response.');
 
         CLOAK_SEARCH.finaliseSearchBlock(botMsgEl);
@@ -260,7 +362,8 @@ window.send = async function () {
         hist.push({ role: 'CHATBOT', message: finalText });
         if (hist.length > 20) hist = hist.slice(-20);
 
-        replaceThinkWithContent(botMsgEl, finalText);
+        if (synth.streamed) finishLive(botMsgEl, finalText);
+        else replaceThinkWithContent(botMsgEl, finalText);
 
         // Render citation strip after a short delay
         setTimeout(() => {
@@ -285,7 +388,8 @@ window.send = async function () {
 
     // The status glyph already animated through the wait — dismiss it
     // (restores the square dot) and stream the answer.
-    replaceThinkWithContent(botMsgEl, firstResponse);
+    if (round1.streamed) finishLive(botMsgEl, firstResponse);
+    else replaceThinkWithContent(botMsgEl, firstResponse);
 
     if (voiceMode) playVoice(firstResponse);
     if (guest) { guestN++; if (guestN >= GUEST_MAX) setTimeout(showLimit, 500); }

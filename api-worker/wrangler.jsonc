@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Serves https://api.usecloak.org — see api-worker/README.md
+  "name": "cloak-api",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [{ "pattern": "api.usecloak.org/*", "zone_name": "usecloak.org" }],
+  "kv_namespaces": [{ "binding": "PROVIDER_KEYS", "id": "0778af1d9ecb491ba397cc9ae0e2b064" }],
+  // Keep dashboard-set vars; secrets (ADMIN_TOKEN, optional API_KEY,
+  // GOOGLE_CSE_KEY, GOOGLE_CSE_CX) always persist across deploys.
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}
