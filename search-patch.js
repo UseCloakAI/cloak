@@ -22,6 +22,9 @@ For reading specific URLs:
 For deep crawling (follow to sub-pages):
 <search>{"queries":["initial query"],"deepCrawl":["https://specific-page.com/article"]}</search>
 
+For a page's RAW data (HTML source, JSON APIs, CSV, feeds, plain-text files):
+<fetch>{"url":"https://example.com/data.json","raw":true,"maxChars":20000}</fetch>
+
 You can combine: queries + followUrls + deepCrawl in one <search> block.
 You can emit multiple <search> blocks if you need to search different topics.
 After your search block(s), end with: <done/>
@@ -396,7 +399,7 @@ window.send = async function () {
             );
             CLOAK_SEARCH.updateSourceBadge(idx, 'reading');
             try {
-              const content = await CLOAK_SEARCH.extractUrl(call.params.url, { maxChars: call.params.maxChars || 5000 });
+              const content = await CLOAK_SEARCH.extractUrl(call.params.url, { maxChars: call.params.maxChars || 5000, raw: !!call.params.raw });
               allGathered.push({ url: call.params.url, title: call.params.url, extracted: content });
               CLOAK_SEARCH.updateSourceBadge(idx, 'done');
             } catch (e) {
