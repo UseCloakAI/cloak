@@ -182,8 +182,24 @@ html.vt-theme::view-transition-new(root){animation:vtWipe .72s var(--ease-io) bo
 }
 
 /* ── LOADING ── */
-#s-loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--paper);z-index:999;transition:opacity .3s;}
-#s-loading.hidden{opacity:0;pointer-events:none;}
+/* Lockup, a hard-edged bar that fills with a drifting 45° hatch and an ink
+   leading edge, and a live label/percentage. Controller: inline in chat.html. */
+#s-loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--paper);z-index:999;}
+.ld{display:flex;flex-direction:column;align-items:center;gap:22px;width:min(260px,70vw);animation:rvUp .6s var(--ease-out) backwards;}
+.ld-mark{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-size:28px;font-weight:800;text-transform:uppercase;letter-spacing:-.02em;color:var(--ink);}
+.ld-mark svg{display:block;animation:stamp .6s var(--sp-pop) .1s backwards;}
+.ld-mark svg circle{fill:var(--acc);stroke:var(--ink);stroke-width:2.5;}
+.ld-bar{width:100%;height:14px;border:var(--bd);background:var(--surf);box-shadow:var(--shsm);overflow:hidden;}
+.ld-bar i{display:block;width:0;height:100%;background:repeating-linear-gradient(-45deg,var(--acc) 0 6px,var(--acc2) 6px 9px);box-shadow:inset -2px 0 0 var(--ink);animation:ldStripe .7s linear infinite;}
+@keyframes ldStripe{to{background-position:12.728px 0;}}
+.ld-meta{width:100%;display:flex;justify-content:space-between;align-items:baseline;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--ink);opacity:.55;}
+#ld-pct{font-family:'Courier New',monospace;font-size:11px;letter-spacing:0;}
+/* done: the loader slides up off the app like a sheet of paper, a hard ink
+   rule on its leading edge */
+#s-loading.ld-out{animation:ldOut .62s var(--ease-io) forwards;pointer-events:none;box-shadow:0 2px 0 var(--ink);}
+@keyframes ldOut{to{translate:0 -100%;}}
+/* while it's up, everything behind it holds its entrance for the reveal */
+html.booting body>:not(#s-loading),html.booting body>:not(#s-loading) *{animation-play-state:paused!important;}
 
 
 /* ── SCREENS ── */
@@ -276,7 +292,7 @@ html.vt-theme::view-transition-new(root){animation:vtWipe .72s var(--ease-io) bo
 .ann{display:none;align-items:center;gap:12px;padding:10px 18px;background:var(--yel);border-bottom:var(--bd);color:var(--ink);font-size:13px;font-weight:700;flex-shrink:0;}
 .ann.show{display:flex;animation:annIn .5s var(--ease-out) backwards;}
 .ann.show>svg{animation:annHorn .6s var(--sp-pop) .2s backwards;}
-@keyframes annIn{from{clip-path:inset(0 0 100% 0);}}
+@keyframes annIn{from{clip-path:inset(0 0 100% 0);}to{clip-path:inset(0);}}
 @keyframes annHorn{from{rotate:-28deg;scale:.5;}}
 .ann-text{flex:1;line-height:1.4;}
 .ann-x{background:var(--ink);border:none;color:var(--paper);width:22px;height:22px;cursor:pointer;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background var(--t),rotate var(--lift);}
@@ -670,7 +686,7 @@ a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 /* ── VOICE OVERLAY ── */
 .voice-overlay{position:absolute;inset:0;background:var(--paper);z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
 .voice-overlay.active{display:flex;animation:voiceIn .6s var(--ease-out);}
-@keyframes voiceIn{from{clip-path:inset(100% 0 0 0);}}
+@keyframes voiceIn{from{clip-path:inset(100% 0 0 0);}to{clip-path:inset(0);}}
 .voice-close{position:absolute;top:22px;right:22px;width:42px;height:42px;border:var(--bd);background:var(--surf);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;cursor:pointer;box-shadow:var(--shsm);transition:transform var(--lift),box-shadow var(--lift),background var(--t),color var(--t);}
 .voice-close:hover{transform:translate(-2px,-2px);box-shadow:var(--sh);background:var(--acc);color:#fff;}
 .voice-close:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--tp);}

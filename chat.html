@@ -11,15 +11,15 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Cloak — A human resource, not a companion. Ethical AI that serves you.">
 <title>Cloak</title>
-<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260926mem3m">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260926mem3m">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260926mem3m">
-<link rel="manifest" href="/manifest.json?v=20260926mem3m">
+<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260926mem3n">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260926mem3n">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260926mem3n">
+<link rel="manifest" href="/manifest.json?v=20260926mem3n">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20260926mem3m">
-<link rel="stylesheet" href="search.css?v=20260926mem3m">
-<link rel="stylesheet" href="brain.css?v=20260926mem3m">
+<link rel="stylesheet" href="cloak.css?v=20260926mem3n">
+<link rel="stylesheet" href="search.css?v=20260926mem3n">
+<link rel="stylesheet" href="brain.css?v=20260926mem3n">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -90,7 +90,56 @@
 <body>
 
 <!-- ── LOADING ── -->
-<div id="s-loading"></div>
+<div id="s-loading" role="progressbar" aria-label="Loading Cloak" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="ld">
+    <div class="ld-mark"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="12"/></svg><span>Cloak</span></div>
+    <div class="ld-bar"><i id="ld-fill"></i></div>
+    <div class="ld-meta"><span id="ld-label">Loading interface</span><span id="ld-pct">0%</span></div>
+  </div>
+</div>
+<script>
+/* ── LOADER ── The bar follows real milestones (page, fonts, assets, session
+   check from cloak.js via CloakLoader.done()) but is capped by time, so it
+   never finishes before MIN ms. The app underneath stays paused
+   (html.booting) and plays its entrance once the loader lifts off. */
+(function(){
+  var html=document.documentElement, el=document.getElementById('s-loading');
+  var fill=document.getElementById('ld-fill'), pct=document.getElementById('ld-pct'), label=document.getElementById('ld-label');
+  var MIN=3000, t0=performance.now(), shown=0, finished=false, done={};
+  var steps=[['dom',.2,'Loading interface'],['fonts',.2,'Setting type'],['load',.3,'Starting Cloak'],['app',.3,'Checking session']];
+  html.classList.add('booting');
+  function mark(k){done[k]=true;}
+  document.addEventListener('DOMContentLoaded',function(){
+    mark('dom');
+    if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){mark('fonts');});else mark('fonts');
+  });
+  addEventListener('load',function(){mark('load');});
+  setTimeout(function(){steps.forEach(function(s){mark(s[0]);});},15000);   // never hang on a stuck milestone
+  function frame(now){
+    var real=0; steps.forEach(function(s){if(done[s[0]])real+=s[1];});
+    var goal=Math.min(real,(now-t0)/MIN);
+    shown+=(goal-shown)*.14;
+    if(real>=.999&&now-t0>=MIN&&shown>.994)return finish();
+    var at=0,txt=steps[0][2];
+    steps.forEach(function(s){if(shown>=at)txt=s[2];at+=s[1];});
+    fill.style.width=(shown*100).toFixed(2)+'%';
+    var p=Math.floor(shown*100);
+    if(pct.textContent!==p+'%'){pct.textContent=p+'%';el.setAttribute('aria-valuenow',p);}
+    if(label.textContent!==txt)label.textContent=txt;
+    requestAnimationFrame(frame);
+  }
+  function finish(){
+    if(finished)return; finished=true;
+    fill.style.width='100%'; pct.textContent='100%'; label.textContent='Ready'; el.setAttribute('aria-valuenow',100);
+    setTimeout(function(){
+      el.classList.add('ld-out'); html.classList.remove('booting');
+      setTimeout(function(){el.style.display='none';},650);
+    },260);
+  }
+  window.CloakLoader={done:function(){mark('app');}};
+  requestAnimationFrame(frame);
+})();
+</script>
 
 <!-- ── AUTH ── -->
 <div id="s-auth" class="screen">
@@ -704,15 +753,15 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 </script>
 
 <!-- motion.js first: cloak.js calls CloakMotion for theme wipes, rolls and exits -->
-<script src="motion.js?v=20260926mem3m" defer></script>
+<script src="motion.js?v=20260926mem3n" defer></script>
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20260926mem3m"></script>
+<script src="search.js?v=20260926mem3n"></script>
 <!-- memory → context → brain: no deps on cloak.js at load time -->
-<script src="memory.js?v=20260926mem3m" defer></script>
-<script src="context.js?v=20260926mem3m" defer></script>
-<script src="brain.js?v=20260926mem3m" defer></script>
-<script src="cloak.js?v=20260926mem3m" defer></script>
+<script src="memory.js?v=20260926mem3n" defer></script>
+<script src="context.js?v=20260926mem3n" defer></script>
+<script src="brain.js?v=20260926mem3n" defer></script>
+<script src="cloak.js?v=20260926mem3n" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="search-patch.js?v=20260926mem3m" defer></script>
+<script src="search-patch.js?v=20260926mem3n" defer></script>
 </body>
 </html>

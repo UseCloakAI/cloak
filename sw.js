@@ -9,21 +9,21 @@
    Bump CACHE_VERSION in lockstep with the ?v= asset query strings
    in chat.html on every deploy so old shells are purged.
    ════════════════════════════════════════════════════════ */
-const CACHE_VERSION = 'cloak-v20260926mem3m';
+const CACHE_VERSION = 'cloak-v20260926mem3n';
 
 const SHELL = [
   '/chat.html',
-  '/cloak.css?v=20260926mem3m',
-  '/cloak.js?v=20260926mem3m',
-  '/search.js?v=20260926mem3m',
-  '/search-patch.js?v=20260926mem3m',
-  '/search.css?v=20260926mem3m',
-  '/brain.css?v=20260926mem3m',
-  '/memory.js?v=20260926mem3m',
-  '/context.js?v=20260926mem3m',
-  '/brain.js?v=20260926mem3m',
-  '/motion.js?v=20260926mem3m',
-  '/manifest.json?v=20260926mem3m',
+  '/cloak.css?v=20260926mem3n',
+  '/cloak.js?v=20260926mem3n',
+  '/search.js?v=20260926mem3n',
+  '/search-patch.js?v=20260926mem3n',
+  '/search.css?v=20260926mem3n',
+  '/brain.css?v=20260926mem3n',
+  '/memory.js?v=20260926mem3n',
+  '/context.js?v=20260926mem3n',
+  '/brain.js?v=20260926mem3n',
+  '/motion.js?v=20260926mem3n',
+  '/manifest.json?v=20260926mem3n',
   '/icons/orb.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

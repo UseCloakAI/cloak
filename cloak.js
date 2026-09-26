@@ -1242,7 +1242,7 @@ async function init(){
   setTimeout(async()=>{if(_routed)return;try{const{data:{session}}=await sb.auth.getSession();if(_routed)return;_routed=true;if(session?.user){email=session.user.email||'';uid=session.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}catch(e){_routed=true;hideLoading();show('auth');}},800);
 }
 
-function hideLoading(){var el=document.getElementById('s-loading');if(!el)return;el.classList.add('hidden');setTimeout(()=>{el.style.display='none';},220);}
+function hideLoading(){if(window.CloakLoader){CloakLoader.done();return;}var el=document.getElementById('s-loading');if(el)el.style.display='none';}
 
 async function enterChat(){
   if(entering)return;entering=true;
@@ -1582,6 +1582,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926mem3m').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926mem3n').catch(e=>console.warn('SW registration failed',e));
   });
 }
