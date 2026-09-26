@@ -182,7 +182,7 @@ function _renderLive(container, text) {
 }
 
 // Returns { text, streamed } — streamed=true means tokens were already painted.
-async function streamChat(bodyObj, botMsgEl, signal) {
+async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
   const res = await fetch(CLOAK_API + '/v1/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -246,7 +246,11 @@ async function streamChat(bodyObj, botMsgEl, signal) {
           if (evt.partial) full = evt.partial;
           throw new Error(evt.error);
         }
-        if (typeof evt.think === 'string' && evt.think) liveThink(botMsgEl, evt.think);
+        if (typeof evt.think === 'string' && evt.think) {
+          liveThink(botMsgEl, evt.think);
+          if (opts.onThink && !full) opts.onThink(evt.think);
+          if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        }
         if (typeof evt.delta === 'string') { full += evt.delta; schedule(); }
         if (evt.done && typeof evt.response === 'string') full = evt.response;
       }
@@ -317,6 +321,80 @@ function finishLive(botMsgEl, text) {
   }, wait);
 }
 
+/* ── MEMORY + CONTEXT ──
+   Every request: recall relevant memories (local, free), then build a
+   budgeted context — compressed summaries for old turns, recent turns
+   verbatim. After each reply: queue memory extraction + background
+   compression. Any failure here falls back to the plain last-20 window. */
+function _prepareContext(txt, userMsg, model) {
+  const fallback = () => ({
+    messages: hist.slice(-20).map(m => ({ role: m.role === 'CHATBOT' ? 'assistant' : 'user', content: m.message })),
+    system: '',
+    recall: null,
+  });
+  if (!window.CloakMemory || !window.CloakContext) return fallback();
+  try {
+    const cmd = CloakMemory.detectCommand(txt);
+    if (cmd && cmd.op === 'remember') CloakMemory.remember(cmd.text);
+    else if (cmd && cmd.op === 'forget') {
+      const gone = CloakMemory.forget(cmd.text);
+      if (!gone && window.CloakBrain) CloakBrain.toast('Nothing matching in memory');
+    }
+    const budget = (CloakContext.BUDGETS[model] || CloakContext.BUDGETS.pneuma).memory;
+    const recent = hist.slice(-4, -1).map((m, i, a) => ({ text: String(m.message || '').slice(0, 600), w: i === a.length - 1 ? 0.45 : 0.3 }));
+    const carry = _thoughtCarry.chat === chatId ? _thoughtCarry.paths : [];
+    _thoughtCarry = { chat: null, paths: [] };
+    const recall = CloakMemory.recall(txt || userMsg, { context: recent, budget, include: carry });
+    const cx = CloakContext.build({ hist, model, memory: recall.block });
+    const who = (!guest && typeof name === 'string' && name.trim()) ? '\n\n## ACCOUNT\nThe signed-in user\'s display name is "' + name.trim().slice(0, 60) + '". You know at least this about them; use it if they ask who they are.' : '';
+    const system = (recall.block ? '\n\n' + recall.block : '') + who + (CloakMemory.enabled() ? THINK_MEMORY_NOTE : '') + (cx.system ? '\n\n' + cx.system : '');
+    log('inf', `context: ${cx.plan.used}/${cx.plan.budget} tok · live=${cx.plan.liveCount} · mem=${recall.hits.length}`);
+    return { messages: cx.messages, system, recall };
+  } catch (e) {
+    log('err', 'context build failed: ' + e.message);
+    return fallback();
+  }
+}
+
+// Tells the model its reasoning drives recall (see think-time recall in send()).
+const THINK_MEMORY_NOTE = '\n\n## MEMORY IN YOUR THINKING\nYour thinking is scanned for keywords and matched against the user\'s saved memories. When you reason, name the specific topics, projects, tools, people and preferences you are weighing. Memories your thoughts point to are pulled up for you: mid-thought when they matter for this answer, and carried into the next turn so you keep that context. Memories marked as carried came from your own thinking last turn.';
+
+// Memories surfaced by this turn's thinking ride along into the next turn.
+let _thoughtCarry = { chat: null, paths: [] };
+function _carryThoughts(thinkText, recallRes) {
+  try {
+    if (!window.CloakMemory || !thinkText) return;
+    const have = recallRes ? recallRes.hits.filter(h => h.why !== 'thought').map(h => h.path) : [];
+    const fromThought = recallRes ? recallRes.hits.filter(h => h.why === 'thought').map(h => h.path) : [];
+    const more = CloakMemory.probe(thinkText.slice(-2000), have.concat(fromThought)).map(h => h.path);
+    const paths = [...new Set(fromThought.concat(more))].slice(0, 5);
+    _thoughtCarry = { chat: chatId, paths };
+    if (paths.length) log('inf', 'thought carry → next turn: ' + paths.join(', '));
+  } catch (e) { log('err', 'thought carry: ' + e.message); }
+}
+
+function _afterTurn(txt, answer, model) {
+  try {
+    if (window.CloakMemory && txt) CloakMemory.observe({ user: txt, assistant: answer });
+    if (window.CloakContext) setTimeout(() => CloakContext.maybeCompress({ hist, model }), 1200);
+  } catch (e) { log('err', 'after-turn: ' + e.message); }
+}
+
+// Summaries/merges persist on the chat row without rewriting its messages.
+let _ctxSaveT = 0;
+if (window.CloakContext) CloakContext.on('change', (d) => {
+  if (!d || !/^(compress|merge|truncate)$/.test(d.source)) return;
+  if (guest || !uid || !chatId || !sb) return;
+  const id = chatId;
+  clearTimeout(_ctxSaveT);
+  _ctxSaveT = setTimeout(async () => {
+    if (id !== chatId) return;
+    const { error } = await sb.from('chats').update({ context: CloakContext.get() }).eq('id', id).eq('user_id', uid);
+    if (error) log('err', 'Context save: ' + error.message);
+  }, 800);
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden && window.CloakMemory) CloakMemory.flush(); });
+
 /* ── SEARCH-AWARE SEND ── */
 // We save the original send and replace it
 const _originalSend = window.send;
@@ -366,12 +444,9 @@ window.send = async function () {
     if (_bc) _bc.innerHTML = '<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
   }
 
-  // Build API messages with search system prompt
-  const apiMessages = hist.slice(0, -1).map(m => ({
-    role: m.role === 'CHATBOT' ? 'assistant' : 'user',
-    content: m.message,
-  }));
-  apiMessages.push({ role: 'user', content: userMsg || '[Image]' });
+  // Memory recall + budgeted context (compressed history + recent turns).
+  const _cx = _prepareContext(txt, userMsg, model);
+  if (_cx.recall && window.CloakBrain) CloakBrain.attachRecall(botMsgEl, _cx.recall);
 
   let imageBase64 = null, mimeType = null;
   if (hasImages && imgs[0]) {
@@ -379,20 +454,65 @@ window.send = async function () {
     if (match) { mimeType = match[1]; imageBase64 = match[2]; }
   }
 
-  const trimmedMessages = apiMessages.slice(-20);
+  const trimmedMessages = _cx.messages;
+  // Stable prefix first (search prompt → memory → summaries), clock last:
+  // keeps the cacheable part of the prompt identical between requests.
+  const _system = () => SEARCH_SYSTEM_PROMPT + _cx.system + cloakClock();
   const bodyObj = {
     model,
     messages: trimmedMessages,
-    system: SEARCH_SYSTEM_PROMPT + cloakClock(),
+    system: _system(),
     imageBase64: imageBase64 || undefined,
     mimeType: mimeType || undefined,
+  };
+
+  /* ── THINK-TIME RECALL ──
+     While the model reasons (before any answer token), its thoughts are scanned
+     for keywords every ~200 chars and run through local recall. If they point at
+     memories the prompt doesn't have, the stream is stopped once and re-asked
+     with those memories plus the reasoning so far, so the answer uses them. */
+  let _thinkBuf = '', _lastProbe = 0, _extra = null, _recallAbort = false, _reasked = false;
+  const onThink = (chunk) => {
+    _thinkBuf += chunk;
+    if (_reasked || _recallAbort || !window.CloakMemory || !CloakMemory.enabled()) return;
+    // First scan once a thought has formed, then every ~200 chars or at a sentence end.
+    const grown = _thinkBuf.length - _lastProbe;
+    if (_thinkBuf.length < 80 || (grown < 200 && !(grown >= 60 && /[.!?\n]\s*$/.test(_thinkBuf)))) return;
+    _lastProbe = _thinkBuf.length;
+    const have = _cx.recall ? _cx.recall.hits.map(h => h.path) : [];
+    const hits = CloakMemory.probe(_thinkBuf.slice(-700), have);
+    if (!hits.length) return;
+    _extra = hits;
+    _recallAbort = true;
+    if (_fetchController) _fetchController.abort();
   };
 
   /* ── ROUND 1: Get model's initial response (may include tool calls) ── */
   _fetchController = new AbortController();
 
   try {
-    const round1 = await streamChat(bodyObj, botMsgEl, _fetchController.signal);
+    let round1;
+    for (;;) {
+      try {
+        round1 = await streamChat(bodyObj, botMsgEl, _fetchController.signal, { onThink });
+        break;
+      } catch (e) {
+        if (!(e.name === 'AbortError' && _recallAbort && !_reasked)) throw e;
+        _reasked = true;
+        const merged = CloakMemory.extend(_cx.recall, _extra);
+        const oldBlock = _cx.recall ? _cx.recall.block : '';
+        _cx.system = oldBlock ? _cx.system.replace(oldBlock, merged.block) : '\n\n' + merged.block + _cx.system;
+        _cx.system += '\n\n## MID-THOUGHT RECALL\nWhile you were reasoning, these memories surfaced and were added to USER MEMORY: ' +
+          _extra.map(h => h.title).join('; ') + '. Use them. Your reasoning so far (continue from it, don\'t start over):\n' + _thinkBuf.slice(-1500);
+        _cx.recall = merged;
+        bodyObj.system = _system();
+        addStatus(botMsgEl, 'Recalled while thinking: ' + _extra.map(h => h.title).join(' · '));
+        if (window.CloakBrain) CloakBrain.attachRecall(botMsgEl, merged);
+        log('inf', 'think-time recall: +' + _extra.length + ' memories, re-asking');
+        stats.req++;
+        _fetchController = new AbortController();
+      }
+    }
     _fetchController = null;
 
     // A stopped answer may end mid tool-tag; keep only the readable part.
@@ -468,7 +588,7 @@ window.send = async function () {
           synth = await streamChat({
             model,
             messages: synthesisMessages.slice(-22),
-            system: SEARCH_SYSTEM_PROMPT + cloakClock(),
+            system: _system(),
           }, botMsgEl, _fetchController.signal);
           _fetchController = null;
 
@@ -506,7 +626,6 @@ window.send = async function () {
         log('res', `${ms}ms | search+synthesis | len=${finalText.length}`);
 
         hist.push({ role: 'CHATBOT', message: finalText });
-        if (hist.length > 20) hist = hist.slice(-20);
 
         if (synth.streamed) finishLive(botMsgEl, finalText);
         else replaceThinkWithContent(botMsgEl, finalText);
@@ -519,6 +638,8 @@ window.send = async function () {
         if (voiceMode) playVoice(finalText);
         if (guest) { guestN++; if (guestN >= GUEST_MAX) setTimeout(showLimit, 500); }
         else saveConv(txt || '[Image]').catch(e => log('err', 'Save: ' + e.message));
+        _carryThoughts(_thinkBuf, _cx.recall);
+        _afterTurn(txt, finalText, model);
 
         return; // Done — search path handled
       }
@@ -530,7 +651,6 @@ window.send = async function () {
     log('res', `${ms}ms | no-search | len=${firstResponse.length}`);
 
     hist.push({ role: 'CHATBOT', message: firstResponse });
-    if (hist.length > 20) hist = hist.slice(-20);
 
     // Streamed → let the last tokens land, then settle the orb.
     if (round1.streamed) finishLive(botMsgEl, firstResponse);
@@ -539,6 +659,8 @@ window.send = async function () {
     if (voiceMode) playVoice(firstResponse);
     if (guest) { guestN++; if (guestN >= GUEST_MAX) setTimeout(showLimit, 500); }
     else saveConv(txt || '[Image]').catch(e => log('err', 'Save: ' + e.message));
+    _carryThoughts(_thinkBuf, _cx.recall);
+    _afterTurn(txt, firstResponse, model);
 
   } catch (ex) {
     _fetchController = null;
