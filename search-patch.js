@@ -231,35 +231,32 @@ async function streamChat(bodyObj, botMsgEl, signal) {
 }
 
 // ── LIVE THINKING ──
-// Reasoning tokens stream into a muted block above the answer; it collapses
-// to "Thought for Ns" (click to reopen) once the answer starts.
+// Reasoning streams into the status log: each sentence pops in as its own
+// line; the current one fills in live.
 function liveThink(botMsgEl, chunk) {
-  let box = botMsgEl._think;
-  if (!box) {
-    const body = botMsgEl.querySelector('.bot-body');
-    const bc = botMsgEl.querySelector('.bot-content');
-    if (!body || !bc) return;
-    box = document.createElement('div');
-    box.className = 'think-live open';
-    box.innerHTML = '<button class="think-live-head" type="button"><span class="think-live-label">Thinking</span><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="think-live-body"></div>';
-    box.querySelector('.think-live-head').addEventListener('click', () => box.classList.toggle('open'));
-    body.insertBefore(box, bc);
-    box._t0 = Date.now();
-    box._text = '';
-    botMsgEl._think = box;
+  let buf = (botMsgEl._thinkBuf || '') + chunk;
+  let line = botMsgEl._thinkLine;
+  for (;;) {
+    const m = buf.match(/[.!?](\s+)|\n+/);
+    if (!m) break;
+    const cut = m.index + (m[0][0] === '\n' ? 0 : 1);
+    const done = buf.slice(0, cut).trim();
+    buf = buf.slice(m.index + m[0].length);
+    if (done) {
+      if (!line) line = addStatus(botMsgEl, done); else line.textContent = done;
+      line = null;
+    }
   }
-  box._text += chunk;
-  const b = box.querySelector('.think-live-body');
-  _renderLive(b, box._text.trim());
-  b.scrollTop = b.scrollHeight;
+  const rest = buf.trim();
+  if (rest) {
+    if (!line) line = addStatus(botMsgEl, rest); else line.textContent = rest;
+  }
+  botMsgEl._thinkBuf = buf;
+  botMsgEl._thinkLine = line;
 }
 function closeLiveThink(botMsgEl) {
-  const box = botMsgEl._think;
-  if (!box || box._closed) return;
-  box._closed = true;
-  const s = Math.max(1, Math.round((Date.now() - box._t0) / 1000));
-  box.querySelector('.think-live-label').textContent = 'Thought for ' + s + 's';
-  box.classList.remove('open');
+  botMsgEl._thinkBuf = ''; botMsgEl._thinkLine = null;
+  finishStatus(botMsgEl);
 }
 
 // Final render for a bubble whose tokens were painted live. Lets the last
@@ -384,17 +381,6 @@ window.send = async function () {
         const _sbc = botMsgEl.querySelector('.bot-content');
         if (_sbc) { _sbc.innerHTML = ''; _sbc._tk = null; }
 
-        // Run thoughts in parallel with search if applicable
-        let thoughtsPromise = null;
-        if (useThoughts) {
-          thoughtsPromise = (async () => {
-            createThoughtChain(botMsgEl);
-            addThoughtStep('Planning Search', 'Determining what to look up and which sources to target.');
-            await sleep(800);
-            addThoughtStep('Executing Queries', 'Running web searches and reading relevant pages.');
-          })();
-        }
-
         // Execute all search calls
         let allGathered = [];
         for (const call of toolCalls) {
@@ -418,15 +404,7 @@ window.send = async function () {
           }
         }
 
-        // Finalise thoughts if running
-        if (useThoughts) {
-          await thoughtsPromise;
-          addThoughtStep('Synthesising', 'Combining search results into a coherent answer.');
-          await sleep(400);
-          finaliseThoughts(botMsgEl);
-        }
-
-        CLOAK_SEARCH.updateTicker('Composing answer…');
+        CLOAK_SEARCH.updateTicker('Writing the answer…');
         setBotState(botMsgEl, 'thinking');
 
         // Build context with search results for synthesis

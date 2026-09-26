@@ -16,163 +16,43 @@ const CLOAK_SEARCH = (() => {
   let _sourceCount = 0;
   let _allSources = [];
 
-  /* ── ANIMATED SEARCH CARD INJECTION ── */
+  /* ── STATUS LINES (replaces the old card/box UI) ──
+     Each step pops in as a single line in the reply's status log
+     (addStatus / finishStatus in cloak.js). */
+  let _botEl = null;
+  const _domain = (u) => { try { return new URL(u).hostname.replace('www.', ''); } catch { return String(u).slice(0, 40); } };
+
   function createSearchBlock(botMsgEl) {
-    const botBody = botMsgEl.querySelector('.bot-body');
-    if (!botBody) return null;
-    const existing = botBody.querySelector('.search-block');
-    if (existing) { _searchContainer = existing.querySelector('.search-results-list'); return existing; }
-
-    const block = document.createElement('div');
-    block.className = 'search-block';
-    block.innerHTML = `
-      <div class="search-block-header">
-        <div class="search-header-left">
-          <div class="search-pulse-ring"></div>
-          <span class="search-header-icon">
-            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-            </svg>
-          </span>
-          <span class="search-header-label">Searching the web</span>
-        </div>
-        <div class="search-header-right">
-          <span class="search-source-count" id="search-src-count">0 sources</span>
-          <button class="search-collapse-btn rotated" id="search-collapse-btn">
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-              <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="search-results-list" id="search-results-list"></div>
-      <div class="search-query-ticker" id="search-query-ticker">
-        <div class="ticker-label">↳</div>
-        <div class="ticker-text" id="ticker-text">Initialising…</div>
-      </div>`;
-
-    // Wire collapse
-    setTimeout(() => {
-      const btn = block.querySelector('#search-collapse-btn');
-      const list = block.querySelector('.search-results-list');
-      if (btn && list) {
-        btn.addEventListener('click', () => {
-          list.classList.toggle('collapsed-list');
-          btn.classList.toggle('rotated');
-        });
-      }
-    }, 0);
-
-    const botContent = botBody.querySelector('.bot-content');
-    botBody.insertBefore(block, botContent);
-    _searchContainer = block.querySelector('.search-results-list');
-    _sourceCount = 0;
-    _allSources = [];
-    return block;
+    if (_botEl !== botMsgEl) { _sourceCount = 0; _allSources = []; }
+    _botEl = botMsgEl;
+    return statusLog(botMsgEl);
   }
 
   function updateTicker(text) {
-    const el = document.getElementById('ticker-text');
-    if (!el) return;
-    el.classList.add('ticker-exit');
-    setTimeout(() => {
-      el.textContent = text;
-      el.classList.remove('ticker-exit');
-      el.classList.add('ticker-enter');
-      setTimeout(() => el.classList.remove('ticker-enter'), 300);
-    }, 150);
-  }
-
-  function updateSourceCount(n) {
-    const el = document.getElementById('search-src-count');
-    if (!el) return;
-    el.textContent = n === 1 ? '1 source' : `${n} sources`;
-    el.classList.add('count-bump');
-    setTimeout(() => el.classList.remove('count-bump'), 300);
+    if (_botEl) addStatus(_botEl, text);
   }
 
   function addSearchResultCard(result, queryLabel) {
-    if (!_searchContainer) return;
     _sourceCount++;
     _allSources.push(result);
-    updateSourceCount(_sourceCount);
-
-    const card = document.createElement('div');
-    card.className = 'search-result-card';
-    card.style.animationDelay = `${(_sourceCount - 1) * 60}ms`;
-
-    const domain = (() => {
-      try { return new URL(result.url).hostname.replace('www.', ''); } catch { return result.url; }
-    })();
-
-    const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=16`;
-
-    card.innerHTML = `
-      <div class="src-card-top">
-        <img class="src-favicon" src="${faviconUrl}" onerror="this.style.display='none'" alt="">
-        <span class="src-domain">${escHtml(domain)}</span>
-        <span class="src-query-tag">${escHtml(queryLabel)}</span>
-      </div>
-      <div class="src-title">${escHtml(result.title || domain)}</div>
-      ${result.snippet ? `<div class="src-snippet">${escHtml(result.snippet.slice(0, 140))}…</div>` : ''}
-      <div class="src-url-bar">
-        <span class="src-url-text">${escHtml(result.url.slice(0, 60))}${result.url.length > 60 ? '…' : ''}</span>
-        <span class="src-read-badge" id="src-badge-${_sourceCount}">queued</span>
-      </div>`;
-
-    _searchContainer.appendChild(card);
-
-    // Scroll into view
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    return _sourceCount; // return index for badge updates
+    if (queryLabel === 'direct' && _botEl) addStatus(_botEl, 'Opening ' + _domain(result.url) + '…');
+    return _sourceCount;
   }
 
   function updateSourceBadge(idx, state) {
-    const badge = document.getElementById(`src-badge-${idx}`);
-    if (!badge) return;
-    badge.className = 'src-read-badge badge-' + state;
-    const labels = { queued: 'queued', reading: 'reading…', done: 'read ✓', skip: 'skipped' };
-    badge.textContent = labels[state] || state;
+    const src = _allSources[idx - 1];
+    if (!src || !_botEl) return;
+    if (state === 'reading') addStatus(_botEl, 'Reading ' + _domain(src.url) + '…');
   }
 
-  function addCrawlCard(url, depth) {
-    if (!_searchContainer) return;
-    const card = document.createElement('div');
-    card.className = 'search-crawl-card';
-    const domain = (() => { try { return new URL(url).hostname.replace('www.', ''); } catch { return url; } })();
-    card.innerHTML = `
-      <div class="crawl-indicator">
-        <div class="crawl-dots"><span></span><span></span><span></span></div>
-        <span class="crawl-label">↳ deep crawl</span>
-        <span class="crawl-url">${escHtml(domain + url.slice(url.indexOf('/', 8)).slice(0, 40))}</span>
-      </div>`;
-    _searchContainer.appendChild(card);
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    return card;
+  function addCrawlCard(url) {
+    if (_botEl) addStatus(_botEl, 'Digging into ' + _domain(url) + '…');
+    return null;
   }
 
   function finaliseSearchBlock(botMsgEl) {
-    const block = botMsgEl?.querySelector('.search-block');
-    if (!block) return;
-
-    const label = block.querySelector('.search-header-label');
-    if (label) label.textContent = `Searched ${_sourceCount} source${_sourceCount !== 1 ? 's' : ''}`;
-
-    const pulse = block.querySelector('.search-pulse-ring');
-    if (pulse) pulse.classList.add('pulse-done');
-
-    const ticker = block.querySelector('.search-query-ticker');
-    if (ticker) ticker.classList.add('ticker-done');
-
-    // Auto-collapse after short delay
-    setTimeout(() => {
-      const list = block.querySelector('.search-results-list');
-      const btn = block.querySelector('#search-collapse-btn');
-      if (list && !list.classList.contains('collapsed-list')) {
-        list.classList.add('collapsed-list');
-        if (btn) btn.classList.remove('rotated');
-      }
-    }, 1200);
+    const log = botMsgEl && botMsgEl._log;
+    if (log) log._summary = 'Searched ' + _sourceCount + ' source' + (_sourceCount !== 1 ? 's' : '');
   }
 
   /* ── CORE SEARCH API ── */
@@ -227,6 +107,7 @@ const CLOAK_SEARCH = (() => {
       try {
         const results = await googleSearch(q);
         const top = results.slice(0, maxSources);
+        updateTicker('Found ' + top.length + ' result' + (top.length !== 1 ? 's' : ''));
         for (const r of top) {
           const idx = addSearchResultCard(r, q);
           gathered.push({ ...r, idx, extracted: null });
@@ -244,10 +125,8 @@ const CLOAK_SEARCH = (() => {
     }
 
     // 3. Extract content from each source
-    updateTicker('Reading sources…');
     for (const src of gathered) {
       updateSourceBadge(src.idx, 'reading');
-      updateTicker(`Reading: ${src.url.slice(0, 50)}`);
       try {
         src.extracted = await extractUrl(src.url);
         updateSourceBadge(src.idx, 'done');
@@ -260,7 +139,6 @@ const CLOAK_SEARCH = (() => {
 
     // 4. Deep crawl — follow sub-pages if requested
     if (deepCrawl?.length) {
-      updateTicker('Deep crawling…');
       for (const url of deepCrawl) {
         const crawlCard = addCrawlCard(url, 2);
         try {
@@ -277,7 +155,7 @@ const CLOAK_SEARCH = (() => {
       }
     }
 
-    updateTicker('Synthesising…');
+    finaliseSearchBlock(botMsgEl);
     return gathered;
   }
 

@@ -840,6 +840,7 @@ function replaceThinkWithContent(botMsgEl, rawText) {
   // No fake typewriter — text only animates in from live token streaming.
   if (botMsgEl._status) { botMsgEl._status.destroy(); botMsgEl._status = null; }
   dropTailOrb(botMsgEl);
+  finishStatus(botMsgEl);
   bc.innerHTML = marked.parse(rawText);
   postProcessBotEl(botMsgEl, rawText);
   setBotState(botMsgEl, null);
@@ -1071,6 +1072,46 @@ function _takeRestingOrb(){
   const r=end.getBoundingClientRect();
   end.remove();
   return r.width?r:null;
+}
+
+/* ── STATUS LOG ──
+   Thinking + research steps as single lines that pop in (styled like
+   "Cloak is thinking…"). When the answer starts, the log collapses to a
+   one-line summary you can click to reopen. */
+function statusLog(botMsgEl){
+  if(!botMsgEl) return null;
+  if(botMsgEl._log) return botMsgEl._log;
+  const body=botMsgEl.querySelector('.bot-body'),bc=botMsgEl.querySelector('.bot-content');
+  if(!body||!bc) return null;
+  const log=document.createElement('div');
+  log.className='status-log open';
+  log.innerHTML='<button class="status-head" type="button" aria-expanded="true"><span class="status-head-label"></span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
+  const head=log.querySelector('.status-head');
+  head.addEventListener('click',()=>{const o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);});
+  log._t0=Date.now();
+  body.insertBefore(log,bc);
+  botMsgEl._log=log;
+  return log;
+}
+function addStatus(botMsgEl,text){
+  const log=statusLog(botMsgEl);if(!log||log._done)return null;
+  const lines=log.querySelector('.status-lines');
+  const prev=lines.lastElementChild;if(prev)prev.classList.remove('live');
+  const el=document.createElement('div');
+  el.className='status-line live';el.textContent=text;
+  lines.appendChild(el);
+  scrollBottom();
+  return el;
+}
+function finishStatus(botMsgEl){
+  const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
+  log._done=true;
+  log.querySelectorAll('.status-line.live').forEach(l=>l.classList.remove('live'));
+  if(!log.querySelector('.status-line')){log.remove();botMsgEl._log=null;return;}
+  const s=Math.max(1,Math.round((Date.now()-log._t0)/1000));
+  log.querySelector('.status-head-label').textContent=(log._summary?log._summary+' · ':'Thought for ')+s+'s';
+  log.classList.remove('open');log.classList.add('done');
+  log.querySelector('.status-head').setAttribute('aria-expanded','false');
 }
 
 function createCloakStatus(botMsgEl){
@@ -1492,6 +1533,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926h').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926i').catch(e=>console.warn('SW registration failed',e));
   });
 }
