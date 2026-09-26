@@ -429,7 +429,7 @@ window.send = async function () {
           }
         }
 
-        CLOAK_SEARCH.updateTicker('Writing the answer…');
+        addStatus(botMsgEl, 'Writing the answer…');
         setBotState(botMsgEl, 'thinking');
 
         // Build context with search results for synthesis

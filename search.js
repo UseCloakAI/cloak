@@ -26,29 +26,33 @@ const CLOAK_SEARCH = (() => {
 
   function createSearchBlock(botMsgEl) {
     if (_botEl !== botMsgEl) { _sourceCount = 0; _allSources = []; }
+    const first = _botEl !== botMsgEl;
     _botEl = botMsgEl;
-    return statusLog(botMsgEl);
+    const log = statusLog(botMsgEl);
+    // Collapsed preview just says we're searching; pages live in the dropdown.
+    if (first && log) addStatus(botMsgEl, 'Searching for sources…');
+    return log;
   }
 
+  // Detail lines only — visible when the dropdown is opened.
   function updateTicker(text) {
-    if (_botEl) addStatus(_botEl, text);
+    if (_botEl) addStatus(_botEl, text, true);
   }
 
   function addSearchResultCard(result, queryLabel) {
     _sourceCount++;
     _allSources.push(result);
-    if (queryLabel === 'direct' && _botEl) addStatus(_botEl, 'Opening ' + _domain(result.url) + '…');
+    if (_botEl) addStatus(_botEl, _domain(result.url) + (result.title && result.title !== result.url ? ' — ' + result.title : ''), true);
     return _sourceCount;
   }
 
   function updateSourceBadge(idx, state) {
     const src = _allSources[idx - 1];
     if (!src || !_botEl) return;
-    if (state === 'reading') addStatus(_botEl, 'Reading ' + _domain(src.url) + '…');
   }
 
   function addCrawlCard(url) {
-    if (_botEl) addStatus(_botEl, 'Digging into ' + _domain(url) + '…');
+    if (_botEl) addStatus(_botEl, _domain(url) + ' (deep crawl)', true);
     return null;
   }
 
@@ -122,7 +126,6 @@ const CLOAK_SEARCH = (() => {
       try {
         const results = await googleSearch(q);
         const top = results.slice(0, maxSources);
-        updateTicker('Found ' + top.length + ' result' + (top.length !== 1 ? 's' : ''));
         for (const r of top) {
           const idx = addSearchResultCard(r, q);
           gathered.push({ ...r, idx, extracted: null });
