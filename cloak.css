@@ -189,8 +189,15 @@ html.vt-theme::view-transition-new(root){animation:vtWipe .72s var(--ease-io) bo
 .ld-mark{display:flex;align-items:center;gap:10px;font-family:var(--fd);font-size:28px;font-weight:800;text-transform:uppercase;letter-spacing:-.02em;color:var(--ink);}
 .ld-mark svg{display:block;animation:stamp .6s var(--sp-pop) .1s backwards;}
 .ld-mark svg circle{fill:var(--acc);stroke:var(--ink);stroke-width:2.5;}
+/* a slow breath while it's actually working — stops the instant it's done */
+html.booting .ld-mark svg{animation:stamp .6s var(--sp-pop) .1s backwards,ldBreathe 2.2s ease-in-out .6s infinite;}
+@keyframes ldBreathe{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
 .ld-bar{width:100%;height:14px;border:var(--bd);background:var(--surf);box-shadow:var(--shsm);overflow:hidden;}
-.ld-bar i{display:block;width:0;height:100%;background:repeating-linear-gradient(-45deg,var(--acc) 0 6px,var(--acc2) 6px 9px);box-shadow:inset -2px 0 0 var(--ink);animation:ldStripe .7s linear infinite;}
+/* Stripes are the visible sign of *work*, not decoration — they run fast
+   while progress is actually advancing (--ld-speed set by JS from real
+   velocity) and coast to a near-stop the instant it stalls, same as a
+   real transfer looks when the network pauses. */
+.ld-bar i{display:block;width:0;height:100%;background:repeating-linear-gradient(-45deg,var(--acc) 0 6px,var(--acc2) 6px 9px);box-shadow:inset -2px 0 0 var(--ink);animation:ldStripe var(--ld-speed,2.6s) linear infinite;}
 @keyframes ldStripe{to{background-position:12.728px 0;}}
 .ld-meta{width:100%;display:flex;justify-content:space-between;align-items:baseline;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--ink);opacity:.55;}
 #ld-pct{font-family:'Courier New',monospace;font-size:11px;letter-spacing:0;}

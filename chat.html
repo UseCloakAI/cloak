@@ -99,9 +99,12 @@
 </div>
 <script>
 /* ── LOADER ── The bar follows real milestones (page, fonts, assets, session
-   check from cloak.js via CloakLoader.done()) but is capped by time, so it
-   never finishes before MIN ms. The app underneath stays paused
-   (html.booting) and plays its entrance once the loader lifts off. */
+   check from cloak.js via CloakLoader.done()) but is paced by an artificial
+   curve, so it never finishes before MIN ms and never just linearly crawls:
+   real transfers arrive in chunks — a burst while data comes in, a stall
+   while something's waited on — so the pacing curve is staged the same way
+   instead of a flat ramp. The app underneath stays paused (html.booting)
+   and plays its entrance once the loader lifts off. */
 (function(){
   var html=document.documentElement, el=document.getElementById('s-loading');
   var fill=document.getElementById('ld-fill'), pct=document.getElementById('ld-pct'), label=document.getElementById('ld-label');
@@ -115,11 +118,41 @@
   });
   addEventListener('load',function(){mark('load');});
   setTimeout(function(){steps.forEach(function(s){mark(s[0]);});},15000);   // never hang on a stuck milestone
+
+  // Fraction of MIN elapsed → fraction of the bar filled. Alternates bursts
+  // (steep segments) and stalls (near-flat) instead of one smooth ramp, the
+  // way real chunked loading actually looks.
+  var CURVE=[[0,0],[.09,.17],[.21,.20],[.26,.36],[.47,.41],[.54,.60],[.75,.64],[.82,.88],[.93,.91],[1,1]];
+  function easeInOut(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}
+  function timeCurve(f){
+    if(f<=0)return 0; if(f>=1)return 1;
+    for(var i=1;i<CURVE.length;i++){
+      if(f<=CURVE[i][0]){
+        var a=CURVE[i-1],b=CURVE[i],span=b[0]-a[0];
+        var local=span>0?(f-a[0])/span:1;
+        return a[1]+(b[1]-a[1])*easeInOut(local);
+      }
+    }
+    return 1;
+  }
+
+  var lastSampleAt=0,lastSampleGoal=0,activeUntil=0;
   function frame(now){
     var real=0; steps.forEach(function(s){if(done[s[0]])real+=s[1];});
-    var goal=Math.min(real,(now-t0)/MIN);
-    shown+=(goal-shown)*.14;
+    var goal=Math.min(real,timeCurve((now-t0)/MIN));
+    shown+=(goal-shown)*.16;
     if(real>=.999&&now-t0>=MIN&&shown>.994)return finish();
+
+    // Stripes read as "working" only while the *target* is actually climbing
+    // — measured off goal (not the smoothed shown), since that's what's
+    // really moving: real transfer, or the paced curve while nothing real
+    // is pending. A hold keeps a burst reading as one motion, not a flicker.
+    if(now-lastSampleAt>=100){
+      if(goal-lastSampleGoal>.022)activeUntil=now+320;
+      lastSampleAt=now;lastSampleGoal=goal;
+    }
+    fill.style.setProperty('--ld-speed',(now<activeUntil?.6:2.6)+'s');
+
     var at=0,txt=steps[0][2];
     steps.forEach(function(s){if(shown>=at)txt=s[2];at+=s[1];});
     fill.style.width=(shown*100).toFixed(2)+'%';
@@ -130,6 +163,7 @@
   }
   function finish(){
     if(finished)return; finished=true;
+    fill.style.setProperty('--ld-speed','.5s');
     fill.style.width='100%'; pct.textContent='100%'; label.textContent='Ready'; el.setAttribute('aria-valuenow',100);
     setTimeout(function(){
       el.classList.add('ld-out'); html.classList.remove('booting');
