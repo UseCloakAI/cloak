@@ -330,7 +330,7 @@ a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 
 /* ── BOT MESSAGE — full width, no bubble ── */
 .bot-body{display:flex;flex-direction:column;gap:4px;width:100%;}
-.bot-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.bot-meta{display:flex;align-items:center;gap:8px;margin-bottom:8px;min-height:calc(15px*1.82);} /* one answer line tall, so streamed text starts exactly on the status line */
 .bot-dot{width:6px;height:6px;background:var(--acc);flex-shrink:0;animation:pdot 2.2s infinite;}
 .bot-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.15em;color:var(--acc);}
 
@@ -1512,7 +1512,7 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
 
 /* ── ORB STATES — the orb acts out what Cloak is doing ──
    thinking  → squish in place (squash & stretch, no travel)
-   searching → rolls side to side while a radar ring pings out
+   searching → turns into a spinning globe (lines drawn by orbGlobe() in cloak.js)
    streaming → hops, one hop per beat while tokens are arriving
    done      → one settle-squash, then rest
    error     → quick shake
@@ -1520,17 +1520,10 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
    Translate %s are relative to the orb's own size, so the same keyframes
    work for the 15px message orb and the big welcome orb. */
 .cloak-orb.orb-thinking  { animation: orbSquish 1.05s cubic-bezier(.45,0,.55,1) infinite; transform-origin: 50% 100%; }
-.cloak-orb.orb-searching { animation: orbScan 1.5s cubic-bezier(.45,0,.55,1) infinite; transform-origin: 50% 100%; }
 .cloak-orb.orb-streaming { animation: orbHop .52s linear infinite; transform-origin: 50% 100%; }
 .cloak-orb.orb-done      { animation: orbSettle .6s cubic-bezier(.34,1.56,.64,1); transform-origin: 50% 100%; }
 .cloak-orb.orb-error     { animation: orbShake .45s ease; }
 .cloak-orb.orb-listening { animation: orbPerk .9s cubic-bezier(.45,0,.55,1) infinite; transform-origin: 50% 100%; }
-
-.cloak-orb.orb-searching::before {
-  content: ''; position: absolute; inset: 0; border-radius: 50%;
-  border: 2px solid var(--acc); pointer-events: none;
-  animation: orbPing 1.5s cubic-bezier(.2,.6,.3,1) infinite;
-}
 
 @keyframes orbSquish {
   0%, 100% { transform: scale(1, 1); }
@@ -1538,16 +1531,6 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
   46%      { transform: scale(.86, 1.14); }   /* stretch */
   66%      { transform: scale(1.1, .9); }
   84%      { transform: scale(.97, 1.03); }
-}
-@keyframes orbScan {
-  0%, 100% { transform: translateX(0)    rotate(0); }
-  25%      { transform: translateX(-28%) rotate(-12deg) scale(1.04, .96); }
-  50%      { transform: translateX(0)    rotate(0); }
-  75%      { transform: translateX(28%)  rotate(12deg) scale(1.04, .96); }
-}
-@keyframes orbPing {
-  0%   { transform: scale(1);   opacity: .7; }
-  100% { transform: scale(2.3); opacity: 0; }
 }
 /* down-up bounce: drops first, squashes at the bottom, springs back up */
 @keyframes orbHop {
@@ -1567,7 +1550,12 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
 .bot-content.has-tail { padding-bottom: 30px; }
 /* Drop the "Cloak" label — only status text (thinking/searching) shows */
 .bot-label:not(.cs-thinking-label) { display: none; }
-.msg.orb-below .bot-meta { display: none; }
+.msg.orb-below .bot-meta,
+.msg.orb-streaming .bot-meta { display: none; }
+/* Searching globe — ink meridians/equator spun by orbGlobe() */
+.cloak-orb .orb-globe line,
+.cloak-orb .orb-globe path { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cloak-orb .orb-globe-ring { fill: none; stroke: var(--ink); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .bot-end-orb { margin-top: 8px; height: 15px; display: flex; }
 @keyframes orbSettle {
   0%   { transform: scale(1.22, .8); }
@@ -1679,8 +1667,7 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
 @media (prefers-reduced-motion: reduce) {
   .cloak-orb.orb-bounce { animation: none; }
   .cloak-orb[class*="orb-"], .welcome-orb { animation: none !important; }
-  .cloak-orb.orb-searching::before { display: none; }
-  .cloak-orb.orb-thinking, .cloak-orb.orb-searching { opacity: .6; }
+  .cloak-orb.orb-thinking { opacity: .6; }
   .orb-bubble { transition: opacity .15s ease; }
   .orb-bubble.show { transform: none; }
 }

@@ -881,6 +881,7 @@ function setOrbState(orb, state){
   const cur=orb.dataset.state||null;
   if(cur===state && state!=='done' && state!=='error') return; // don't restart a running loop
   clearTimeout(orb._stateT);
+  orbGlobe(orb, state==='searching');
   ORB_STATES.forEach(k=>orb.classList.remove('orb-'+k));
   if(!state){ delete orb.dataset.state; return; }
   void orb.offsetWidth;            // reflow so one-shot animations can replay
@@ -889,6 +890,59 @@ function setOrbState(orb, state){
   if(state==='done'||state==='error'){
     orb._stateT=setTimeout(()=>setOrbState(orb,null), state==='done'?650:500);
   }
+}
+
+/* ── SEARCHING GLOBE ──
+   While searching, meridians spin in over the orb's left edge and the equator
+   is drawn in behind the first one. When searching stops no new meridians come
+   round: the ones on the face finish their pass off the right edge and the
+   equator is wiped behind the last one, leaving the plain orb. */
+function orbGlobe(orb, on){
+  let g=orb._globe;
+  if(!g){
+    if(!on) return;
+    const svg=orb.querySelector('svg'); if(!svg) return;
+    const NS='http://www.w3.org/2000/svg', R=46, N=4, TAU=Math.PI*2;
+    const mk=(t,p,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;};
+    const id='og'+Math.random().toString(36).slice(2,8);
+    mk('circle',mk('clipPath',mk('defs',svg,{}),{id}),{r:R-1});
+    const grp=mk('g',svg,{class:'orb-globe','clip-path':'url(#'+id+')'});
+    mk('circle',svg,{r:R,class:'orb-globe-ring'});    // ink outline redrawn over the lines
+    g=orb._globe={on:false,th:0,spin:0,raf:0,last:0,fill:'empty',lead:-1,drain:false,
+      eq:mk('line',grp,{y1:0,y2:0}),mer:Array.from({length:N},()=>mk('path',grp,{}))};
+    const ang=i=>g.th+i*TAU/N, front=i=>Math.cos(ang(i))>0;
+    g.alive=g.mer.map(()=>false); g.was=g.mer.map((_,i)=>front(i));
+    const vis=()=>g.mer.map((_,i)=>i).filter(i=>g.alive[i]&&front(i));
+    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    g.render=()=>{
+      const v=vis(), sn=i=>Math.sin(ang(i));
+      g.mer.forEach((p,i)=>{ if(!v.includes(i)){p.setAttribute('d','');return;} const s=sn(i);
+        p.setAttribute('d','M0 '+(-R)+'A'+Math.abs(R*s)+' '+R+' 0 0 '+(s>0?1:0)+' 0 '+R); });
+      const hi=g.fill==='full'?1:g.fill==='lead'?sn(g.lead):-1, lo=g.drain?(v.length?Math.min(...v.map(sn)):1):-1;
+      g.eq.setAttribute('x1',hi-lo<.01?0:lo*R); g.eq.setAttribute('x2',hi-lo<.01?0:hi*R);
+      g.eq.style.opacity=hi-lo<.01?0:1;
+    };
+    g.frame=now=>{
+      const dt=Math.min(.05,(now-g.last)/1000); g.last=now;
+      const busy=g.on||vis().length>0;
+      g.spin+=((busy?(g.on?3.2:4):0)-g.spin)*(1-Math.exp(-dt*4)); g.th+=g.spin*dt;
+      g.mer.forEach((_,i)=>{ const f=front(i);
+        if(f&&!g.was[i]){ g.alive[i]=g.on; if(g.alive[i]&&g.fill==='await'){g.fill='lead';g.lead=i;} }  // spun in over the left edge
+        if(!f&&g.was[i]){ g.alive[i]=false; if(g.fill==='lead'&&i===g.lead) g.fill='full'; }          // left over the right edge
+        g.was[i]=f; });
+      if(g.drain&&!vis().length){ g.drain=false; g.fill='empty'; }
+      g.render();
+      g.raf=(g.on||g.fill!=='empty')&&orb.isConnected?requestAnimationFrame(g.frame):0;
+    };
+    g.set=on=>{
+      if(on===g.on) return; g.on=on;
+      if(reduce){ g.fill=on?'full':'empty'; g.drain=false; g.th=.4; g.mer.forEach((_,i)=>{g.alive[i]=on;g.was[i]=front(i);}); g.render(); return; }
+      if(on){ g.drain=false; if(g.fill==='empty') g.fill='await'; }
+      else if(g.fill==='await') g.fill='empty'; else if(g.fill!=='empty') g.drain=true;
+      if(!g.raf){ g.last=performance.now(); g.raf=requestAnimationFrame(g.frame); }
+    };
+  }
+  g.set(on);
 }
 
 // Orb + label for a bot message. Labels only show for pre-answer steps.
@@ -920,6 +974,7 @@ function tailOrb(botMsgEl){
   t.style.transform='translate('+x+'px,'+y+'px)';
   body.appendChild(t);
   meta.style.visibility='hidden';
+  botMsgEl.classList.add('orb-streaming');   // status row collapses: text starts where "Cloak is thinking…" was
   botMsgEl._tail=t;
   return t;
 }
@@ -941,6 +996,7 @@ function dockTailOrb(botMsgEl, done){
   const bc=botMsgEl.querySelector('.bot-content');
   if(!t){ if(done) done(); return; }
   botMsgEl._tail=null;
+  botMsgEl.classList.remove('orb-streaming');
   setOrbState(t.querySelector('.cloak-orb'),null);
   const body=botMsgEl.querySelector('.bot-body');
   if(meta&&body){ const [x,y]=_orbPos(body,meta); t.style.transform='translate('+x+'px,'+y+'px)'; }
@@ -959,6 +1015,7 @@ function restOrbBelow(botMsgEl, state){
   const t=botMsgEl._tail; botMsgEl._tail=null;
   if(t) t.remove();
   bc.classList.remove('has-tail');
+  botMsgEl.classList.remove('orb-streaming');
   const meta=botMsgEl.querySelector('.bot-meta .cloak-orb');
   if(meta) meta.style.visibility='hidden';
   botMsgEl.classList.add('orb-below');
@@ -1390,6 +1447,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926f').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926g').catch(e=>console.warn('SW registration failed',e));
   });
 }
