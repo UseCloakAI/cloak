@@ -971,7 +971,7 @@ function setBotState(botMsgEl, state){
   setOrbState(botMsgEl.querySelector('.cloak-orb'), state);
   const label=botMsgEl.querySelector('.bot-label');
   if(!label) return;
-  const t=BOT_STATE_LABELS[state];
+  const t=BOT_STATE_LABELS[state]?(botMsgEl._preview||BOT_STATE_LABELS[state]):null;
   label.textContent=t||'Cloak';
   label.classList.toggle('cs-thinking-label',!!t);
 }
@@ -1087,7 +1087,10 @@ function statusLog(botMsgEl){
   log.className='status-log';
   log.innerHTML='<button class="status-head" type="button" aria-expanded="false"><span class="status-head-label"></span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
   const head=log.querySelector('.status-head');
-  head.addEventListener('click',()=>{const o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);});
+  head.addEventListener('click',()=>{
+    const o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);
+    log.querySelector('.status-head-label').textContent=o?'Hide thinking':'Show thinking';
+  });
   log._t0=Date.now();
   body.insertBefore(log,bc);
   botMsgEl._log=log;
@@ -1110,8 +1113,12 @@ function addStatus(botMsgEl,text,noPreview){
 const STATUS_HOLD_MS=1000;
 function setStatusPreview(botMsgEl,text,isNew){
   const log=botMsgEl&&botMsgEl._log;if(!log)return;
-  const lbl=log.querySelector('.status-head-label');
+  // The preview lives in the label beside the orb (replacing "Cloak is thinking…").
   const show=(t,pop)=>{
+    if(log._done)return;
+    botMsgEl._preview=t;
+    const lbl=botMsgEl.querySelector('.bot-label');
+    if(!lbl||!lbl.classList.contains('cs-thinking-label'))return;
     lbl.textContent=t;
     if(pop){lbl.classList.remove('pop');void lbl.offsetWidth;lbl.classList.add('pop');log._shownAt=Date.now();}
   };
@@ -1128,8 +1135,11 @@ function setStatusPreview(botMsgEl,text,isNew){
 function finishStatus(botMsgEl){
   const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
   log._done=true;
+  clearTimeout(log._holdT);log._holdT=0;log._pending=null;
+  botMsgEl._preview=null;
   log.querySelectorAll('.status-line.live').forEach(l=>l.classList.remove('live'));
   if(!log.querySelector('.status-line')){log.remove();botMsgEl._log=null;return;}
+  log.querySelector('.status-head-label').textContent='Show thinking';
   log.classList.add('done');
 }
 
@@ -1552,6 +1562,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926m').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926n').catch(e=>console.warn('SW registration failed',e));
   });
 }

@@ -1572,10 +1572,11 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
 .status-head-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .status-head svg { flex-shrink: 0; }
 .status-head-label.pop { animation: statusPop .42s cubic-bezier(.2,.75,.25,1) both; }
-/* Live shimmer: a lighter band sweeps left → right across the preview line.
-   One gradient tile per loop, so it wraps seamlessly. */
-.status-log:not(.done) .status-head-label {
-  color: var(--ink);
+/* Live preview beside the orb: whole-line pop + a lighter band sweeping
+   left → right (one gradient tile per loop, so it wraps seamlessly). */
+.bot-label.cs-thinking-label {
+  display: inline-block; max-width: min(560px, 70vw);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   background: linear-gradient(90deg,
     var(--ink) 0%, var(--ink) 35%,
     color-mix(in srgb, var(--ink) 35%, transparent) 50%,
@@ -1584,11 +1585,12 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
   -webkit-text-fill-color: transparent;
   animation: statusShimmer 2.2s linear infinite;
 }
-.status-log:not(.done) .status-head-label.pop {
+.bot-label.cs-thinking-label.pop {
   animation: statusPop .42s cubic-bezier(.2,.75,.25,1) both, statusShimmer 2.2s linear infinite;
 }
+/* Status log is only a "Show thinking" toggle, after the thinking is done */
+.status-log:not(.done) { display: none; }
 @keyframes statusShimmer { from { background-position: 200% 0; } to { background-position: 0 0; } }
-.status-log:not(.done) .status-head { opacity: .62; }
 .status-log.open .status-head svg { transform: rotate(180deg); }
 .status-lines { display: none; flex-direction: column; gap: 3px; }
 .status-log.open .status-lines { display: flex; }
@@ -1732,4 +1734,3 @@ body.values-page{overflow:auto;background:var(--paper);color:var(--ink);font-fam
   /* Browser chrome is gone; soften the footer disclaimer a touch. */
   .input-disc{opacity:.34;}
 }
-.status-head:has(.status-head-label:empty) { display: none; }
