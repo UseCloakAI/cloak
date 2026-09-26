@@ -616,7 +616,11 @@ a:hover > .arw { translate: 3px 0; }
 }
 
 /* ── VALUES ── */
-.values-layout { display: grid; grid-template-columns: 340px 1fr; }
+.values-layout { display: grid; grid-template-columns: 400px 1fr; }
+/* Headline scales to its column: at full size "PRINCIPLE." (≈11.5× font-size in Syne)
+   overflowed the column into the laws cards. */
+.values-left { container-type: inline-size; }
+.values-left .section-title { font-size: min(clamp(1.9rem, 3.8vw, 3.2rem), 8.4cqi); }
 
 .values-left {
   padding: 72px 44px;
