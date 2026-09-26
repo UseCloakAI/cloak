@@ -39,6 +39,26 @@ RULES:
 - You can request up to 3 search rounds if needed
 - Always synthesize into a clear, helpful answer after searching`;
 
+/* ── REAL-TIME CLOCK ──
+   Fresh on every request, so Cloak always knows "now" and can research the
+   latest info instead of guessing from its training cutoff. */
+function cloakClock() {
+  const d = new Date();
+  let tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+  const local = d.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  return `
+
+CURRENT DATE & TIME (real-time clock — this is "now"):
+- User's local time: ${local}${tz ? ' (' + tz + ')' : ''}
+- UTC: ${d.toISOString()}
+
+Use this clock:
+- Treat it as the present. Your training data is older; anything that may have changed since (news, prices, releases, scores, weather, officeholders, versions) needs a search.
+- When researching, put the current year (and month when it matters) into time-sensitive queries, prefer the most recent sources, and check publication dates against today.
+- Resolve relative dates ("today", "last week", "this year") from this clock, and say how recent your info is when it matters.`;
+}
+
 /* ── CITATION STRIP RENDERER ── */
 function renderCitationStrip(botMsgEl, sources) {
   if (!sources || !sources.length) return;
@@ -247,13 +267,14 @@ function liveThink(botMsgEl, chunk) {
     const done = buf.slice(0, cut).trim();
     buf = buf.slice(m.index + m[0].length);
     if (done) {
-      if (!line) line = addStatus(botMsgEl, done); else { line.textContent = done; setStatusPreview(botMsgEl, done); }
+      if (!line) line = addStatus(botMsgEl, done, true); else line.textContent = done;
+      setStatusPreview(botMsgEl, done, true);
       line = null;
     }
   }
   const rest = buf.trim();
   if (rest) {
-    if (!line) line = addStatus(botMsgEl, rest); else { line.textContent = rest; setStatusPreview(botMsgEl, rest); }
+    if (!line) line = addStatus(botMsgEl, rest, true); else line.textContent = rest;
   }
   botMsgEl._thinkBuf = buf;
   botMsgEl._thinkLine = line;
@@ -353,7 +374,7 @@ window.send = async function () {
   const bodyObj = {
     model,
     messages: trimmedMessages,
-    system: SEARCH_SYSTEM_PROMPT,
+    system: SEARCH_SYSTEM_PROMPT + cloakClock(),
     imageBase64: imageBase64 || undefined,
     mimeType: mimeType || undefined,
   };
@@ -434,7 +455,7 @@ window.send = async function () {
         const synth = await streamChat({
           model,
           messages: synthesisMessages.slice(-22),
-          system: SEARCH_SYSTEM_PROMPT,
+          system: SEARCH_SYSTEM_PROMPT + cloakClock(),
         }, botMsgEl, _fetchController.signal);
         _fetchController = null;
 

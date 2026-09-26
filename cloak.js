@@ -1093,14 +1093,14 @@ function statusLog(botMsgEl){
   botMsgEl._log=log;
   return log;
 }
-function addStatus(botMsgEl,text){
+function addStatus(botMsgEl,text,noPreview){
   const log=statusLog(botMsgEl);if(!log||log._done)return null;
   const lines=log.querySelector('.status-lines');
   const prev=lines.lastElementChild;if(prev)prev.classList.remove('live');
   const el=document.createElement('div');
   el.className='status-line live';el.textContent=text;
   lines.appendChild(el);
-  setStatusPreview(botMsgEl,text,true);
+  if(!noPreview)setStatusPreview(botMsgEl,text,true);
   scrollBottom();
   return el;
 }
@@ -1552,6 +1552,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926j').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926l').catch(e=>console.warn('SW registration failed',e));
   });
 }
