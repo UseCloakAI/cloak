@@ -703,6 +703,7 @@ function renderConvs(){
 }
 
 function newChat(){
+  if(hist.length)_greetAfterChat=true;
   chatId=null;hist=[];document.getElementById('messages').innerHTML='';
   document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';renderConvs();updateGreeting();
 }
@@ -994,33 +995,40 @@ async function enterChat(){
 
 function startGuest(){guest=true;guestN=0;name='';email='';uid='';entering=false;hideLoading();enterChat();}
 /* ── WELCOME GREETING ──
-   Time of day sets the mood: the greeting, the line under it, and how the
-   welcome orb idles (data-mood → cloak.css). */
-const GREET_MOODS={
-  morning:  {hi:'Morning',    solo:'Good morning!',    lines:['Fresh start. What are we tackling?','Coffee first, then let\'s get into it.','Early focus hits different. What\'s up?']},
-  afternoon:{hi:'Afternoon',  solo:'Good afternoon!',  lines:['Midday momentum. What\'s on deck?','Let\'s keep the afternoon moving.','What are we knocking out today?']},
-  evening:  {hi:'Evening',    solo:'Good evening!',    lines:['Winding down or just getting going?','Evening shift. What\'s on your mind?','Let\'s wrap the day up right.']},
-  night:    {hi:'Up late',    solo:'Up late?',         lines:['Quiet hours. Good time to think.','Burning the midnight oil? Let\'s make it count.','Night mode brain. What are we working on?']}
-};
+   One line, picked from context (most specific wins): holidays → just
+   finished a chat → first visit → back after a while → late night →
+   day of week → time of day. Time of day also sets data-mood, which drives
+   how the welcome orb idles (cloak.css). */
+const _GREET_SEEN_KEY='cloak_last_seen';
+let _greetPrevSeen=0;
+try{_greetPrevSeen=+localStorage.getItem(_GREET_SEEN_KEY)||0;localStorage.setItem(_GREET_SEEN_KEY,String(Date.now()));}catch(_){}
+let _greetAfterChat=false;   // set by newChat() when leaving a conversation
+
 function _greetMood(d){
   const h=d.getHours();
   return h>=5&&h<12?'morning':h>=12&&h<17?'afternoon':h>=17&&h<22?'evening':'night';
 }
-function _moodLine(mood,d){
-  const day=d.getDay();
-  if(mood==='morning'&&day===1)return 'New week, clean slate. Where do we start?';
-  if(day===5&&(mood==='afternoon'||mood==='evening'))return 'Almost the weekend. Let\'s close it out.';
-  if((day===0||day===6)&&mood!=='night')return 'Weekend mode. What are we getting into?';
-  const lines=GREET_MOODS[mood].lines;
-  return lines[(d.getDate()+d.getHours())%lines.length]; // varies, but stable within the hour
+function _greetText(d,mood,who){
+  const n=who?', '+who:'';
+  const md=(d.getMonth()+1)+'-'+d.getDate(), day=d.getDay(), h=d.getHours();
+  const holiday={'1-1':'Happy New Year'+n+'!','2-14':'Happy Valentine’s'+n+'!','10-31':'Happy Halloween'+n+'!','12-24':'Merry Christmas Eve'+n+'!','12-25':'Merry Christmas'+n+'!','12-31':'Last one of the year'+n+'!'}[md];
+  if(holiday)return holiday;
+  if(_greetAfterChat)return who?'What’s next'+n+'?':'What’s next?';
+  if(who&&!_greetPrevSeen)return 'Welcome'+n+'!';
+  const away=_greetPrevSeen?Date.now()-_greetPrevSeen:0;
+  if(who&&away>7*864e5)return 'Welcome back'+n+'!';
+  if(mood==='night')return 'Up late'+n+'?';
+  if(day===1&&mood==='morning')return 'Happy Monday'+n+'!';
+  if(day===5&&h>=12)return 'Happy Friday'+n+'!';
+  if(day===0||day===6)return 'Happy '+(day===6?'Saturday':'Sunday')+n+'!';
+  const hi={morning:'Morning',afternoon:'Afternoon',evening:'Evening'}[mood];
+  return who?hi+n+'!':'Good '+hi.toLowerCase()+'!';
 }
 function updateGreeting(){
-  const d=new Date(),mood=_greetMood(d),m=GREET_MOODS[mood];
-  const first=(name||'').trim().split(/\s+/)[0];
+  const d=new Date(),mood=_greetMood(d);
+  const who=(name||'').trim().split(/\s+/)[0];
   const el=document.getElementById('empty-greeting');
-  if(el)el.textContent=first?m.hi+', '+first+(mood==='night'?'?':'!'):m.solo;
-  const line=document.getElementById('empty-mood');
-  if(line)line.textContent=_moodLine(mood,d);
+  if(el)el.textContent=_greetText(d,mood,who);
   const w=document.getElementById('welcome');
   if(w)w.dataset.mood=mood;
 }
@@ -1300,6 +1308,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926b').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926c').catch(e=>console.warn('SW registration failed',e));
   });
 }
