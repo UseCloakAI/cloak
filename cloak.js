@@ -809,6 +809,7 @@ function replaceThinkWithContent(botMsgEl, rawText) {
 
   // No fake typewriter — text only animates in from live token streaming.
   if (botMsgEl._status) { botMsgEl._status.destroy(); botMsgEl._status = null; }
+  dropTailOrb(botMsgEl);
   bc.innerHTML = marked.parse(rawText);
   postProcessBotEl(botMsgEl, rawText);
   setBotState(botMsgEl, /^Error:/.test(rawText) ? 'error' : 'done');
@@ -888,6 +889,56 @@ function setBotState(botMsgEl, state){
   label.textContent=t||'Cloak';
   label.classList.toggle('cs-thinking-label',!!t);
 }
+
+/* ── STREAMING TAIL ORB ──
+   While tokens stream, the orb leaves the header and rides just under the
+   last line on the left, tweening down as each new line arrives. */
+function _orbPos(body, el){
+  const b=body.getBoundingClientRect(), r=el.getBoundingClientRect();
+  return [r.left-b.left, r.top-b.top];
+}
+function tailOrb(botMsgEl){
+  if(botMsgEl._tail) return botMsgEl._tail;
+  const body=botMsgEl.querySelector('.bot-body'), meta=botMsgEl.querySelector('.bot-meta .cloak-orb');
+  if(!body||!meta) return null;
+  const t=document.createElement('span');
+  t.className='orb-tail'; t.setAttribute('aria-hidden','true');
+  t.innerHTML=CLOAK_ORB_HTML;
+  const [x,y]=_orbPos(body,meta);
+  t.style.transform='translate('+x+'px,'+y+'px)';
+  body.appendChild(t);
+  meta.style.visibility='hidden';
+  botMsgEl._tail=t;
+  return t;
+}
+function placeTailOrb(botMsgEl, bc){
+  const t=botMsgEl._tail; if(!t||!bc) return;
+  bc.classList.add('has-tail');
+  const body=botMsgEl.querySelector('.bot-body');
+  const last=bc.lastElementChild||bc;
+  const b=body.getBoundingClientRect(), c=bc.getBoundingClientRect(), l=last.getBoundingClientRect();
+  const y=Math.round(l.bottom-b.top+8), x=Math.round(c.left-b.left);
+  if(t._y===y) return;
+  t._y=y;
+  t.style.transform='translate('+x+'px,'+y+'px)';
+}
+// Tween back into the header, then hand off to the real orb.
+function dockTailOrb(botMsgEl, done){
+  const t=botMsgEl._tail;
+  const meta=botMsgEl.querySelector('.bot-meta .cloak-orb');
+  const bc=botMsgEl.querySelector('.bot-content');
+  if(!t){ if(done) done(); return; }
+  botMsgEl._tail=null;
+  setOrbState(t.querySelector('.cloak-orb'),null);
+  const body=botMsgEl.querySelector('.bot-body');
+  if(meta&&body){ const [x,y]=_orbPos(body,meta); t.style.transform='translate('+x+'px,'+y+'px)'; }
+  setTimeout(()=>{
+    t.remove(); if(meta) meta.style.visibility='';
+    if(bc) bc.classList.remove('has-tail');
+    if(done) done();
+  }, done===undefined?0:400);
+}
+function dropTailOrb(botMsgEl){ dockTailOrb(botMsgEl); }
 
 function createCloakStatus(botMsgEl){
   if(!botMsgEl || !botMsgEl.querySelector('.bot-meta')) return null;
@@ -1308,6 +1359,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926c').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260926d').catch(e=>console.warn('SW registration failed',e));
   });
 }

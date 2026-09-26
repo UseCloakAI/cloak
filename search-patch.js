@@ -168,7 +168,7 @@ async function streamChat(bodyObj, botMsgEl, signal) {
 
   const bc = botMsgEl.querySelector('.bot-content');
   if (bc) bc._tk = null;
-  const orb = botMsgEl.querySelector('.cloak-orb');
+  let orb = null;
   let full = '';
   let shown = false;
   let raf = 0;
@@ -182,12 +182,15 @@ async function streamChat(bodyObj, botMsgEl, signal) {
       stopThinkAnimation();
       botMsgEl._status = null;
       setBotState(botMsgEl, 'streaming');
+      const t = tailOrb(botMsgEl);
+      orb = t && t.querySelector('.cloak-orb');
     }
     // Hop while tokens flow; squish if the stream stalls mid-answer.
     setOrbState(orb, 'streaming');
     clearTimeout(stallT);
     stallT = setTimeout(() => setOrbState(orb, 'thinking'), ORB_STALL_MS);
     _renderLive(bc, vis);
+    placeTailOrb(botMsgEl, bc);
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
@@ -231,11 +234,12 @@ function finishLive(botMsgEl, text) {
   stopThinkAnimation();
   finaliseThoughts(botMsgEl);
   botMsgEl._status = null;
-  setBotState(botMsgEl, 'done');
   setBusy(false);
   const bc = botMsgEl.querySelector('.bot-content');
-  if (!bc) return;
+  if (!bc) { dockTailOrb(botMsgEl, () => setBotState(botMsgEl, 'done')); return; }
   _renderLive(bc, text);
+  placeTailOrb(botMsgEl, bc);
+  dockTailOrb(botMsgEl, () => setBotState(botMsgEl, 'done'));
   const wait = Math.max(0, (bc._tk ? bc._tk.last : 0) + TK_MS - performance.now());
   setTimeout(() => {
     bc._tk = null;
@@ -338,6 +342,7 @@ window.send = async function () {
         // Search path takes over the bubble — orb switches to its scanning
         // state and the search/thought UI gets a clean bot-content.
         botMsgEl._status = null;
+        dropTailOrb(botMsgEl);
         setBotState(botMsgEl, 'searching');
         const _sbc = botMsgEl.querySelector('.bot-content');
         if (_sbc) { _sbc.innerHTML = ''; _sbc._tk = null; }
