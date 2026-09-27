@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0A0A0A">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="description" content="Cloak's values — A human resource, not a companion. Our commitment to ethical AI.">
 <title>Cloak — Values</title>
@@ -30,8 +30,14 @@
     (window.CloakMotion ? CloakMotion.swapTheme : function (f) { f(); })(function () {
       document.documentElement.classList.toggle('dark');
       localStorage.setItem('cloak_dark', document.documentElement.classList.contains('dark') ? '1' : '0');
+      if (window.syncBar) syncBar();
     });
   }
+</script>
+<script>
+  // The installed app's status bar is opaque and painted from theme-color — match the topbar.
+  function syncBar(){try{var c=getComputedStyle(document.documentElement).getPropertyValue('--surf').trim();if(c)document.querySelector('meta[name="theme-color"]').setAttribute('content',c);}catch(e){}}
+  syncBar();
 </script>
 <script>
   // Reveal-on-scroll opt-in; if motion.js never loads, show everything.

@@ -217,11 +217,16 @@ function mMorph(el,fn){ if(window.CloakMotion) CloakMotion.morph(el,fn); else fn
 function mLeave(el,done){ if(window.CloakMotion) CloakMotion.leave(el,done); else done(); }
 
 /* ── STATUS-BAR / THEME-COLOR SYNC ──
-   Keep <meta name=theme-color> matching the active theme's paper so the iOS
-   standalone status bar and Android address bar tint track light/dark + theme. */
+   The installed iOS app uses an opaque status bar painted from theme-color,
+   so keep it matching whatever surface sits right under it — the loader's
+   paper while booting, the chat topbar's surf, the settings bar's p2 — and
+   the Android address bar tracks light/dark + theme the same way. */
 function syncThemeColor(){
   try{
-    let c=getComputedStyle(document.body).getPropertyValue('--paper').trim();
+    const ld=document.getElementById('s-loading');
+    const on=id=>{const el=document.getElementById(id);return !!el&&el.classList.contains('active');};
+    const v=(ld&&getComputedStyle(ld).display!=='none')?'--paper':on('s-chat')?'--surf':on('s-settings')?'--p2':'--paper';
+    let c=getComputedStyle(document.body).getPropertyValue(v).trim();
     if(!c) c=dark?'#131110':'#F2EEE5';
     let m=document.querySelector('meta[name="theme-color"]');
     if(!m){ m=document.createElement('meta'); m.name='theme-color'; document.head.appendChild(m); }
@@ -241,9 +246,24 @@ function primeAudio(){
 }
 document.addEventListener('pointerdown', primeAudio, {once:true});
 
-/* ── VIEWPORT FIX ── */
+/* ── VIEWPORT FIX ──
+   Pin the chat to the visual viewport only while the keyboard (or a pinch
+   zoom) shrinks it, so the composer rides the keyboard. The rest of the time
+   CSS (position:fixed; inset:0) fills the screen — a pinned height left over
+   from the keyboard used to strand a dead band under the composer.
+   html.kb-open drops the home-indicator padding while the keyboard is up. */
 (function(){
-  function applyVV(){var el=document.getElementById('s-chat');if(!el||!el.classList.contains('active'))return;var vv=window.visualViewport;if(vv){el.style.top=vv.offsetTop+'px';el.style.left=vv.offsetLeft+'px';el.style.width=vv.width+'px';el.style.height=vv.height+'px';}else{el.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0';}}
+  var kb=false;
+  function applyVV(){
+    var el=document.getElementById('s-chat');
+    if(!el||!el.classList.contains('active')){if(kb){kb=false;document.documentElement.classList.remove('kb-open');}return;}
+    var vv=window.visualViewport,full=Math.max(document.documentElement.clientHeight,window.innerHeight);
+    var shrunk=!!vv&&full-vv.height>120;
+    if(shrunk){el.style.top=vv.offsetTop+'px';el.style.left=vv.offsetLeft+'px';el.style.width=vv.width+'px';el.style.height=vv.height+'px';}
+    else if(el.style.height){el.style.top=el.style.left=el.style.width=el.style.height='';if(window.scrollY)window.scrollTo(0,0);}
+    var open=shrunk&&vv.scale<1.05;
+    if(open!==kb){kb=open;document.documentElement.classList.toggle('kb-open',open);}
+  }
   if(window.visualViewport){window.visualViewport.addEventListener('resize',applyVV);window.visualViewport.addEventListener('scroll',applyVV);}
   window.addEventListener('resize',applyVV);window._vv=applyVV;
 })();
@@ -1254,6 +1274,7 @@ async function enterChat(){
     const chatEl=document.getElementById('s-chat');if(!chatEl)return;
     chatEl.classList.add('active');
     if(window._vv)window._vv();
+    syncThemeColor();
     if(!guest)name=name||email.split('@')[0];
     refreshUI();updateGreeting();
     if(window.CloakMemory)CloakMemory.init({sb,uid:guest?'':uid,guest}).catch(e=>log('err','Memory: '+e.message));
@@ -1365,7 +1386,7 @@ function goSignUp(){const d=document.getElementById('limit-modal');if(d)d.remove
 function dismissLimit(){const d=document.getElementById('limit-modal');if(d)mLeave(d,()=>d.remove());}
 
 /* ── UI HELPERS ── */
-function show(id){hideLoading();document.querySelectorAll('.screen').forEach(el=>{el.classList.remove('active');el.style.display='';});const chatEl=document.getElementById('s-chat');if(chatEl)chatEl.classList.remove('active');const valuesEl=document.getElementById('s-values');if(valuesEl)valuesEl.style.display='none';var el=document.getElementById('s-'+id);if(!el)return;el.classList.add('active');if(id!=='chat')el.style.display='flex';}
+function show(id){hideLoading();document.querySelectorAll('.screen').forEach(el=>{el.classList.remove('active');el.style.display='';});const chatEl=document.getElementById('s-chat');if(chatEl)chatEl.classList.remove('active');const valuesEl=document.getElementById('s-values');if(valuesEl)valuesEl.style.display='none';var el=document.getElementById('s-'+id);if(!el)return;el.classList.add('active');if(id!=='chat')el.style.display='flex';if(window._vv)window._vv();syncThemeColor();}
 function refreshUI(){
   const i=name?name[0].toUpperCase():email?email[0].toUpperCase():'G';
   ['sb-av','s-av'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=i;});
@@ -1582,6 +1603,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926mem3n').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260927ios1').catch(e=>console.warn('SW registration failed',e));
   });
 }

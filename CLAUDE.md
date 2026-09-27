@@ -59,6 +59,12 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - Do NOT add `maximum-scale=1.0` or `user-scalable=no` to viewport meta. Block pinch-zoom = a11y violation.
 - Prefer `<a href>` over `<button onclick="window.location.href=...">` for navigation.
 
+## iOS installed app
+
+- `apple-mobile-web-app-status-bar-style` is `default` (opaque) on chat + values. Don't switch back to `black-translucent`: on iOS 26+ it triggers WebKit bug 301108 (window sized one status bar short → dead band under the composer that no CSS/JS can paint) plus the Liquid Glass edge blur over the topbar. iOS caches this meta at install — changes need the app removed and re-added.
+- The opaque bar is painted from `theme-color`. `syncThemeColor()` (`cloak.js`) keeps it on the surface under it — loader/auth paper, chat topbar surf, settings p2. Call it after any screen switch.
+- The composer pads `env(safe-area-inset-bottom)` for the home indicator; the viewport fix pins `#s-chat` to `visualViewport` only while the keyboard is up and sets `html.kb-open`, which drops that padding.
+
 ## Don't-touch list
 
 - `agents.html` lines ~22–58 (`:root` token block). Page is standalone; these are its only theme source.
