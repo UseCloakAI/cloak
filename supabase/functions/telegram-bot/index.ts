@@ -234,6 +234,16 @@ async function linkedUser(c: SupabaseClient, chatId: number | string): Promise<s
   return data?.user_id ?? null;
 }
 
+// Telegram always continues whichever chat is flagged Main — users can have
+// several chats on the web, but only one keeps a Telegram chat in step.
+async function getMainChatId(c: SupabaseClient, userId: string): Promise<number> {
+  const { data } = await c.from("chats").select("id").eq("user_id", userId).eq("is_main", true).maybeSingle();
+  if (data) return data.id;
+  const { data: created, error } = await c.from("chats").insert({ user_id: userId, title: "Main chat", is_main: true }).select("id").single();
+  if (error) throw error;
+  return created.id;
+}
+
 async function handleLinkRequest(req: Request) {
   const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!jwt) return json({ error: "Sign in first." }, 401);
@@ -352,8 +362,8 @@ function memoryBlock(files: MemFile[], text: string) {
 const validCtx = (o: unknown): o is Ctx => !!o && (o as Ctx).v === 2 && Array.isArray((o as Ctx).chunks);
 const coveredId = (x: Ctx) => (x.chunks.length ? x.chunks[x.chunks.length - 1].e : x.digest ? x.digest.e : 0);
 
-async function loadCtx(c: SupabaseClient, userId: string): Promise<Ctx> {
-  const { data } = await c.from("threads").select("context").eq("user_id", userId).maybeSingle();
+async function loadCtx(c: SupabaseClient, chatId: number): Promise<Ctx> {
+  const { data } = await c.from("chats").select("context").eq("id", chatId).maybeSingle();
   return validCtx(data?.context) ? data!.context as Ctx : { v: 2, chunks: [], digest: null };
 }
 
@@ -364,10 +374,10 @@ function summaryText(x: Ctx) {
   return parts.join("\n\n");
 }
 
-async function buildThreadContext(c: SupabaseClient, userId: string, text: string) {
-  const [x, files, who] = await Promise.all([loadCtx(c, userId), loadMemories(c, userId), displayName(c, userId)]);
+async function buildThreadContext(c: SupabaseClient, userId: string, chatId: number, text: string) {
+  const [x, files, who] = await Promise.all([loadCtx(c, chatId), loadMemories(c, userId), displayName(c, userId)]);
   const { data } = await c.from("thread_messages").select("id, role, content, created_at")
-    .eq("user_id", userId).gt("id", coveredId(x)).order("id", { ascending: false }).limit(60);
+    .eq("chat_id", chatId).gt("id", coveredId(x)).order("id", { ascending: false }).limit(60);
   const rows = ((data ?? []) as Msg[]).reverse();
   const sums = summaryText(x);
   const mem = memoryBlock(files, text);
@@ -415,11 +425,11 @@ async function applyMemoryOps(c: SupabaseClient, userId: string, ops: Record<str
   }
 }
 
-async function maybeCompressThread(c: SupabaseClient, userId: string) {
-  const x = await loadCtx(c, userId);
+async function maybeCompressThread(c: SupabaseClient, userId: string, chatId: number) {
+  const x = await loadCtx(c, chatId);
   const cov = coveredId(x);
   const { data } = await c.from("thread_messages").select("id, role, content, created_at")
-    .eq("user_id", userId).gt("id", cov).order("id", { ascending: true }).limit(120);
+    .eq("chat_id", chatId).gt("id", cov).order("id", { ascending: true }).limit(120);
   const rows = (data ?? []) as Msg[];
   if (rows.length < 4) return;
   const at = (m: Msg) => Date.parse(m.created_at) || 0;
@@ -454,7 +464,7 @@ async function maybeCompressThread(c: SupabaseClient, userId: string) {
     messages: slice.map((m) => ({ role: m.role, content: m.content.slice(0, 6000) })),
     memory: { existing, today: new Date().toISOString().slice(0, 10) },
   });
-  const fresh = await loadCtx(c, userId);
+  const fresh = await loadCtx(c, chatId);
   if (coveredId(fresh) !== cov) return; // someone else compressed meanwhile
   fresh.chunks.push({ s: slice[0].id, e: slice[slice.length - 1].id, sum: d.summary, tok: est(d.summary), n: slice.length, from: at(slice[0]), to: at(slice[slice.length - 1]) });
   if (Array.isArray(d.ops)) await applyMemoryOps(c, userId, d.ops);
@@ -472,7 +482,7 @@ async function maybeCompressThread(c: SupabaseClient, userId: string) {
       }
     }
   }
-  await c.from("threads").upsert({ user_id: userId, context: fresh, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  await c.from("chats").update({ context: fresh }).eq("id", chatId);
 }
 
 /* ── Linked chat: one continuous thread ───────────────────────────────────── */
@@ -486,27 +496,29 @@ async function handleThreadMessage(
   model: string,
   image?: { base64: string; mimeType: string },
 ) {
+  const mainChatId = await getMainChatId(c, userId);
   const stored = image ? (userText ? `[Image] ${userText}` : "[Image]") : userText;
-  await c.from("thread_messages").insert({ user_id: userId, role: "user", content: stored, source: "telegram", relayed_at: new Date().toISOString() });
-  const ctx = await buildThreadContext(c, userId, userText);
+  await c.from("thread_messages").insert({ user_id: userId, chat_id: mainChatId, role: "user", content: stored, source: "telegram", relayed_at: new Date().toISOString() });
+  const ctx = await buildThreadContext(c, userId, mainChatId, userText);
   const raw = await callCloak(ctx.messages, clock() + ctx.system, model, image);
   const { react, silent, parts } = parseDirectives(raw);
   if (react) await reactTo(chatId, messageId, react);
   if (!silent) {
-    await c.from("thread_messages").insert({ user_id: userId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
+    await c.from("thread_messages").insert({ user_id: userId, chat_id: mainChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
     await sendChain(chatId, parts);
   }
-  await later(maybeCompressThread(c, userId));
+  await later(maybeCompressThread(c, userId, mainChatId));
 }
 
 async function handleThreadReaction(c: SupabaseClient, userId: string, chatId: number, messageId: number, emojis: string[]) {
+  const mainChatId = await getMainChatId(c, userId);
   const note = `[User reacted ${emojis.join(" ")} to your message]`;
-  const ctx = await buildThreadContext(c, userId, note);
+  const ctx = await buildThreadContext(c, userId, mainChatId, note);
   const raw = await callCloak([...ctx.messages, { role: "user", content: note }].slice(-40), clock() + ctx.system, "pneuma");
   const { react, silent, parts } = parseDirectives(raw);
   if (react) await reactTo(chatId, messageId, react);
   if (!silent) {
-    await c.from("thread_messages").insert({ user_id: userId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
+    await c.from("thread_messages").insert({ user_id: userId, chat_id: mainChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
     await sendChain(chatId, parts);
   }
 }

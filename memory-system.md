@@ -10,18 +10,19 @@ Long-term memory, a live "Brain" view of it, and budgeted context compression �
 | Send-path glue | `search-patch.js` (`_prepareContext`, `_afterTurn`) | browser |
 | Extraction + compression endpoints | `api-worker/src/memory.js` | `cloak-api` Worker |
 | Free-tier governor | `api-worker/src/governor.js` | `cloak-api` Worker |
-| Tables | `supabase/migrations/20260926230000_memory_system.sql` | Supabase |
+| Tables | `supabase/migrations/20260926230000_memory_system.sql`, `20260928020000_multi_chat.sql` | Supabase |
 
-## One continuous conversation
+## Multiple chats, each managed in conversation chunks
 
-There are no separate chats. Each user has one thread (`thread_messages`, shared by web and Telegram) managed in conversation chunks:
+Each user can have several chats (`chats`, sidebar "Recent" list); their messages live in one append-only table (`thread_messages`, tagged with `chat_id`, shared by web and Telegram). Within a chat:
 
 - A **conversation chunk** ends at a real pause (≥ 3 h between messages) or at ~2.4k tokens. As soon as a new conversation starts, the previous one is condensed (and its memories extracted, in the same `/v1/context/compress` call). Within a conversation, condensing starts once it outgrows the budget.
-- Chunk summaries fold into the **digest** as they pile up. The digest's last message id is the **moved-on boundary**: the web loads only messages after it, and above them shows *"Cloak has moved on from these chats. Important memories have been saved."* with **Return to most recent chat** (and a link to the Brain).
+- Chunk summaries fold into that chat's **digest** as they pile up. The digest's last message id is the chat's **moved-on boundary**: the web loads only messages after it, and above them shows *"Cloak has moved on from these chats. Important memories have been saved."* with **Return to most recent chat** (and a link to the Brain).
 - Time dividers mark conversation boundaries in the view.
-- **Telegram**: Settings → Telegram → *Link Telegram* opens `t.me/<bot>?start=link_<code>` (one-time code, 15 min). A linked chat continues the thread with the same context and memories. Web messages are mirrored into it by an `AFTER INSERT` trigger (pg_net → `telegram-bot?relay=<id>`) as *"Weston said: …"*, followed by Cloak's reply; Telegram messages appear on the web live (Realtime) tagged *via Telegram*. `/unlink` in Telegram or *Unlink* on the web stops it.
-- The bot compresses on its side too (same rules), so a Telegram-only user's thread stays bounded.
-- Settings → *Clear conversation* wipes the thread everywhere; memories are kept.
+- **Live sync**: opening the same chat in another tab or device subscribes to the same Realtime channel (`thread_messages` filtered by `chat_id`), so new messages — from either tab, or from Telegram — land in both at once.
+- Exactly one chat is flagged **Main** (`chats.is_main`). **Telegram**: Settings → Telegram → *Link Telegram* opens `t.me/<bot>?start=link_<code>` (one-time code, 15 min). A linked Telegram chat continues the user's Main chat with the same context and memories — it never sees the other chats. Web messages from the Main chat are mirrored into it by an `AFTER INSERT` trigger (pg_net → `telegram-bot?relay=<id>`) as *"Weston said: …"*, followed by Cloak's reply; Telegram messages appear on the web live (Realtime) tagged *via Telegram*. `/unlink` in Telegram or *Unlink* on the web stops it.
+- The bot compresses the Main chat on its side too (same rules), so a Telegram-only user's thread stays bounded.
+- Deleting a chat (sidebar) removes its messages with it; memories are kept. Settings → *Clear all chats* wipes every chat and starts a fresh Main chat.
 
 ## Memories are markdown files
 
@@ -97,7 +98,7 @@ Layout: `[memory] [digest] [chunk summaries] [gap] [recent turns verbatim]`.
 - **Digest**: when there are 5 chunks or they exceed the summary budget, the oldest ones are merged into a digest (summary of summaries). Context stays bounded however long the chat gets.
 - **Gap**: turns that aren't summarised yet and don't fit verbatim get a free local abbreviation, so nothing silently drops out while compression catches up.
 - Old verbatim messages over 1,400 tokens are clipped head+tail; the new message and the reply before it are never clipped.
-- State lives on `chats.context` (`{v:1, chunks:[{s,e,sum,tok}], digest:{e,sum,tok,n}}`, indices into `chats.messages`). Editing a message drops summaries that covered removed turns. Full history is now kept (the old 20-message cap is gone).
+- State lives on that chat's own `chats.context` (`{v:2, chunks:[{s,e,sum,tok,n,from,to}], digest:{e,sum,tok,n}|null}`, `s`/`e` are `thread_messages` ids, not array positions). Editing a message drops summaries that covered removed turns. Full history is now kept (the old 20-message cap is gone).
 
 ## Free-tier governor (`api-worker/src/governor.js`)
 
