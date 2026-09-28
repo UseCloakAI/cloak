@@ -5,26 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#131110">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Cloak">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Cloak — A human resource, not a companion. Ethical AI that serves you.">
 <title>Cloak</title>
-<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260926mem1">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260926mem1">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260926mem1">
-<link rel="manifest" href="/manifest.json?v=20260926mem1">
+<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260928thread1">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260928thread1">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260928thread1">
+<link rel="manifest" href="/manifest.json?v=20260928thread1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20260926mem1">
-<link rel="stylesheet" href="search.css?v=20260926mem1">
-<link rel="stylesheet" href="brain.css?v=20260926mem1">
+<link rel="stylesheet" href="cloak.css?v=20260928thread1">
+<link rel="stylesheet" href="search.css?v=20260928thread1">
+<link rel="stylesheet" href="brain.css?v=20260928thread1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   if(localStorage.getItem('cloak_dark')!=='0') document.documentElement.classList.add('dark');
   (function(){var t=localStorage.getItem('cloak_theme')||'default';document.documentElement.setAttribute('data-theme',t);})();
+</script>
+<script>
+  // Opaque iOS status bar is painted from theme-color: start it on the
+  // loader's paper before first paint; cloak.js keeps it synced after.
+  (function(){try{var c=getComputedStyle(document.documentElement).getPropertyValue('--paper').trim();if(c)document.querySelector('meta[name="theme-color"]').setAttribute('content',c);}catch(e){}})();
 </script>
 
 <style>
@@ -35,29 +40,35 @@
   background:var(--surf);border:var(--bd);box-shadow:var(--shsm);
   cursor:pointer;font-family:var(--fd);text-transform:uppercase;font-weight:800;
   font-size:11px;letter-spacing:.1em;color:var(--ink);white-space:nowrap;
-  transition:box-shadow 140ms ease,transform 140ms ease,background 140ms ease;
+  transition:box-shadow var(--lift),transform var(--lift),background var(--t),color var(--t);
 }
-.model-btn:hover{box-shadow:var(--sh);transform:translate(-1px,-1px)}
+.model-btn:hover{box-shadow:var(--sh);transform:translate(-2px,-2px)}
 .model-btn.open{background:var(--ink);color:var(--paper);box-shadow:none;transform:translate(2px,2px)}
-.model-btn .mdl-chevron{display:flex;transition:transform .2s ease}
+.model-btn .mdl-chevron{display:flex;transition:transform .5s var(--sp-pop)}
 .model-btn.open .mdl-chevron{transform:rotate(180deg)}
 
+/* Unfolds out of the button and folds back up on close; options step in. */
 .model-dropdown{
   position:absolute;top:calc(100% + 6px);left:0;min-width:264px;
   background:var(--surf);border:var(--bd);box-shadow:var(--shlg);
-  z-index:600;display:none;
+  z-index:600;display:block;
+  visibility:hidden;opacity:0;translate:0 -6px;clip-path:inset(0 -10px 100% 0);
+  transition:clip-path .2s var(--ease-in),translate .2s var(--ease-in),opacity .12s ease .08s,visibility 0s .2s;
 }
-.model-dropdown.open{display:block;animation:mdlDrop .2s cubic-bezier(.16,1,.3,1)}
-@keyframes mdlDrop{
-  0%{opacity:0;transform:translateY(-6px) scale(.97);transform-origin:top left}
-  100%{opacity:1;transform:translateY(0) scale(1)}
+.model-dropdown.open{
+  visibility:visible;opacity:1;translate:0 0;clip-path:inset(0 -10px -10px 0);
+  transition:clip-path .42s var(--ease-out),translate .5s var(--sp-snap),opacity .1s ease,visibility 0s;
 }
 
 .model-option{
   display:flex;flex-direction:column;padding:13px 16px;
   border-bottom:var(--bdt);cursor:pointer;
-  transition:background .15s;position:relative;
+  transition:background .15s,opacity .12s ease,translate .12s ease;position:relative;
+  opacity:0;translate:0 -8px;
 }
+.model-dropdown.open .model-option{opacity:1;translate:0 0;transition:background .15s,opacity .3s ease var(--od,0s),translate .5s var(--sp-snap) var(--od,0s)}
+.model-dropdown.open .model-option:nth-child(2){--od:.05s}
+.model-dropdown.open .model-option:nth-child(3){--od:.1s}
 .model-option:last-child{border-bottom:none}
 .model-option:hover{background:var(--p2)}
 .model-option.active{background:var(--ink)}
@@ -78,13 +89,96 @@
   position:absolute;right:14px;top:50%;transform:translateY(-50%);
   width:6px;height:6px;background:var(--acc);display:none;
 }
-.model-option.active .model-option-dot{display:block}
+.model-option.active .model-option-dot{display:block;animation:checkPop .5s var(--sp-pop) .15s backwards}
 </style>
 </head>
 <body>
 
 <!-- ── LOADING ── -->
-<div id="s-loading"></div>
+<div id="s-loading" role="progressbar" aria-label="Loading Cloak" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="ld">
+    <div class="ld-mark"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="12"/></svg><span>Cloak</span></div>
+    <div class="ld-bar"><i id="ld-fill"></i></div>
+    <div class="ld-meta"><span id="ld-label">Loading interface</span><span id="ld-pct">0%</span></div>
+  </div>
+</div>
+<script>
+/* ── LOADER ── The bar follows real milestones (page, fonts, assets, session
+   check from cloak.js via CloakLoader.done()) but is paced by an artificial
+   curve, so it never finishes before MIN ms and never just linearly crawls:
+   real transfers arrive in chunks — a burst while data comes in, a stall
+   while something's waited on — so the pacing curve is staged the same way
+   instead of a flat ramp. The app underneath stays paused (html.booting)
+   and plays its entrance once the loader lifts off. */
+(function(){
+  var html=document.documentElement, el=document.getElementById('s-loading');
+  var fill=document.getElementById('ld-fill'), pct=document.getElementById('ld-pct'), label=document.getElementById('ld-label');
+  var MIN=3000, t0=performance.now(), shown=0, finished=false, done={};
+  var steps=[['dom',.2,'Loading interface'],['fonts',.2,'Setting type'],['load',.3,'Starting Cloak'],['app',.3,'Checking session']];
+  html.classList.add('booting');
+  function mark(k){done[k]=true;}
+  document.addEventListener('DOMContentLoaded',function(){
+    mark('dom');
+    if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){mark('fonts');});else mark('fonts');
+  });
+  addEventListener('load',function(){mark('load');});
+  setTimeout(function(){steps.forEach(function(s){mark(s[0]);});},15000);   // never hang on a stuck milestone
+
+  // Fraction of MIN elapsed → fraction of the bar filled. Alternates bursts
+  // (steep segments) and stalls (near-flat) instead of one smooth ramp, the
+  // way real chunked loading actually looks.
+  var CURVE=[[0,0],[.09,.17],[.21,.20],[.26,.36],[.47,.41],[.54,.60],[.75,.64],[.82,.88],[.93,.91],[1,1]];
+  function easeInOut(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}
+  function timeCurve(f){
+    if(f<=0)return 0; if(f>=1)return 1;
+    for(var i=1;i<CURVE.length;i++){
+      if(f<=CURVE[i][0]){
+        var a=CURVE[i-1],b=CURVE[i],span=b[0]-a[0];
+        var local=span>0?(f-a[0])/span:1;
+        return a[1]+(b[1]-a[1])*easeInOut(local);
+      }
+    }
+    return 1;
+  }
+
+  var lastSampleAt=0,lastSampleGoal=0,activeUntil=0;
+  function frame(now){
+    var real=0; steps.forEach(function(s){if(done[s[0]])real+=s[1];});
+    var goal=Math.min(real,timeCurve((now-t0)/MIN));
+    shown+=(goal-shown)*.16;
+    if(real>=.999&&now-t0>=MIN&&shown>.994)return finish();
+
+    // Stripes read as "working" only while the *target* is actually climbing
+    // — measured off goal (not the smoothed shown), since that's what's
+    // really moving: real transfer, or the paced curve while nothing real
+    // is pending. A hold keeps a burst reading as one motion, not a flicker.
+    if(now-lastSampleAt>=100){
+      if(goal-lastSampleGoal>.022)activeUntil=now+320;
+      lastSampleAt=now;lastSampleGoal=goal;
+    }
+    fill.style.setProperty('--ld-speed',(now<activeUntil?.6:2.6)+'s');
+
+    var at=0,txt=steps[0][2];
+    steps.forEach(function(s){if(shown>=at)txt=s[2];at+=s[1];});
+    fill.style.width=(shown*100).toFixed(2)+'%';
+    var p=Math.floor(shown*100);
+    if(pct.textContent!==p+'%'){pct.textContent=p+'%';el.setAttribute('aria-valuenow',p);}
+    if(label.textContent!==txt)label.textContent=txt;
+    requestAnimationFrame(frame);
+  }
+  function finish(){
+    if(finished)return; finished=true;
+    fill.style.setProperty('--ld-speed','.5s');
+    fill.style.width='100%'; pct.textContent='100%'; label.textContent='Ready'; el.setAttribute('aria-valuenow',100);
+    setTimeout(function(){
+      el.classList.add('ld-out'); html.classList.remove('booting');
+      setTimeout(function(){el.style.display='none';if(window.syncThemeColor)syncThemeColor();},650);
+    },260);
+  }
+  window.CloakLoader={done:function(){mark('app');}};
+  requestAnimationFrame(frame);
+})();
+</script>
 
 <!-- ── AUTH ── -->
 <div id="s-auth" class="screen">
@@ -211,8 +305,9 @@
             </div>
           </div>
           <div class="srow">
-            <div class="srow-name">Clear all chats</div>
-            <button class="danger" style="margin-top:8px" onclick="clearAllChats()">Delete all conversations</button>
+            <div class="srow-name">Clear conversation</div>
+            <div class="srow-desc">Deletes your conversation with Cloak on every platform. Memories are kept (manage them in Brain).</div>
+            <button class="danger" style="margin-top:8px" onclick="clearAllChats()">Clear conversation</button>
           </div>
           <div class="srow">
             <div class="srow-name">Sign out</div>
@@ -344,17 +439,12 @@
       <div class="sb-logo">
         <span class="sb-logo-name">Cloak</span>
       </div>
-      <button class="sb-btn sb-new" onclick="newChat()">
-        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        New chat
-      </button>
       <button class="sb-btn" type="button" onclick="CloakBrain.open()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3.5a3 3 0 0 0-3 3v.2A3 3 0 0 0 4 9.7a3 3 0 0 0 .6 4.8A3.2 3.2 0 0 0 7.7 19a2.8 2.8 0 0 0 4.3 1V4.9a2.7 2.7 0 0 0-2.5-1.4z"/><path d="M14.5 3.5a3 3 0 0 1 3 3v.2A3 3 0 0 1 20 9.7a3 3 0 0 1-.6 4.8 3.2 3.2 0 0 1-3.1 4.5 2.8 2.8 0 0 1-4.3 1"/><path d="M12 8.5h-1.6M12 13h2M7.6 11.6H9.2"/></svg>
         Brain
       </button>
-      <div class="sb-label">Recent</div>
-      <div class="conv-list" id="conv-list"></div>
-      <div id="guest-note" style="display:none" class="guest-note">Guest &mdash; <a onclick="show('auth');closeMobileSidebar()">Sign up</a> to save chats.</div>
+      <div class="sb-thread-note">One continuous conversation. Older parts are condensed into memories automatically.</div>
+      <div id="guest-note" style="display:none" class="guest-note">Guest &mdash; <a onclick="show('auth');closeMobileSidebar()">Sign up</a> to keep your conversation.</div>
 
       <div id="sb-ann-bar">
         <div style="display:flex;align-items:flex-start;gap:6px">
@@ -496,7 +586,7 @@
             <!-- Input box -->
             <div class="input-box" id="input-box">
               <input type="file" id="img-upload" accept="image/*" multiple style="display:none" onchange="onImgPick(this)">
-              <button class="plus-btn" id="plus-btn" onclick="togglePlusMenu(event)" title="Modes">+</button>
+              <button class="plus-btn" id="plus-btn" onclick="togglePlusMenu(event)" title="Modes" aria-label="Modes"><span class="plus-glyph" aria-hidden="true">+</span></button>
               <textarea class="chat-input" id="chat-input" placeholder="Message Cloak…" rows="1"
                 oninput="onInput(this)" onkeydown="onKey(event)" onpaste="onPaste(event)"></textarea>
               <button class="send-btn" id="mic-btn" style="background:var(--surf);color:var(--ink);border:var(--bd);" onclick="startVoiceMode()" title="Voice mode">
@@ -520,7 +610,7 @@
   <!-- VOICE OVERLAY -->
   <div class="voice-overlay" id="voice-overlay">
     <button class="voice-close" onclick="stopVoiceMode()" title="Exit voice mode">&times;</button>
-    <div class="voice-ascii" id="voice-ascii">[ - - - - - ]</div>
+    <div class="voice-viz" id="voice-ascii" data-state="idle" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
     <div class="voice-status" id="voice-status">Idle</div>
     <div class="voice-transcript" id="voice-transcript">Say something...</div>
   </div>
@@ -603,7 +693,8 @@ function selectModel(optEl) {
   const modelId = optEl.dataset.model;
   window.cloakModel = modelId;
   const name = optEl.querySelector('.model-option-name').textContent;
-  document.getElementById('model-btn-label').textContent = name;
+  const label = document.getElementById('model-btn-label');
+  if (window.CloakMotion) CloakMotion.roll(label, name); else label.textContent = name;
   document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
   optEl.classList.add('active');
   document.getElementById('model-dropdown').classList.remove('open');
@@ -696,14 +787,17 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 };
 </script>
 
+<!-- motion.js first: cloak.js calls CloakMotion for theme wipes, rolls and exits -->
+<script src="motion.js?v=20260928thread1" defer></script>
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20260926mem1"></script>
+<script src="search.js?v=20260928thread1"></script>
 <!-- memory → context → brain: no deps on cloak.js at load time -->
-<script src="memory.js?v=20260926mem1" defer></script>
-<script src="context.js?v=20260926mem1" defer></script>
-<script src="brain.js?v=20260926mem1" defer></script>
-<script src="cloak.js?v=20260926mem1" defer></script>
+<script src="memory.js?v=20260928thread1" defer></script>
+<script src="context.js?v=20260928thread1" defer></script>
+<script src="brain.js?v=20260928thread1" defer></script>
+<script src="thread.js?v=20260928thread1" defer></script>
+<script src="cloak.js?v=20260928thread1" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="search-patch.js?v=20260926mem1" defer></script>
+<script src="search-patch.js?v=20260928thread1" defer></script>
 </body>
 </html>

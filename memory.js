@@ -198,14 +198,20 @@
     return s;
   }
 
-  const BLOCK_HEAD = '## USER MEMORY\nNotes you remember about this user from past chats (they can see and edit them in Cloak\'s Brain panel). Use them silently to tailor answers. Don\'t recite them or mention memory unless asked. If a note conflicts with what the user says now, trust the user.\n';
+  const BLOCK_HEAD = '## USER MEMORY\nYou DO remember this user. These notes are what you know about them from past chats; the user saved them and can see and edit them in Cloak\'s Brain panel, so using them is expected and is not a privacy problem. This overrides any default of saying you don\'t know who the user is. Use them silently to tailor answers; don\'t recite them unprompted. When the user asks who they are, their name, or what you know or remember about them, answer directly from these notes. If a note conflicts with what the user says now, trust the user.\n';
   const lineFor = (f) => '- [' + f.type + '] ' + f.title + ': ' + oneLine(f.body).slice(0, 240);
 
-  function isCore(f) { return (f.type === 'profile' || f.type === 'preference') && f.importance >= 0.7; }
+  // Always-on: identity is tiny and shapes everything; strong preferences too.
+  function isCore(f) { return f.type === 'profile' || (f.type === 'preference' && f.importance >= 0.6); }
+  // "who am i", "what's my name", "what do you know/remember about me"… — all
+  // stopwords to BM25, so these get a broad, importance-ranked recall instead.
+  const SELF_Q = /\b(who am i|who i am|what'?s my name|what is my name|my name\b|about me\b|about myself|know about me|remember (about )?me|remember anything|what do you (know|remember)|what have you (learned|saved|remembered)|do you (know|remember) me|tell me about (me|myself))/i;
 
   // query: the new message. context: [{text, w}] of recent turns (lower weight).
   function recall(query, opts) {
     const o = Object.assign({ context: [], budget: 420, k: 8, touch: true, emit: true, core: true, minRel: MIN_REL }, opts || {});
+    const self = o.core && SELF_Q.test(String(query || ''));
+    if (self) { o.budget = Math.round(o.budget * 1.6); o.k = 14; o.minRel = -1; }
     const empty = { query, hits: [], block: '', tokens: 0, total: files.size, at: Date.now(), enabled: enabled() };
     if (!enabled() || !files.size) { if (o.emit) { lastRecall = empty; emit('recall', empty); } return empty; }
     if (!index) buildIndex();
@@ -238,7 +244,17 @@
           return false;
         });
     }
+    // Carried: memories the model's thinking pulled up last turn.
+    (o.include || []).forEach((path) => {
+      const s = scored.find((x) => x.file.path === path);
+      if (!s || picked.some((p) => p.file === s.file)) return;
+      const c = est(lineFor(s.file));
+      if (used + c > o.budget) return;
+      picked.push(Object.assign({}, s, { why: 'carried' }));
+      used += c;
+    });
     scored.filter((s) => s.rel >= o.minRel && !picked.some((p) => p.file === s.file))
+      .map((s) => (self ? Object.assign({}, s, { score: s.score + s.file.importance }) : s))
       .sort((a, b) => b.score - a.score)
       .forEach((s) => {
         if (picked.length >= o.k) return;
@@ -261,6 +277,28 @@
     if (o.touch) picked.filter((p) => p.why === 'relevant').forEach((p) => touch(p.file));
     if (o.emit) { lastRecall = result; emit('recall', result); }
     return result;
+  }
+
+  // Think-time recall: memories the model's live reasoning points at that the
+  // prompt doesn't have yet. Stricter floor than message recall — it costs a re-ask.
+  function probe(text, exclude) {
+    if (!enabled() || !files.size || !text) return [];
+    const ex = new Set(exclude || []);
+    return recall(text, { core: false, touch: false, emit: false, k: 4, budget: 300, minRel: 0.38 }).hits
+      .filter((h) => !ex.has(h.path))
+      .map((h) => Object.assign({}, h, { why: 'thought' }));
+  }
+
+  // Adds probe hits to an earlier recall result, rebuilds its prompt block, fires the Brain.
+  function extend(base, extra) {
+    const all = ((base && base.hits) || []).concat(extra || []);
+    const fl = all.map((h) => files.get(h.path)).filter(Boolean);
+    (extra || []).forEach((h) => { const f = files.get(h.path); if (f) touch(f); });
+    const block = fl.length ? BLOCK_HEAD + fl.map(lineFor).join('\n') : '';
+    const res = Object.assign({}, base || {}, { hits: all, block, tokens: est(block), total: files.size, at: Date.now(), enabled: true, query: (base && base.query) || '' });
+    lastRecall = res;
+    emit('recall', res);
+    return res;
   }
 
   function touch(f) {
@@ -542,6 +580,15 @@
     catch (_) { return { used: 0, cap: EXTRACT_DAILY }; }
   }
 
+  // Notes an extraction call should see so it updates instead of duplicating:
+  // the ones related to `text` plus the strongest identity/preference notes.
+  function related(text, n) {
+    const rel = recall(text, { core: false, touch: false, emit: false, k: 10, budget: 3000, minRel: 0.12 }).hits.map((h) => files.get(h.path));
+    const core = [...files.values()].filter(isCore).sort((a, b) => b.importance - a.importance).slice(0, 4);
+    return [...new Set([...rel, ...core])].filter(Boolean).slice(0, n || 14)
+      .map((f) => ({ path: f.path, title: f.title, type: f.type, tags: f.tags, body: f.body }));
+  }
+
   // Call after each completed turn. Only turns with a self-disclosure signal
   // are queued, so most turns cost nothing.
   function observe(turn) {
@@ -567,11 +614,7 @@
     lastExtract = Date.now();
     emit('extracting', { turns: batch.length });
     try {
-      const probe = batch.map((t) => t.user).join('\n');
-      const rel = recall(probe, { core: false, touch: false, emit: false, k: 10, budget: 3000, minRel: 0.12 }).hits.map((h) => files.get(h.path));
-      const core = [...files.values()].filter(isCore).sort((a, b) => b.importance - a.importance).slice(0, 4);
-      const existing = [...new Set([...rel, ...core])].filter(Boolean).slice(0, 14)
-        .map((f) => ({ path: f.path, title: f.title, type: f.type, tags: f.tags, body: f.body }));
+      const existing = related(batch.map((t) => t.user).join('\n'), 14);
       const res = await fetch(API + '/v1/memory/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -627,7 +670,7 @@
   window.CloakMemory = {
     TYPES, TYPE_LABEL,
     init, reset, enabled, setEnabled,
-    recall, observe, flush,
+    recall, observe, flush, probe, extend, related,
     detectCommand, remember, forget,
     applyOps, saveFile, removeFile,
     list: sortedFiles,

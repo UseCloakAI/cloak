@@ -3,8 +3,9 @@
 //
 //   POST /v1/memory/extract  { turns:[{user, assistant}], existing:[{path,title,type,tags,body}], today? }
 //                            → { ops:[{op, path, title, type, tags, importance, body}] }
-//   POST /v1/context/compress { mode:"chunk"|"merge", messages?:[{role, content}], summaries?:[string], words? }
-//                            → { summary }
+//   POST /v1/context/compress { mode:"chunk"|"merge", messages?:[{role, content}], summaries?:[string], words?,
+//                               memory?:{existing, today} }   (chunk + memory → also extracts)
+//                            → { summary, ops? }
 
 const TYPES = ["profile", "preference", "project", "fact", "episode"];
 const MAX_OPS = 5;
@@ -27,7 +28,7 @@ Rules:
 - Delete a note only when the user contradicts or retracts it.
 - body: 1-4 terse bullet lines starting with "- ", third person ("User ..."), max 400 characters.
 - path: "<type>/<slug>.md", slug lowercase a-z 0-9 and hyphens, e.g. "project/cloak.md".
-- title: max 60 characters. tags: 1-5 lowercase keywords. importance: 0.1-1 (1 = shapes almost every answer).
+- title: max 60 characters. tags: 1-5 lowercase keywords. importance: 0.1-1 (1 = shapes almost every answer). The user's name and core identity are always 0.9+.
 - At most ${MAX_OPS} ops. If nothing is worth saving, return {"ops":[]}.
 
 Return ONLY JSON: {"ops":[{"op":"add"|"update"|"delete","path":"...","title":"...","type":"...","tags":["..."],"importance":0.5,"body":"- ..."}]}`;
@@ -159,6 +160,20 @@ export async function handleContextCompress(body, { complete }) {
   }
   input = input.slice(0, MAX_INPUT_CHARS);
 
+  // A chunk leaving verbatim context is the moment to save what matters from it:
+  // with `memory: {existing}` the chunk's turns also go through extraction, in parallel.
+  const wantMemory = mode === "chunk" && body?.memory && typeof body.memory === "object";
+  const memoryTask = wantMemory
+    ? handleMemoryExtract(
+        {
+          turns: pairTurns(body.messages),
+          existing: body.memory.existing,
+          today: body.memory.today,
+        },
+        { complete },
+      ).catch(() => null)
+    : null;
+
   const text = await complete({
     system: mode === "merge" ? MERGE_PROMPT(words) : CHUNK_PROMPT(words),
     messages: [{ role: "user", content: input }],
@@ -169,5 +184,19 @@ export async function handleContextCompress(body, { complete }) {
     .trim()
     .slice(0, words * 9);
   if (!summary) return { status: 502, data: { error: "empty summary" } };
-  return { status: 200, data: { summary } };
+  const mem = memoryTask ? await memoryTask : null;
+  return { status: 200, data: mem && mem.status === 200 ? { summary, ops: mem.data.ops } : { summary } };
+}
+
+// [{role, content}] → [{user, assistant}] for extraction.
+function pairTurns(messages) {
+  const out = [];
+  for (const m of Array.isArray(messages) ? messages : []) {
+    const text = str(m?.content, 1800);
+    if (!text) continue;
+    if (m.role === "assistant") {
+      if (out.length && !out[out.length - 1].assistant) out[out.length - 1].assistant = text.slice(0, 500);
+    } else out.push({ user: text, assistant: "" });
+  }
+  return out;
 }

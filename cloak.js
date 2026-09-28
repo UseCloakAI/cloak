@@ -14,7 +14,7 @@ let extraPrompt=localStorage.getItem('cloak_extra_prompt')||'';
 let email='',uid='',name='',admin=false;
 let guest=false,guestN=0;
 let verifyEmail='';
-let convs=[],chatId=null,hist=[],logs=[],logF='all',stats={req:0,res:0,err:0,lat:[]},atab='general';
+let chatId=null,hist=[],logs=[],logF='all',stats={req:0,res:0,err:0,lat:[]},atab='general';
 let annId=null;
 let hwMode=false, thinkModeActive=false, attachedImgs=[];
 let onboardingDone=false;
@@ -166,7 +166,6 @@ function _thoughtDelay(model, stepIndex) {
 let voiceMode = false;
 let voiceState = 'idle';
 let asciiInterval = null;
-let asciiFrame = 0;
 let recognition = null;
 let synth = window.speechSynthesis;
 
@@ -191,10 +190,13 @@ async function loadAppConfig() {
 /* ── THEME ── */
 function setTheme(t){
   hapticTap();
-  currentTheme=t;localStorage.setItem('cloak_theme',t);
-  document.documentElement.setAttribute('data-theme',t);
-  document.querySelectorAll('.theme-card').forEach(el=>el.classList.toggle('active',el.id==='theme-'+t));
-  syncThemeColor();
+  if(t===currentTheme)return;
+  mTheme(()=>{
+    currentTheme=t;localStorage.setItem('cloak_theme',t);
+    document.documentElement.setAttribute('data-theme',t);
+    document.querySelectorAll('.theme-card').forEach(el=>el.classList.toggle('active',el.id==='theme-'+t));
+    syncThemeColor();
+  });
 }
 function initThemeUI(){document.querySelectorAll('.theme-card').forEach(el=>el.classList.toggle('active',el.id==='theme-'+currentTheme));}
 
@@ -206,12 +208,25 @@ function hapticTap(){ try{ if(navigator.vibrate) navigator.vibrate(8); }catch(_)
 function hapticImpact(){ try{ if(navigator.vibrate) navigator.vibrate([14]); }catch(_){ } }
 function hapticError(){ try{ if(navigator.vibrate) navigator.vibrate([18,40,18]); }catch(_){ } }
 
+/* ── MOTION HOOKS ──
+   motion.js (loaded before this file) animates these; without it they fall
+   back to the plain change. */
+function mTheme(fn){ if(window.CloakMotion) CloakMotion.swapTheme(fn); else fn(); }
+function mRoll(el,text){ if(!el) return; if(window.CloakMotion) CloakMotion.roll(el,text); else el.textContent=text; }
+function mMorph(el,fn){ if(window.CloakMotion) CloakMotion.morph(el,fn); else fn(); }
+function mLeave(el,done){ if(window.CloakMotion) CloakMotion.leave(el,done); else done(); }
+
 /* ── STATUS-BAR / THEME-COLOR SYNC ──
-   Keep <meta name=theme-color> matching the active theme's paper so the iOS
-   standalone status bar and Android address bar tint track light/dark + theme. */
+   The installed iOS app uses an opaque status bar painted from theme-color,
+   so keep it matching whatever surface sits right under it — the loader's
+   paper while booting, the chat topbar's surf, the settings bar's p2 — and
+   the Android address bar tracks light/dark + theme the same way. */
 function syncThemeColor(){
   try{
-    let c=getComputedStyle(document.body).getPropertyValue('--paper').trim();
+    const ld=document.getElementById('s-loading');
+    const on=id=>{const el=document.getElementById(id);return !!el&&el.classList.contains('active');};
+    const v=(ld&&getComputedStyle(ld).display!=='none')?'--paper':on('s-chat')?'--surf':on('s-settings')?'--p2':'--paper';
+    let c=getComputedStyle(document.body).getPropertyValue(v).trim();
     if(!c) c=dark?'#131110':'#F2EEE5';
     let m=document.querySelector('meta[name="theme-color"]');
     if(!m){ m=document.createElement('meta'); m.name='theme-color'; document.head.appendChild(m); }
@@ -231,9 +246,24 @@ function primeAudio(){
 }
 document.addEventListener('pointerdown', primeAudio, {once:true});
 
-/* ── VIEWPORT FIX ── */
+/* ── VIEWPORT FIX ──
+   Pin the chat to the visual viewport only while the keyboard (or a pinch
+   zoom) shrinks it, so the composer rides the keyboard. The rest of the time
+   CSS (position:fixed; inset:0) fills the screen — a pinned height left over
+   from the keyboard used to strand a dead band under the composer.
+   html.kb-open drops the home-indicator padding while the keyboard is up. */
 (function(){
-  function applyVV(){var el=document.getElementById('s-chat');if(!el||!el.classList.contains('active'))return;var vv=window.visualViewport;if(vv){el.style.top=vv.offsetTop+'px';el.style.left=vv.offsetLeft+'px';el.style.width=vv.width+'px';el.style.height=vv.height+'px';}else{el.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0';}}
+  var kb=false;
+  function applyVV(){
+    var el=document.getElementById('s-chat');
+    if(!el||!el.classList.contains('active')){if(kb){kb=false;document.documentElement.classList.remove('kb-open');}return;}
+    var vv=window.visualViewport,full=Math.max(document.documentElement.clientHeight,window.innerHeight);
+    var shrunk=!!vv&&full-vv.height>120;
+    if(shrunk){el.style.top=vv.offsetTop+'px';el.style.left=vv.offsetLeft+'px';el.style.width=vv.width+'px';el.style.height=vv.height+'px';}
+    else if(el.style.height){el.style.top=el.style.left=el.style.width=el.style.height='';if(window.scrollY)window.scrollTo(0,0);}
+    var open=shrunk&&vv.scale<1.05;
+    if(open!==kb){kb=open;document.documentElement.classList.toggle('kb-open',open);}
+  }
   if(window.visualViewport){window.visualViewport.addEventListener('resize',applyVV);window.visualViewport.addEventListener('scroll',applyVV);}
   window.addEventListener('resize',applyVV);window._vv=applyVV;
 })();
@@ -585,15 +615,11 @@ function addMsg(role,content,noAnim=false,imgs=[]){
 function editMessage(msgEl){
   if(busy)return;
   const rawText=msgEl.dataset.raw||'';
-  const box=document.getElementById('messages');
-  const msgs=Array.from(box.children);
-  const idx=msgs.indexOf(msgEl);
-  if(idx===-1)return;
-  const removed=msgs.slice(idx);
-  removed.forEach(el=>el.remove());
-  const toRemove=removed.length;
-  hist=hist.slice(0,Math.max(0,hist.length-toRemove));
-  if(window.CloakContext)CloakContext.truncate(hist.length);
+  const entry=msgEl._entry;
+  if(!entry||hist.indexOf(entry)===-1)return;
+  // Remove this bubble and everything after it (bubbles, dividers, notes).
+  let el=msgEl;while(el){const next=el.nextElementSibling;el.remove();el=next;}
+  if(window.CloakThread)CloakThread.truncateAt(entry);else hist=hist.slice(0,hist.indexOf(entry));
   trimToLatest();
   const inp=document.getElementById('chat-input');
   inp.value=rawText;inp.focus();onInput(inp);
@@ -673,26 +699,18 @@ function stopVoiceMode() {
   synth.cancel();
 }
 
+// The visualiser blocks animate in CSS per data-state (.voice-viz in
+// cloak.css); this just follows voiceState and rolls the status label.
 function startAsciiAnim() {
   if(asciiInterval) clearInterval(asciiInterval);
-  asciiInterval = setInterval(() => {
-    asciiFrame++;
-    let art = "", stat = "";
-    if(voiceState === 'listening') {
-      const frames = ["[ = - - - - - ]","[ - = - - - - ]","[ - - = - - - ]","[ - - - = - - ]","[ - - - - = - ]","[ - - - - - = ]","[ - - - - = - ]","[ - - - = - - ]","[ - - = - - - ]","[ - = - - - - ]"];
-      art = frames[asciiFrame % frames.length]; stat = "Listening";
-    } else if(voiceState === 'thinking') {
-      const frames = ["[ .           ]","[ . .         ]","[ . . .       ]","[ . . . .     ]","[ . . . . .   ]","[ . . . . . . ]","[   . . . . . ]","[     . . . . ]","[       . . . ]","[         . . ]","[           . ]","[             ]"];
-      art = frames[asciiFrame % frames.length]; stat = "Thinking";
-    } else if(voiceState === 'speaking') {
-      const frames = ["[ | | | | | | ]","[ / / / / / / ]","[ - - - - - - ]","[ \\ \\ \\ \\ \\ \\ ]"];
-      art = frames[asciiFrame % frames.length]; stat = "Speaking";
-    } else {
-      art = "[ - - - - - - ]"; stat = "Idle";
-    }
-    document.getElementById('voice-ascii').textContent = art;
-    document.getElementById('voice-status').textContent = stat;
-  }, 150);
+  const viz = document.getElementById('voice-ascii'), st = document.getElementById('voice-status');
+  const labels = {listening:'Listening', thinking:'Thinking', speaking:'Speaking'};
+  const tick = () => {
+    const state = labels[voiceState] ? voiceState : 'idle';
+    if(viz.dataset.state !== state){ viz.dataset.state = state; mRoll(st, labels[state] || 'Idle'); }
+  };
+  tick();
+  asciiInterval = setInterval(tick, 150);
 }
 
 function stopAsciiAnim() { clearInterval(asciiInterval); }
@@ -716,26 +734,8 @@ function playVoice(text) {
   synth.speak(u);
 }
 
-function renderConvs(){
-  const list=document.getElementById('conv-list');list.innerHTML='';
-  convs.forEach(c=>{
-    const d=document.createElement('div');d.className='conv-item'+(c.id===chatId?' active':'');
-    const lbl=document.createElement('div');lbl.className='conv-label';
-    lbl.innerHTML='<svg class="conv-icon" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>'+hesc(c.title)+'</span>';
-    lbl.title=c.title;lbl.onclick=()=>loadConv(c.id);
-    const del=document.createElement('button');del.className='conv-del';del.title='Delete';
-    del.innerHTML='<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
-    del.onclick=e=>{e.stopPropagation();delConv(c.id);};d.appendChild(lbl);d.appendChild(del);list.appendChild(d);
-  });
-}
-
-function newChat(){
-  if(hist.length)_greetAfterChat=true;
-  if(window.CloakMemory)CloakMemory.flush();
-  if(window.CloakContext)CloakContext.reset();
-  chatId=null;hist=[];document.getElementById('messages').innerHTML='';
-  document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';renderConvs();updateGreeting();
-}
+// One continuous conversation (thread.js) — there is no chat list any more.
+function newChat(){if(window.CloakThread)CloakThread.jumpToLatest();}
 function cpCode(id,btn){navigator.clipboard.writeText(document.getElementById(id)?.innerText||'').then(()=>{btn.textContent='Copied!';btn.classList.add('ok');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('ok');},1400);});}
 
 /* ── BUSY STATE ── */
@@ -743,17 +743,21 @@ function setBusy(b){
   busy=b;
   const btn=document.getElementById('send-btn');
   const inp=document.getElementById('chat-input');
+  const changed=btn.classList.contains('stop-mode')!==b, old=changed&&btn.querySelector('svg');
   if(b){
     btn.disabled=false;btn.classList.add('stop-mode');
-    btn.innerHTML='<svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><rect x="1" y="1" width="9" height="9" rx="1.5"/></svg>';
+    if(changed)btn.innerHTML='<svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><rect x="1" y="1" width="9" height="9" rx="1.5"/></svg>';
     btn.onclick=stopStream;btn.title='Stop';
   }else{
     btn.classList.remove('stop-mode');
-    btn.innerHTML='<svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/></svg>';
+    if(changed)btn.innerHTML='<svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"/></svg>';
     btn.onclick=send;btn.title='Send';
     btn.disabled=!inp.value.trim();
   }
+  if(old)_flyGlyph(btn,old,b?'send-fly':'send-drop');
 }
+// Keep the outgoing icon around just long enough for its exit (cloak.css #send-btn).
+function _flyGlyph(btn,svg,cls){svg.classList.add(cls);svg.setAttribute('aria-hidden','true');btn.appendChild(svg);const rm=()=>svg.remove();svg.addEventListener('animationend',rm,{once:true});setTimeout(rm,700);}
 
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
@@ -1180,11 +1184,11 @@ function toggleThinkMode() {
 function onImgPick(inp){Array.from(inp.files).forEach(f=>{const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:f.name,data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});inp.value='';}
 function onPaste(e){const items=Array.from(e.clipboardData?.items||[]);const imageItems=items.filter(i=>i.type.startsWith('image/'));if(!imageItems.length)return;e.preventDefault();imageItems.forEach(item=>{const f=item.getAsFile();if(!f)return;const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:'pasted.png',data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});}
 function renderImgStrip(){
-  const strip=document.getElementById('img-strip');strip.innerHTML='';
+  const strip=document.getElementById('img-strip');const had=strip.children.length;strip.innerHTML='';
   if(attachedImgs.length){
     strip.classList.add('show');
     attachedImgs.forEach((img,i)=>{
-      const w=document.createElement('div');w.className='img-thumb-wrap';
+      const w=document.createElement('div');w.className='img-thumb-wrap'+(i>=had?' is-new':'');
       w.innerHTML='<img class="img-thumb" src="'+img.data+'" alt="img"><button class="img-thumb-del" onclick="removeImg('+i+')">&times;</button>';
       strip.appendChild(w);
     });
@@ -1200,19 +1204,20 @@ document.addEventListener('click',()=>{document.getElementById('plus-menu')?.cla
 let _onboardChecked=false;
 function showOnboarding(){document.getElementById('onboard-modal').style.display='flex';}
 function toggleOnboardCheck(){_onboardChecked=!_onboardChecked;document.getElementById('onboard-checkbox').classList.toggle('checked',_onboardChecked);const btn=document.getElementById('onboard-btn');btn.disabled=!_onboardChecked;btn.style.opacity=_onboardChecked?'1':'0.35';btn.style.cursor=_onboardChecked?'pointer':'not-allowed';}
-async function confirmOnboarding(){document.getElementById('onboard-modal').style.display='none';onboardingDone=true;if(uid)await sb.from('profiles').update({onboarding_done:true}).eq('id',uid);}
+async function confirmOnboarding(){const m=document.getElementById('onboard-modal');mLeave(m,()=>{m.style.display='none';});onboardingDone=true;if(uid)await sb.from('profiles').update({onboarding_done:true}).eq('id',uid);}
 
 /* ── AD CONSENT ── */
 let _adDisagreeClicks=0;
 function checkAdConsent(){const c=localStorage.getItem('cloak_ad_consent');if(c==='yes')loadAdSense();else if(!c)document.getElementById('ad-modal').style.display='flex';}
 function loadAdSense(){if(document.getElementById('adsense-script'))return;const s=document.createElement('script');s.id='adsense-script';s.async=true;s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6774734854152622';s.crossOrigin='anonymous';document.head.appendChild(s);}
-function handleAdAgree(){localStorage.setItem('cloak_ad_consent','yes');document.getElementById('ad-modal').style.display='none';loadAdSense();}
-function handleAdDisagree(){_adDisagreeClicks++;const btn=document.getElementById('ad-disagree-btn');if(_adDisagreeClicks===1){btn.textContent='Are you sure?';btn.style.borderColor='var(--acc)';btn.style.color='var(--acc)';btn.style.fontWeight='800';}else{localStorage.setItem('cloak_ad_consent','no');document.getElementById('ad-modal').style.display='none';}}
+function closeAdModal(){const m=document.getElementById('ad-modal');mLeave(m,()=>{m.style.display='none';});}
+function handleAdAgree(){localStorage.setItem('cloak_ad_consent','yes');closeAdModal();loadAdSense();}
+function handleAdDisagree(){_adDisagreeClicks++;const btn=document.getElementById('ad-disagree-btn');if(_adDisagreeClicks===1){btn.classList.add('sure');mRoll(btn,'Are you sure?');}else{localStorage.setItem('cloak_ad_consent','no');closeAdModal();}}
 
 /* ── LINK INTERCEPT ── */
 let _pendingLink='';
-function interceptLink(e,href){e.preventDefault();e.stopPropagation();if(!href||href==='#')return;_pendingLink=href;document.getElementById('link-url-display').textContent=href;document.getElementById('link-go-btn').onclick=()=>{window.open(_pendingLink,'_blank','noopener,noreferrer');closeLinkModal();};document.getElementById('link-modal').style.display='flex';}
-function closeLinkModal(){document.getElementById('link-modal').style.display='none';_pendingLink='';}
+function interceptLink(e,href){e.preventDefault();e.stopPropagation();if(!href||href==='#')return;_pendingLink=href;document.getElementById('link-url-display').textContent=href;document.getElementById('link-go-btn').onclick=()=>{window.open(_pendingLink,'_blank','noopener,noreferrer');closeLinkModal();};const lm=document.getElementById('link-modal');lm.classList.remove('is-leaving');lm.style.display='flex';}
+function closeLinkModal(){const lm=document.getElementById('link-modal');mLeave(lm,()=>{lm.style.display='none';});_pendingLink='';}
 document.addEventListener('DOMContentLoaded',()=>{const lm=document.getElementById('link-modal');if(lm)lm.addEventListener('click',function(e){if(e.target===this)closeLinkModal();});});
 
 /* ── INIT ── */
@@ -1225,13 +1230,13 @@ async function init(){
   sb.auth.onAuthStateChange(async(ev,sess)=>{
     if(ev==='INITIAL_SESSION'){if(_routed)return;_routed=true;if(sess?.user){email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}
     else if(ev==='SIGNED_IN'&&sess&&!_routed){_routed=true;email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}
-    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;convs=[];chatId=null;hist=[];admin=false;name='';guest=false;if(window.CloakMemory)CloakMemory.reset();if(window.CloakContext)CloakContext.reset();show('auth');}
+    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;chatId=null;hist=[];if(window.CloakThread)CloakThread.reset();admin=false;name='';guest=false;if(window.CloakMemory)CloakMemory.reset();if(window.CloakContext)CloakContext.reset();show('auth');}
     else if(ev==='TOKEN_REFRESHED'&&sess){email=sess.user.email||'';uid=sess.user.id;}
   });
   setTimeout(async()=>{if(_routed)return;try{const{data:{session}}=await sb.auth.getSession();if(_routed)return;_routed=true;if(session?.user){email=session.user.email||'';uid=session.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}catch(e){_routed=true;hideLoading();show('auth');}},800);
 }
 
-function hideLoading(){var el=document.getElementById('s-loading');if(!el)return;el.classList.add('hidden');setTimeout(()=>{el.style.display='none';},220);}
+function hideLoading(){if(window.CloakLoader){CloakLoader.done();return;}var el=document.getElementById('s-loading');if(el)el.style.display='none';}
 
 async function enterChat(){
   if(entering)return;entering=true;
@@ -1243,10 +1248,12 @@ async function enterChat(){
     const chatEl=document.getElementById('s-chat');if(!chatEl)return;
     chatEl.classList.add('active');
     if(window._vv)window._vv();
+    syncThemeColor();
     if(!guest)name=name||email.split('@')[0];
     refreshUI();updateGreeting();
     if(window.CloakMemory)CloakMemory.init({sb,uid:guest?'':uid,guest}).catch(e=>log('err','Memory: '+e.message));
-    if(!guest)Promise.all([loadProfile(),loadConvs(),loadAnn()]).catch(()=>{});
+    if(window.CloakThread)CloakThread.init({sb,uid:guest?'':uid,guest}).catch(e=>log('err','Thread: '+e.message));
+    if(!guest)Promise.all([loadProfile(),loadAnn()]).catch(()=>{});
     else{try{document.getElementById('guest-note').style.display='block';}catch(e){}log('inf','Guest mode');}
   }finally{entering=false;}
 }
@@ -1294,7 +1301,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateGree
 
 /* ── AUTH ── */
 let signingIn=true;
-function authMode(m){signingIn=m==='in';document.getElementById('tab-in').classList.toggle('active',signingIn);document.getElementById('tab-up').classList.toggle('active',!signingIn);document.getElementById('field-name').style.display=signingIn?'none':'block';document.getElementById('field-confirm').style.display=signingIn?'none':'block';document.getElementById('btn-submit').textContent=signingIn?'Sign in':'Create account';clearE('auth-err');}
+function authMode(m){signingIn=m==='in';document.getElementById('tab-in').classList.toggle('active',signingIn);document.getElementById('tab-up').classList.toggle('active',!signingIn);mMorph(document.querySelector('#s-auth .auth-card'),()=>{document.getElementById('field-name').style.display=signingIn?'none':'block';document.getElementById('field-confirm').style.display=signingIn?'none':'block';clearE('auth-err');});mRoll(document.getElementById('btn-submit'),signingIn?'Sign in':'Create account');}
 function authKey(e,nextId,isPass=false){if(e.key==='Enter'){e.preventDefault();if(isPass&&signingIn){handleAuth();return;}if(nextId){const next=document.getElementById(nextId);if(next&&next.offsetParent!==null){next.focus();return;}}handleAuth();}}
 async function handleAuth(){
   const em=document.getElementById('inp-email').value.trim();const pw=document.getElementById('inp-pass').value;
@@ -1336,7 +1343,7 @@ async function loadProfile(){
 async function saveName(){
   const n=document.getElementById('s-name-inp').value.trim();if(!n)return;
   name=n;if(!guest){const{error}=await sb.from('profiles').upsert({id:uid,display_name:n},{onConflict:'id'});if(error)log('err','Name save: '+error.message);else log('inf','Name saved: '+n);}
-  refreshUI();updateGreeting();const b=document.querySelector('#spane-general .cta');if(b){b.textContent='Saved';setTimeout(()=>b.textContent='Save',1800);}
+  refreshUI();updateGreeting();const b=document.querySelector('#spane-general .cta');if(b){mRoll(b,'Saved');setTimeout(()=>mRoll(b,'Save'),1800);}
 }
 
 /* ── ANNOUNCEMENTS ── */
@@ -1351,10 +1358,10 @@ async function deactAnn(id){await sb.from('announcements').delete().eq('id',id);
 /* ── GUEST LIMIT ── */
 function showLimit(){if(document.getElementById('limit-modal'))return;const d=document.createElement('div');d.id='limit-modal';d.className='limit-overlay';d.innerHTML='<div class="limit-card"><div class="limit-title">You\'re loving Cloak!</div><div class="limit-body">You\'ve used your '+GUEST_MAX+' guest messages.<br>Create a free account to keep going.</div><button class="btn-primary" onclick="goSignUp()">Create free account</button><br><button class="limit-skip" onclick="dismissLimit()">Maybe later</button></div>';document.body.appendChild(d);}
 function goSignUp(){const d=document.getElementById('limit-modal');if(d)d.remove();show('auth');authMode('up');}
-function dismissLimit(){const d=document.getElementById('limit-modal');if(d)d.remove();}
+function dismissLimit(){const d=document.getElementById('limit-modal');if(d)mLeave(d,()=>d.remove());}
 
 /* ── UI HELPERS ── */
-function show(id){hideLoading();document.querySelectorAll('.screen').forEach(el=>{el.classList.remove('active');el.style.display='';});const chatEl=document.getElementById('s-chat');if(chatEl)chatEl.classList.remove('active');const valuesEl=document.getElementById('s-values');if(valuesEl)valuesEl.style.display='none';var el=document.getElementById('s-'+id);if(!el)return;el.classList.add('active');if(id!=='chat')el.style.display='flex';}
+function show(id){hideLoading();document.querySelectorAll('.screen').forEach(el=>{el.classList.remove('active');el.style.display='';});const chatEl=document.getElementById('s-chat');if(chatEl)chatEl.classList.remove('active');const valuesEl=document.getElementById('s-values');if(valuesEl)valuesEl.style.display='none';var el=document.getElementById('s-'+id);if(!el)return;el.classList.add('active');if(id!=='chat')el.style.display='flex';if(window._vv)window._vv();syncThemeColor();}
 function refreshUI(){
   const i=name?name[0].toUpperCase():email?email[0].toUpperCase():'G';
   ['sb-av','s-av'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=i;});
@@ -1365,7 +1372,7 @@ function refreshUI(){
   document.querySelectorAll('.moon').forEach(el=>el.style.display=dark?'none':'block');
   document.querySelectorAll('.sun').forEach(el=>el.style.display=dark?'block':'none');
 }
-function toggleDark(){hapticTap();dark=!dark;document.body.classList.toggle('dark',dark);document.documentElement.classList.toggle('dark',dark);localStorage.setItem('cloak_dark',dark?'1':'0');const ml=document.getElementById('mode-label');if(ml)ml.textContent=dark?'dark':'light';refreshUI();syncThemeColor();}
+function toggleDark(){hapticTap();mTheme(()=>{dark=!dark;document.body.classList.toggle('dark',dark);document.documentElement.classList.toggle('dark',dark);localStorage.setItem('cloak_dark',dark?'1':'0');const ml=document.getElementById('mode-label');if(ml)ml.textContent=dark?'dark':'light';refreshUI();syncThemeColor();});}
 function toggleSidebar(){hapticTap();const el=document.getElementById('sidebar');const mobile=window.innerWidth<=640;if(mobile){const open=!el.classList.contains('collapsed');if(open){el.classList.add('collapsed');document.getElementById('sb-overlay').classList.remove('show');}else{el.classList.remove('collapsed');document.getElementById('sb-overlay').classList.add('show');}}else el.classList.toggle('collapsed');}
 function closeMobileSidebar(){document.getElementById('sidebar').classList.add('collapsed');document.getElementById('sb-overlay').classList.remove('show');}
 
@@ -1381,13 +1388,13 @@ function openSettings(){
   document.getElementById('s-name-inp').value=name;
   document.getElementById('mode-label').textContent=dark?'dark':'light';
   show('settings');
-  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();
+  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();if(window.CloakThread)CloakThread.refreshTelegram();
 }
 function closeSettings(){ hapticTap(); show(_prevScreen||'chat'); }
 function closeModal(id){const el=document.getElementById(id);if(!el)return;el.classList.add('hiding');setTimeout(()=>{el.style.display='none';el.classList.remove('hiding');},120);}
 function overlayClick(e,id){if(e.target===document.getElementById(id))closeModal(id);}
 function switchSettingsTab(t){hapticTap();atab=t;document.querySelectorAll('.snav-btn').forEach(el=>el.classList.toggle('on',el.id==='snav-'+t));document.querySelectorAll('.spane').forEach(el=>el.classList.remove('on'));const p=document.getElementById('spane-'+t);if(p)p.classList.add('on');if(t==='console'){updateStats();renderLogs();}}
-async function clearAllChats(){if(!confirm('Delete ALL conversations?'))return;const{error}=await sb.from('chats').delete().eq('user_id',uid);if(error)log('err','Clear failed: '+error.message);else{convs=[];newChat();log('inf','All chats deleted');}}
+async function clearAllChats(){if(!confirm('Clear your whole conversation with Cloak? Your memories are kept.'))return;if(window.CloakThread)await CloakThread.clear();log('inf','Conversation cleared');}
 
 /* ── 2FA ── */
 async function start2FA(){try{const{data,error}=await sb.auth.mfa.enroll({factorType:'totp'});if(error)throw error;const sec=document.getElementById('totp-section');sec.style.display='block';document.getElementById('totp-secret').textContent='Secret: '+data.totp.secret;document.getElementById('totp-qr').innerHTML='<img src="'+data.totp.qr_code+'" style="width:160px;height:160px;border:var(--bd)" />';window._totpFactorId=data.id;}catch(e){alert('2FA setup failed: '+e.message);}}
@@ -1401,11 +1408,7 @@ function setFilter(f,el){logF=f;document.querySelectorAll('.filter-pill').forEac
 function clearLogs(){logs=[];stats={req:0,res:0,err:0,lat:[]};renderLogs();updateStats();}
 
 /* ── STORAGE ── */
-async function loadConvs(){const{data,error}=await sb.from('chats').select('id,title,updated_at').eq('user_id',uid).order('updated_at',{ascending:false});if(error){log('err','Load convs: '+error.message);return;}convs=(data||[]).map(r=>({id:r.id,title:r.title}));renderConvs();log('inf','Loaded '+convs.length+' chat(s)');}
-async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}if(window.CloakMemory)CloakMemory.flush();chatId=id;hist=data.messages||[];if(window.CloakContext)CloakContext.load(data.context);document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));trimToLatest();showMessages();renderConvs();}
-function _makeTitle(first){const clean=first.replace(/\n+/g,' ').replace(/\s+/g,' ').trim();const sentenceEnd=clean.search(/[.!?](?:\s|$)/);let candidate=sentenceEnd>4&&sentenceEnd<70?clean.slice(0,sentenceEnd+1):clean;if(candidate.length>60)candidate=candidate.slice(0,58).replace(/\s+\S*$/,'')+'\u2026';return candidate||'New chat';}
-async function saveConv(first){if(!uid||guest)return;let currentUid=uid;try{const{data:{session}}=await sb.auth.getSession();if(!session?.user){log('err','Save aborted: no session');return;}currentUid=session.user.id;uid=currentUid;}catch(e){log('err','Save: session check failed');return;}const ex=convs.find(c=>c.id===chatId);const title=ex?ex.title:_makeTitle(first);if(!ex)convs.unshift({id:chatId,title});renderConvs();const row={id:chatId,user_id:currentUid,title,messages:hist,updated_at:new Date().toISOString()};if(window.CloakContext)row.context=CloakContext.get();let{error}=await sb.from('chats').upsert(row,{onConflict:'user_id,id'});if(error&&row.context&&/context/i.test(error.message)){delete row.context;({error}=await sb.from('chats').upsert(row,{onConflict:'user_id,id'}));}if(error){log('err','Save: '+error.message);}else{log('inf','Chat saved: '+title.slice(0,30));}}
-async function delConv(id){const{error}=await sb.from('chats').delete().eq('id',id).eq('user_id',uid);if(error){log('err','Delete: '+error.message);return;}convs=convs.filter(c=>c.id!==id);if(chatId===id)newChat();else renderConvs();}
+// Messages persist per-row via CloakThread.push (thread_messages); nothing to save per chat.
 
 /* ── MENTAL HEALTH INTERCEPT ── */
 const MH_PATTERNS=/\b(suicide|suicidal|kill myself|end my life|want to die|self[- ]?harm|cut myself|overdose|no reason to live|don't want to be here|can't go on|hopeless|worthless|crisis)\b/i;
@@ -1524,7 +1527,7 @@ async function send(){
 
     if(voiceMode)playVoice(responseText);
     if(guest){guestN++;if(guestN>=GUEST_MAX)setTimeout(showLimit,500);}
-    else saveConv(txt||'[Image]').catch(e=>log('err','Save: '+e.message));
+
 
   } catch(ex) {
     _fetchController=null;
@@ -1565,6 +1568,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260926mem1').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260928thread1').catch(e=>console.warn('SW registration failed',e));
   });
 }

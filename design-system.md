@@ -151,30 +151,53 @@ Marketing uses full-width ruled bands: every section ends on a 2px border. Split
 
 ## 6. Interaction states
 
+**The shadow is the floor.** A control sits on its hard shadow. Hover lifts it off by exactly the shadow it gains; press slams it flat onto it. The shadow's far edge never moves.
+
 | State | Treatment |
 |---|---|
-| **Hover** | `translate(-1px,-1px)` and shadow steps up (2→4, 4→6). Ink buttons turn rust. List rows get a `--p3` fill + 1.5px ink outline |
-| **Press** | `translate(2px,2px)` (3px on primary) and shadow removed — the element sinks into its shadow |
-| **Active / selected** | Invert to ink with paper text. Settings nav adds a 3px rust bar on the right edge |
-| **Focus (input)** | Border turns rust + 4px hard shadow |
+| **Hover** | `translate(-2px,-2px)` and shadow steps up (2→4, 4→6), on `--lift`. Ink buttons turn rust. List rows get a `--p3` fill + 1.5px ink outline |
+| **Press** | Translate by the resting shadow (`2px`, `4px` on primary) and shadow removed, in `--tp` (90ms). Springs back on release |
+| **Active / selected** | Invert to ink with paper text. Settings nav fills with an ink wipe and a 3px rust bar on the right edge |
+| **Focus (input)** | Border turns rust + 4px hard shadow. The composer lifts like a hovered button |
 | **Focus (keyboard)** | `2px solid var(--acc)` outline, offset `3px` |
-| **Disabled** | Opacity `.38`, `not-allowed` cursor |
+| **Disabled** | Pressed flat (no shadow), opacity `.38`, `not-allowed` cursor. Enabling pops it up |
 
 ---
 
 ## 7. Motion
 
+**Quick. Then still.** Physical, not floaty: things lift, slam, spring and stop. No blur, no fades-to-nowhere.
+
 | Token | Value | Use |
 |---|---|---|
-| `--t` | `140ms ease` | Shadow, transform, colour |
-| `--tm` | `240ms ease` | Larger UI (settings nav, panels) |
-| Pop | `cubic-bezier(.16,1,.3,1)` | Modals, popovers |
-| `--spring` | `cubic-bezier(.34,1.56,.64,1)` | Chips (staggered 80ms) |
+| `--lift` | `380ms var(--sp-snap)` | Lift + release: transform and shadow of every control |
+| `--tp` | `90ms` | Press: slam flat onto the shadow |
+| `--t` | `140ms ease` | Colour, opacity, borders |
+| `--tm` | `240ms ease` | Larger UI colour changes |
+| `--sp-snap` | damped spring, ζ .62 (8% overshoot) | Controls, toggles, rising cards |
+| `--sp-pop` | damped spring, ζ .5 (16% overshoot) | Stamps, checks, chips, pops |
+| `--sp-soft` | damped spring, ζ .8 (1.5% overshoot) | Panels, sheets, big surfaces |
+| `--ease-out` | `cubic-bezier(.16,1,.3,1)` | Entrances: rules drawing, words rising, menus unfolding |
+| `--ease-io` | `cubic-bezier(.65,0,.35,1)` | Wipes: uncloak bars, theme swap |
+| `--ease-in` | `cubic-bezier(.55,0,1,.45)` | Exits: sink back into the page |
+| Stagger | 80ms | Things that arrive together, in reading order |
 | Message in | fade up 6px | Chat turns |
 
+Springs are real `linear()` curves where supported, with `cubic-bezier` fallbacks (`cloak.css` `:root`, mirrored in `index.html`).
+
+Signature moves (`motion.js` + `cloak.css` "MOTION PRIMITIVES"):
+
+- **Uncloak** — display type is revealed by a solid ink (or rust) bar that sweeps across the words and pulls off to the right. Hero and closing titles only.
+- **Rise** — cards, grids and modals start flat on the page and spring up onto their shadow. Exits do the reverse: sink flat and vanish.
+- **Lines** — section titles slide up out of a slot, line by line.
+- **Rules** — eyebrow and divider lines draw left to right. Roman numerals **stamp** in.
+- **Theme wipe** — a new theme grows out of the control that asked for it as a hard-edged rectangle (View Transitions).
+- **Roll** — changing labels (model name, submit text) slot-roll: old text up and out, new text springs up in.
+- Popovers unfold from their trigger and fold back on close; items stagger in.
 - Error blocks shake. Typing dots are **square** and bounce; the last one is rust. The orb squish-bounces while Cloak thinks.
 - Auth background: 45° hatch at 7% ink, scrolling sideways one stripe per 1.6s, linear, infinite.
-- **Always respect `prefers-reduced-motion`.** `cloak.css` has a single global override; keep it.
+- Entrances animate the individual `translate` / `scale` / `rotate` properties so they stack with hover and press `transform`s.
+- **Always respect `prefers-reduced-motion`.** `cloak.css` has a single global override (durations and delays to zero); keep it. `motion.js` skips the cursor, wipes and reveals.
 
 ---
 
@@ -249,10 +272,10 @@ Every class lives in `cloak.css` (chat, values, landing). `index.html` mirrors t
   background:var(--acc);color:#fff;
   border:var(--bd);box-shadow:var(--sh);
   font:700 11px/1 var(--fu);text-transform:uppercase;letter-spacing:.12em;
-  transition:box-shadow var(--t),transform var(--t);
+  transition:box-shadow var(--lift),transform var(--lift),background var(--t);
 }
-.btn-primary:hover{box-shadow:var(--shlg);transform:translate(-1px,-1px);}
-.btn-primary:active{box-shadow:none;transform:translate(3px,3px);}
+.btn-primary:hover{box-shadow:var(--shlg);transform:translate(-2px,-2px);}
+.btn-primary:active{box-shadow:none;transform:translate(4px,4px);transition-duration:var(--tp);}
 ```
 
 ### Card recipe

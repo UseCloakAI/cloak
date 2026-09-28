@@ -4,11 +4,11 @@
 // /admin/provider-keys. All chat routes support live token streaming.
 // Every upstream call goes through the free-tier governor (./governor.js).
 
-import { PNEUMA, LOGOS, KAIROS, LINUS } from "./prompts.js";
+import { CLOAK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
 
-const VERSION = "4.5.0";
+const VERSION = "4.6.0";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -28,34 +28,36 @@ const SSE_HEADERS = {
 const GEMINI_MODEL = "gemini-3.5-flash";
 const NVIDIA_VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
 
+// Tiers are routing only (fast / reasoning / deep / code). Every tier is the
+// same Cloak: one prompt, one name.
 const MODEL_CONFIG = {
   pneuma: {
-    name: "Pneuma",
-    systemPrompt: PNEUMA,
+    name: "Cloak",
+    systemPrompt: CLOAK,
     providers: ["groq", "nvidia"],
     groqModel: "llama-3.3-70b-versatile",
     nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
     temperature: 0.9,
   },
   logos: {
-    name: "Logos",
-    systemPrompt: LOGOS,
+    name: "Cloak",
+    systemPrompt: CLOAK,
     providers: ["groq", "nvidia"],
     groqModel: "llama-3.3-70b-versatile",
     nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
     temperature: 0.3,
   },
   kairos: {
-    name: "Kairos",
-    systemPrompt: KAIROS,
+    name: "Cloak",
+    systemPrompt: CLOAK,
     providers: ["nvidia", "groq", "gemini"],
     nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
     groqModel: "llama-3.3-70b-versatile",
     temperature: 0.8,
   },
   linus: {
-    name: "Linus",
-    systemPrompt: LINUS,
+    name: "Cloak",
+    systemPrompt: CLOAK,
     providers: ["nvidia", "groq"],
     nvidiaModel: "z-ai/glm-5.3",
     groqModel: "openai/gpt-oss-120b",

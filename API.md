@@ -176,11 +176,12 @@ curl -X POST https://api.usecloak.org/v1/chat \
 
 ## Models
 
-Cloak supports multiple models, each optimized for different use cases:
+Cloak runs several models; they differ in the underlying model and settings, not in personality — every one answers as **Cloak** with the same system prompt (responses report `"model": "Cloak"`).
 
 - **`pneuma`** — Fast, lightweight model for quick responses
-- **`logos`** — Balanced model for general-purpose chat
-- **`kairos`** — Advanced model for complex reasoning and detailed analysis
+- **`logos`** — Balanced model, lower temperature, for precise answers
+- **`kairos`** — Deep-reasoning model for complex analysis
+- **`linus`** — Code-focused model
 
 ## Memory & Context Endpoints
 
@@ -198,7 +199,7 @@ Returns `{ "ops": [{ "op": "add" | "update" | "delete", "path": "project/budget-
 
 ### `POST /v1/context/compress`
 
-`{ "mode": "chunk", "messages": [{ "role": "user", "content": "..." }], "words": 160 }` or `{ "mode": "merge", "summaries": ["- ...", "- ..."], "words": 300 }` → `{ "summary": "- ..." }`.
+`{ "mode": "chunk", "messages": [{ "role": "user", "content": "..." }], "words": 160, "memory": { "existing": [...] } }` (with `memory`, the chunk's turns are also run through memory extraction and the response adds `ops`) or `{ "mode": "merge", "summaries": ["- ...", "- ..."], "words": 300 }` → `{ "summary": "- ..." }`.
 
 ### `GET /v1/usage`
 

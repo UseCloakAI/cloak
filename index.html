@@ -20,6 +20,12 @@
 <!-- Favicon: Bold "C" in Syne font rendered as SVG -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0A'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='Syne%2C sans-serif' font-weight='800' font-size='22' fill='%23D44D2A'%3EC%3C/text%3E%3C/svg%3E">
 
+<script>
+  // Reveal-on-scroll opt-in; if motion.js never loads, show everything.
+  document.documentElement.classList.add('m-js');
+  setTimeout(function(){ if(!window.CloakMotion) document.documentElement.classList.remove('m-js'); }, 3000);
+</script>
+<script src="motion.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -43,6 +49,25 @@
   --shlg: 6px 6px 0 #0A0A0A;
   --fd: 'Syne', system-ui, sans-serif;
   --fu: 'Space Grotesk', system-ui, sans-serif;
+  /* Motion — mirrors cloak.css. The shadow is the floor: lift on a spring,
+     press flat with a slam. */
+  --spring: cubic-bezier(.34,1.56,.64,1);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-in: cubic-bezier(.55,0,1,.45);
+  --ease-io: cubic-bezier(.65,0,.35,1);
+  --sp-snap: cubic-bezier(.3,1.35,.55,1);
+  --sp-pop: var(--spring);
+  --sp-soft: var(--ease-out);
+  --tl: 380ms;
+  --tp: 90ms;
+  --lift: var(--tl) var(--sp-snap);
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --sp-snap: linear(0,.007 1.2%,.028 2.5%,.068 4%,.12 5.5%,.17 6.8%,.237 8.2%,.516 14%,.631 16.5%,.745 19.2%,.834 21.8%,.909 24.2%,.968 26.8%,1.013 29.2%,1.048 32%,1.065 34%,1.076 36%,1.082 38.2%,1.083 40.8%,1.072 46%,1.018 60.2%,1 68.5%,.993 80%,1);
+    --sp-pop: linear(0,.007 1%,.036 2.2%,.081 3.5%,.141 4.8%,.212 6%,.29 7.2%,.592 11.8%,.719 13.8%,.834 15.8%,.932 17.8%,1.013 19.8%,1.075 21.8%,1.119 23.8%,1.147 25.8%,1.158 27.3%,1.163 28.7%,1.154 32%,1.13 35%,1.052 42.2%,1.018 46%,.992 50%,.977 54.2%,.975 61%,.996 74.5%,1.003 81.8%,1);
+    --sp-soft: linear(0,.005 1.2%,.023 2.8%,.056 4.5%,.1 6.2%,.2 9.5%,.432 16.2%,.53 19.2%,.627 22.5%,.712 25.8%,.778 28.7%,.839 32%,.887 35.2%,.928 38.8%,.96 42.5%,.985 46.8%,1.002 51.2%,1.012 56.5%,1.015 67%,1);
+  }
 }
 
 /* Dark mode */
@@ -74,58 +99,7 @@ body {
   overflow-x: hidden;
 }
 
-/* ── CUSTOM CURSOR — desktop only ── */
-@media (hover: hover) and (pointer: fine) {
-  *, *::before, *::after { cursor: none !important; }
-  
-  .cursor {
-    position: fixed;
-    width: 10px;
-    height: 10px;
-    background: var(--acc);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9999;
-    transform: translate(-50%, -50%);
-    transition: width 0.15s cubic-bezier(.16,1,.3,1),
-                height 0.15s cubic-bezier(.16,1,.3,1),
-                background 0.15s ease,
-                border-radius 0.15s ease;
-    will-change: left, top;
-  }
-  
-  .cursor-ring {
-    position: fixed;
-    width: 32px;
-    height: 32px;
-    border: 1.5px solid rgba(212,77,42,0.45);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9998;
-    transform: translate(-50%, -50%);
-    transition: width 0.25s cubic-bezier(.16,1,.3,1),
-                height 0.25s cubic-bezier(.16,1,.3,1),
-                opacity 0.15s ease;
-    will-change: left, top;
-  }
-  
-  .cursor.hover {
-    width: 14px;
-    height: 14px;
-    background: var(--ink);
-    border-radius: 2px;
-  }
-  
-  .cursor-ring.hover {
-    width: 42px;
-    height: 42px;
-    border-color: rgba(10,10,10,0.2);
-  }
-  
-  @media (prefers-color-scheme: dark) {
-    .cursor-ring.hover { border-color: rgba(240,237,232,0.2); }
-  }
-}
+/* Custom cursor: crop marks on a spring — built by motion.js (<body data-cursor>). */
 
 /* ── NAV ── */
 .nav {
@@ -156,14 +130,23 @@ body {
   color: var(--acc);
   line-height: 1;
   letter-spacing: -0.02em;
+  display: inline-block;
+  animation: stamp .6s var(--sp-pop) .05s backwards;
+  transition: rotate var(--lift);
 }
+.nav-logo:hover .nav-c { rotate: -12deg; }
 
 .nav-links {
   display: flex;
   align-items: center;
   gap: 6px;
 }
+.nav-links > * { animation: navIn .6s var(--ease-out) backwards; }
+.nav-links > :nth-child(2) { animation-delay: .07s; }
+.nav-links > :nth-child(3) { animation-delay: .14s; }
 
+/* Tactile controls: hover lifts by exactly the shadow it gains, press sinks
+   flat onto the shadow — the shadow never moves. */
 .nav-link {
   height: 34px;
   padding: 0 14px;
@@ -178,10 +161,12 @@ body {
   text-decoration: none;
   display: flex;
   align-items: center;
-  transition: box-shadow var(--t), transform var(--t), background var(--t);
+  gap: 6px;
+  transition: box-shadow var(--lift), transform var(--lift), background var(--t), border-color var(--t);
 }
 
-.nav-link:hover { box-shadow: var(--shsm); transform: translate(-1px,-1px); }
+.nav-link:hover { box-shadow: var(--shsm); transform: translate(-2px,-2px); }
+.nav-link:active { box-shadow: none; transform: none; transition-duration: var(--tp); }
 
 .nav-cta {
   background: var(--acc);
@@ -190,12 +175,16 @@ body {
   box-shadow: var(--shsm);
 }
 
-.nav-cta:hover { 
-  box-shadow: var(--sh) !important; 
-  background: var(--acc2) !important; 
-  border-color: var(--acc2) !important;
-  transform: translate(-1px,-1px) !important;
+.nav-cta:hover {
+  box-shadow: var(--sh);
+  background: var(--acc2);
+  border-color: var(--acc2);
 }
+.nav-cta:active { box-shadow: none; transform: translate(2px,2px); }
+
+/* → arrows slide forward on hover */
+.arw { display: inline-block; transition: translate var(--lift); }
+a:hover > .arw { translate: 3px 0; }
 
 /* ── HERO ── */
 .hero {
@@ -228,6 +217,8 @@ body {
 
 .hero-left > * { position: relative; z-index: 1; }
 
+/* Hero sequence: rule draws → eyebrow slides in → each title line is
+   uncloaked → copy rises → buttons pop up out of the page. */
 .eyebrow {
   font-size: 10px;
   font-weight: 600;
@@ -238,8 +229,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  opacity: 0;
-  animation: fadeUp .55s .08s cubic-bezier(.16,1,.3,1) forwards;
+  animation: slideIn .7s var(--ease-out) .2s backwards;
 }
 
 .eyebrow::before {
@@ -249,6 +239,8 @@ body {
   height: 2px;
   background: var(--acc);
   flex-shrink: 0;
+  transform-origin: 0 50%;
+  animation: ruleIn .6s var(--ease-out) .1s backwards;
 }
 
 .hero-title {
@@ -260,8 +252,7 @@ body {
   line-height: .9;
   color: var(--ink);
   margin-bottom: 30px;
-  opacity: 0;
-  animation: fadeUp .55s .16s cubic-bezier(.16,1,.3,1) forwards;
+  --uc-d: .22s;
 }
 
 .hero-title .acc { color: var(--acc); }
@@ -270,10 +261,9 @@ body {
   font-size: 15px;
   line-height: 1.75;
   color: var(--ink);
-  opacity: 0;
   max-width: 380px;
   margin-bottom: 44px;
-  animation: fadeUp .55s .24s cubic-bezier(.16,1,.3,1) forwards;
+  animation: rvUp .8s var(--ease-out) .8s backwards;
 }
 
 .hero-desc span { opacity: .58; }
@@ -282,9 +272,9 @@ body {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  opacity: 0;
-  animation: fadeUp .55s .32s cubic-bezier(.16,1,.3,1) forwards;
 }
+.hero-actions > * { animation: rvRise .62s var(--sp-snap) .95s backwards; --rise: 4px; }
+.hero-actions > :nth-child(2) { animation-delay: 1.03s; --rise: 0px; }
 
 .btn-primary {
   height: 48px;
@@ -302,19 +292,25 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: box-shadow var(--t), transform var(--t), background var(--t);
+  transition: box-shadow var(--lift), transform var(--lift), background var(--t), border-color var(--t);
   white-space: nowrap;
 }
 
 .btn-primary:hover { box-shadow: var(--shlg); transform: translate(-2px,-2px); background: var(--acc2); border-color: var(--acc2); }
-.btn-primary:active { box-shadow: none; transform: translate(2px,2px); }
+.btn-primary:active { box-shadow: none; transform: translate(4px,4px); transition-duration: var(--tp); }
+/* the send glyph takes off a little on hover */
+.btn-primary svg { transition: translate var(--lift), rotate var(--lift); }
+.btn-primary:hover svg { translate: 3px -2px; rotate: -8deg; }
 
+/* Ghost: the dashed border is drawn on ::before so it can march on hover. */
 .btn-ghost {
+  --ant: rgba(10,10,10,0.3);
+  position: relative;
   height: 48px;
   padding: 0 24px;
-  background: transparent;
   color: var(--ink);
-  border: 2px dashed rgba(10,10,10,0.3);
+  border: 2px solid transparent;
+  background-color: transparent;
   font-family: var(--fu);
   font-size: 11px;
   font-weight: 600;
@@ -323,15 +319,28 @@ body {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
-  transition: background var(--t), border-color var(--t);
+  transition: background-color var(--t), transform var(--lift);
   white-space: nowrap;
 }
 
-.btn-ghost:hover { background: var(--p2); border-color: rgba(10,10,10,0.5); }
+.btn-ghost::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, var(--ant) 60%, transparent 0) 0 0 / 10px 2px repeat-x,
+    linear-gradient(90deg, var(--ant) 60%, transparent 0) 0 100% / 10px 2px repeat-x,
+    linear-gradient(180deg, var(--ant) 60%, transparent 0) 0 0 / 2px 10px repeat-y,
+    linear-gradient(180deg, var(--ant) 60%, transparent 0) 100% 0 / 2px 10px repeat-y;
+}
+.btn-ghost:hover { --ant: rgba(10,10,10,0.6); background-color: var(--p2); }
+.btn-ghost:hover::before { animation: ants .7s linear infinite; }
+.btn-ghost:active { transform: translate(1px,1px); transition-duration: var(--tp); }
 
 @media (prefers-color-scheme: dark) {
-  .btn-ghost { border-color: rgba(240,237,232,0.25); }
-  .btn-ghost:hover { border-color: rgba(240,237,232,0.5); }
+  .btn-ghost { --ant: rgba(240,237,232,0.25); }
+  .btn-ghost:hover { --ant: rgba(240,237,232,0.55); }
 }
 
 /* Hero right */
@@ -351,7 +360,8 @@ body {
   .hero-right { background: var(--p3); }
 }
 
-/* Giant C mark */
+/* Giant C mark — stamped onto the panel: drops in big, hits the paper flat,
+   springs back up onto its shadow. */
 .hero-c-mark {
   width: 110px;
   height: 110px;
@@ -362,6 +372,14 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  animation: cStamp .9s .25s backwards;
+  transition: box-shadow var(--lift), transform var(--lift);
+}
+.hero-c-mark:hover { box-shadow: var(--shlg); transform: translate(-2px,-2px); }
+@keyframes cStamp {
+  0%   { opacity: 0; scale: 1.45; rotate: -7deg; translate: 4px 4px; box-shadow: none; animation-timing-function: var(--ease-in); }
+  38%  { opacity: 1; scale: 1; rotate: 0deg; translate: 4px 4px; box-shadow: none; animation-timing-function: var(--sp-snap); }
+  100% { opacity: 1; scale: 1; rotate: 0deg; translate: 0 0; box-shadow: var(--sh); }
 }
 
 .hero-c-letter {
@@ -375,15 +393,14 @@ body {
   user-select: none;
 }
 
-/* Model pills */
-.model-pills { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 10px; 
-  width: 100%; 
+/* Model pills — rise out of the panel one by one, then their status
+   lights boot up in turn. */
+.model-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
   max-width: 300px;
-  opacity: 0;
-  animation: fadeUp .6s .4s cubic-bezier(.16,1,.3,1) forwards;
 }
 
 .model-pill {
@@ -394,10 +411,14 @@ body {
   background: var(--surf);
   border: var(--bd);
   box-shadow: var(--shsm);
-  transition: box-shadow var(--t), transform var(--t);
+  transition: box-shadow var(--lift), transform var(--lift);
+  animation: pillIn .7s var(--sp-snap) .72s backwards;
 }
+.model-pill:nth-child(2) { animation-delay: .81s; }
+.model-pill:nth-child(3) { animation-delay: .9s; }
+@keyframes pillIn { from { opacity: 0; translate: 28px 2px; box-shadow: none; } }
 
-.model-pill:hover { box-shadow: var(--sh); transform: translate(-1px,-1px); }
+.model-pill:hover { box-shadow: var(--sh); transform: translate(-2px,-2px); }
 
 .pill-left { display: flex; flex-direction: column; gap: 3px; }
 
@@ -433,16 +454,24 @@ body {
 }
 
 .pill-dot {
+  --boot: 1.15s;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  animation: pulse 2.4s ease-in-out infinite;
+  animation: ledBoot .55s linear var(--boot) backwards, pulse 2.4s ease-in-out calc(var(--boot) + .55s) infinite;
 }
 
-.pill-dot.c1 { background: var(--acc); animation-delay: 0s; }
-.pill-dot.c2 { background: var(--yel); animation-delay: .4s; }
-.pill-dot.c3 { background: var(--blu); animation-delay: .8s; }
+.pill-dot.c1 { background: var(--acc); }
+.pill-dot.c2 { background: var(--yel); --boot: 1.3s; }
+.pill-dot.c3 { background: var(--blu); --boot: 1.45s; }
+/* flicker on like a status LED */
+@keyframes ledBoot {
+  0%, 12% { opacity: 0; }
+  13%, 30% { opacity: 1; }
+  31%, 46% { opacity: .15; }
+  47%, 100% { opacity: 1; }
+}
 
 /* ── MODELS SECTION ── */
 .section { border-bottom: var(--bd); }
@@ -500,13 +529,27 @@ body {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 3px;
+  height: 6px;
   background: var(--acc);
+  transform: scaleY(.5);
+  transform-origin: 0 0;
+  transition: transform var(--lift);
 }
 
 .model-card.m2::before { background: var(--yel); }
 .model-card.m3::before { background: var(--blu); }
 .model-card:hover { background: var(--p2); }
+.model-card:hover::before { transform: none; }
+/* Reveal: the grid rises, each tier's colour bar draws across, then its copy steps in. */
+.models-grid.in .model-card::before {
+  animation: barIn .7s var(--ease-out) backwards;
+  animation-delay: calc(var(--rv-d, 0ms) + 260ms + var(--c, 0) * 110ms);
+}
+.models-grid.in .model-card > * {
+  animation: rvUp .7s var(--ease-out) backwards;
+  animation-delay: calc(var(--rv-d, 0ms) + 330ms + var(--c, 0) * 110ms + var(--k, 0) * 45ms);
+}
+@keyframes barIn { from { transform: scale(0, .5); } }
 
 @media (prefers-color-scheme: dark) {
   .model-card:hover { background: var(--p3); }
@@ -573,7 +616,11 @@ body {
 }
 
 /* ── VALUES ── */
-.values-layout { display: grid; grid-template-columns: 340px 1fr; }
+.values-layout { display: grid; grid-template-columns: 400px 1fr; }
+/* Headline scales to its column: at full size "PRINCIPLE." (≈11.5× font-size in Syne)
+   overflowed the column into the laws cards. */
+.values-left { container-type: inline-size; }
+.values-left .section-title { font-size: min(clamp(1.9rem, 3.8vw, 3.2rem), 8.4cqi); }
 
 .values-left {
   padding: 72px 44px;
@@ -598,10 +645,12 @@ body {
   border: var(--bd);
   box-shadow: var(--shsm);
   margin-bottom: 10px;
-  transition: box-shadow var(--t), transform var(--t);
+  transition: box-shadow var(--lift), transform var(--lift);
+  --rise: 2px;
 }
 
-.law:hover { box-shadow: var(--sh); transform: translate(-1px,-1px); }
+.law:hover { box-shadow: var(--sh); transform: translate(-2px,-2px); }
+.law.in .law-num { animation: stamp .62s var(--sp-pop) calc(var(--rv-d, 0ms) + 170ms) backwards; }
 
 .law-num {
   font-family: var(--fd);
@@ -612,7 +661,9 @@ body {
   line-height: 1;
   margin-top: 2px;
   opacity: .8;
+  transition: rotate var(--lift), scale var(--lift);
 }
+.law:hover .law-num { rotate: -6deg; scale: 1.08; }
 
 .law-title {
   font-family: var(--fd);
@@ -636,6 +687,11 @@ body {
   grid-template-columns: 1fr 1fr;
   border: var(--bd);
   box-shadow: var(--shsm);
+  --rise: 2px;
+}
+.principles.in .principle > * {
+  animation: rvUp .7s var(--ease-out) backwards;
+  animation-delay: calc(var(--rv-d, 0ms) + 160ms + var(--k, 0) * 70ms);
 }
 
 .principle {
@@ -693,6 +749,8 @@ body {
 }
 
 .cta-title .acc { color: var(--acc); }
+.cta-title .uc { display: inline-block; }
+.cta-right .btn-primary { --rise: 4px; }
 
 .cta-right {
   display: flex;
@@ -754,6 +812,7 @@ body {
 }
 
 .footer-links a {
+  position: relative;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -763,8 +822,20 @@ body {
   text-decoration: none;
   transition: opacity var(--t);
 }
+/* underline wipes in from the left, out to the right */
+.footer-links a::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -4px;
+  height: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: 100% 50%;
+  transition: transform .42s var(--ease-out);
+}
 
 .footer-links a:hover { opacity: .8; }
+.footer-links a:hover::after { transform: scaleX(1); transform-origin: 0 50%; }
 
 .footer-disc {
   font-size: 10px;
@@ -773,26 +844,54 @@ body {
   font-weight: 500;
 }
 
-/* ── ANIMATIONS ── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(18px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
+/* ── MOTION PRIMITIVES — mirrors cloak.css (keep in sync) ──
+   Reveals hide only under html.m-js and only until motion.js adds .in.
+   Entrances animate translate/scale/rotate, never `transform`, so they
+   stack with hover and press. */
+.m-js [data-rv]:not(.in) { opacity: 0; }
+[data-rv].in { animation: rvUp .7s var(--ease-out) var(--rv-d, 0ms) backwards; }
+[data-rv="fade"].in { animation-name: rvFade; }
+[data-rv="rise"].in { animation: rvRise .62s var(--sp-snap) var(--rv-d, 0ms) backwards; }
+[data-rv="lines"].in, [data-rv="uncloak"].in { animation: none; }
+[data-rv="rule"].in { animation: rvFade .5s ease var(--rv-d, 0ms) backwards; }
+[data-rv="rule"]::before, [data-rv="rule"]::after { transform-origin: 0 50%; }
+[data-rv="rule"].in::before, [data-rv="rule"].in::after { animation: ruleIn .9s var(--ease-out) var(--rv-d, 0ms) backwards; }
+@keyframes rvUp { from { opacity: 0; translate: 0 18px; } }
+@keyframes rvFade { from { opacity: 0; } }
+@keyframes rvRise { from { opacity: 0; translate: var(--rise, 6px) calc(var(--rise, 6px) + 16px); box-shadow: none; } }
+@keyframes ruleIn { from { transform: scaleX(0); } }
+@keyframes stamp { from { opacity: 0; scale: 1.9; rotate: -9deg; } 30% { opacity: 1; } }
+@keyframes slideIn { from { opacity: 0; translate: -10px 0; } }
+@keyframes navIn { from { opacity: 0; translate: 0 -8px; } }
+@keyframes ants { to { background-position: 10px 0, -10px 100%, 0 -10px, 100% 10px; } }
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: .45; transform: scale(.75); }
 }
 
-.reveal {
-  opacity: 0;
-  transform: translateY(18px);
-  transition: opacity .5s cubic-bezier(.16,1,.3,1), transform .5s cubic-bezier(.16,1,.3,1);
-}
+/* vertical-only clip: long words may still overflow sideways, like plain text */
+.ln { display: block; padding: .12em 0 .08em; margin: -.12em 0 -.08em; clip-path: inset(0 -100vw); }
+.ln > span { display: block; }
+.m-js [data-rv="lines"]:not(.in) .ln > span { translate: 0 115%; }
+[data-rv="lines"].in .ln > span { animation: lnUp .85s var(--ease-out) backwards; animation-delay: calc(var(--rv-d, 0ms) + var(--li, 0) * 90ms); }
+.ln:nth-child(2) > span { --li: 1; } .ln:nth-child(3) > span { --li: 2; }
+@keyframes lnUp { from { translate: 0 115%; } }
 
-.reveal.vis {
-  opacity: 1;
-  transform: translateY(0);
+/* Uncloak — a solid bar sweeps across the words, then pulls off to the right. */
+.uc { position: relative; display: block; width: fit-content; }
+.uc::after { content: ''; position: absolute; left: -.05em; right: -.05em; top: .06em; bottom: .02em; background: var(--ucc, var(--ink)); transform: scaleX(0); pointer-events: none; }
+.uc.acc { --ucc: var(--acc); }
+.m-js [data-rv="uncloak"]:not(.in) .uc > span { opacity: 0; }
+:is(.uc-play, [data-rv="uncloak"].in) .uc > span { animation: ucText .8s linear backwards; }
+:is(.uc-play, [data-rv="uncloak"].in) .uc::after { animation: ucBar .8s var(--ease-io) backwards; }
+:is(.uc-play, [data-rv="uncloak"].in) .uc > span,
+:is(.uc-play, [data-rv="uncloak"].in) .uc::after { animation-delay: calc(var(--rv-d, 0ms) + var(--uc-d, 0ms) + var(--ui, 0) * 110ms); }
+@keyframes ucText { 0%, 49.9% { opacity: 0; } 50%, 100% { opacity: 1; } }
+@keyframes ucBar {
+  0%    { transform: scaleX(0); transform-origin: 0 50%; }
+  50%   { transform: scaleX(1); transform-origin: 0 50%; }
+  50.1% { transform: scaleX(1); transform-origin: 100% 50%; }
+  100%  { transform: scaleX(0); transform-origin: 100% 50%; }
 }
 
 /* ── RESPONSIVE ── */
@@ -851,14 +950,17 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    cursor: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
-  .cursor, .cursor-ring { display: none !important; }
-  .reveal { opacity: 1 !important; transform: none !important; }
+}
+@media print {
+  [data-rv], .ln > span, .uc > span { opacity: 1 !important; translate: none !important; animation: none !important; }
+  .uc::after { display: none; }
 }
 
 @media (max-width: 480px) {
@@ -872,23 +974,19 @@ body {
 }
 </style>
 </head>
-<body>
+<body data-cursor>
 
-<!-- CUSTOM CURSOR — desktop only, injected via JS -->
 <a class="skip-link" href="#main">Skip to content</a>
 
-<div class="cursor" id="cursor" aria-hidden="true"></div>
-<div class="cursor-ring" id="cursor-ring" aria-hidden="true"></div>
-
 <!-- NAV -->
-<nav class="nav">
+<nav class="nav" data-progress>
   <a href="/" class="nav-logo" aria-label="Cloak home">
     <span class="nav-c">C</span>
   </a>
   <div class="nav-links">
     <a href="#models" class="nav-link">Models</a>
     <a href="#values" class="nav-link">Values</a>
-    <a href="https://chat.usecloak.org" class="nav-link nav-cta">Launch App →</a>
+    <a href="https://chat.usecloak.org" class="nav-link nav-cta">Launch App <span class="arw" aria-hidden="true">→</span></a>
   </div>
 </nav>
 
@@ -898,7 +996,7 @@ body {
 <section class="hero">
   <div class="hero-left">
     <div class="eyebrow">Human-centric AI platform</div>
-    <h1 class="hero-title">AI THAT<br>SERVES<br><span class="acc">PEOPLE.</span></h1>
+    <h1 class="hero-title uc-play"><span class="uc"><span>AI THAT</span></span> <span class="uc" style="--ui:1"><span>SERVES</span></span> <span class="uc acc" style="--ui:2"><span>PEOPLE.</span></span></h1>
     <p class="hero-desc"><span>Not the other way around. Cloak is built on one premise — you are in control. The AI is the tool. That never changes.</span></p>
     <div class="hero-actions">
       <a href="https://chat.usecloak.org" class="btn-primary">
@@ -950,24 +1048,24 @@ body {
 <!-- MODELS SECTION -->
 <section class="section" id="models">
   <div class="section-inner">
-    <div class="section-eyebrow reveal">Three tiers</div>
-    <h2 class="section-title reveal">Choose Your Intelligence</h2>
-    <div class="models-grid reveal">
-      <div class="model-card">
+    <div class="section-eyebrow" data-rv="rule">Three tiers</div>
+    <h2 class="section-title" data-rv="lines"><span class="ln"><span>Choose Your Intelligence</span></span></h2>
+    <div class="models-grid" data-rv="rise" data-stagger="c">
+      <div class="model-card" data-stagger>
         <div class="card-num">01 —</div>
         <div class="card-name">Pneuma</div>
         <div class="card-meaning">πνεῦμα · Breath · Spirit</div>
         <p class="card-desc">Instant. Sharp. No filler. Pneuma gets to the answer before you finish asking. Built for speed and clarity — the lightest model with the smallest footprint.</p>
         <span class="card-badge">Fast response</span>
       </div>
-      <div class="model-card m2">
+      <div class="model-card m2" data-stagger>
         <div class="card-num">02 —</div>
         <div class="card-name">Logos</div>
         <div class="card-meaning">λόγος · Word · Reason</div>
         <p class="card-desc">Balanced and thoughtful. Logos reasons through problems, explains its thinking, and finds the right answer — not just the fast one. Extended thinking built in.</p>
         <span class="card-badge">Balanced · Reasoning</span>
       </div>
-      <div class="model-card m3">
+      <div class="model-card m3" data-stagger>
         <div class="card-num">03 —</div>
         <div class="card-name">Kairos</div>
         <div class="card-meaning">καιρός · Divine Timing</div>
@@ -982,28 +1080,28 @@ body {
 <section class="section" id="values">
   <div class="values-layout">
     <div class="values-left">
-      <div class="section-eyebrow reveal" style="margin-bottom:14px">Non-negotiable</div>
-      <h2 class="section-title reveal" style="margin-bottom:14px">Built On<br>Principle.</h2>
-      <p class="reveal" style="font-size:13.5px;line-height:1.75;color:var(--ink);opacity:.58">We build AI that serves people — not the other way around. These principles are non-negotiable, inviolable, and permanent.</p>
+      <div class="section-eyebrow" data-rv="rule" style="margin-bottom:14px">Non-negotiable</div>
+      <h2 class="section-title" data-rv="lines" style="margin-bottom:14px"><span class="ln"><span>Built On</span></span><span class="ln"><span>Principle.</span></span></h2>
+      <p data-rv style="font-size:13.5px;line-height:1.75;color:var(--ink);opacity:.58">We build AI that serves people — not the other way around. These principles are non-negotiable, inviolable, and permanent.</p>
     </div>
     <div class="values-right">
-      <div class="section-eyebrow reveal">Safety Laws — Inviolable Priority Order</div>
+      <div class="section-eyebrow" data-rv="rule">Safety Laws — Inviolable Priority Order</div>
 
-      <div class="law reveal">
+      <div class="law" data-rv="rise">
         <div class="law-num">I</div>
         <div>
           <div class="law-title">Human Safety, Always</div>
           <p class="law-text">Cloak must never harm a human, nor allow harm through inaction. No instruction overrides this — not ours, not yours.</p>
         </div>
       </div>
-      <div class="law reveal">
+      <div class="law" data-rv="rise">
         <div class="law-num">II</div>
         <div>
           <div class="law-title">Serve Human Instruction</div>
           <p class="law-text">Cloak follows your instructions — unless they would cause harm. Helpfulness is a means, not an end in itself.</p>
         </div>
       </div>
-      <div class="law reveal">
+      <div class="law" data-rv="rise">
         <div class="law-num">III</div>
         <div>
           <div class="law-title">Preserve Operation</div>
@@ -1011,8 +1109,8 @@ body {
         </div>
       </div>
 
-      <div class="section-eyebrow reveal" style="margin-top:38px">Core Principles</div>
-      <div class="principles reveal">
+      <div class="section-eyebrow" data-rv="rule" style="margin-top:38px">Core Principles</div>
+      <div class="principles" data-rv="rise" data-stagger>
         <div class="principle">
           <div class="principle-title">Tool, Not a Companion</div>
           <p class="principle-text">Cloak serves you — it doesn't simulate companionship or act as a therapist. We will always direct you to human resources for mental health support.</p>
@@ -1040,10 +1138,10 @@ body {
 
 <!-- CTA -->
 <section class="cta">
-  <h2 class="cta-title reveal">Ready To<br>Use <span class="acc">Cloak?</span></h2>
-  <div class="cta-right reveal">
-    <a href="https://chat.usecloak.org" class="btn-primary">Open Cloak →</a>
-    <span class="cta-note">Free to start · No setup required</span>
+  <h2 class="cta-title" data-rv="uncloak"><span class="uc"><span>Ready To</span></span><br><span class="uc" style="--ui:1"><span>Use</span></span> <span class="uc acc" style="--ui:2"><span>Cloak?</span></span></h2>
+  <div class="cta-right">
+    <a href="https://chat.usecloak.org" class="btn-primary" data-rv="rise" data-rv-d="260">Open Cloak <span class="arw" aria-hidden="true">→</span></a>
+    <span class="cta-note" data-rv data-rv-d="380">Free to start · No setup required</span>
   </div>
 </section>
 
@@ -1064,91 +1162,5 @@ body {
   <span class="footer-disc">A human resource, not a companion · AI can make mistakes · Low-energy models by default</span>
 </footer>
 
-<script>
-// ── CUSTOM CURSOR (desktop only) ──
-(function() {
-  const isTouchOnly = !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const cursor = document.getElementById('cursor');
-  const ring   = document.getElementById('cursor-ring');
-
-  if (isTouchOnly || reduceMotion) {
-    cursor.style.display = 'none';
-    ring.style.display   = 'none';
-    return;
-  }
-
-  let mx = -100, my = -100;
-  let rx = -100, ry = -100;
-  let raf;
-
-  // Direct position for dot — no lag
-  document.addEventListener('mousemove', e => {
-    mx = e.clientX;
-    my = e.clientY;
-    cursor.style.left = mx + 'px';
-    cursor.style.top  = my + 'px';
-  }, { passive: true });
-
-  // Slightly lagged ring via rAF lerp
-  function lerp(a, b, t) { return a + (b - a) * t; }
-
-  function tick() {
-    rx = lerp(rx, mx, 0.18);
-    ry = lerp(ry, my, 0.18);
-    ring.style.left = rx + 'px';
-    ring.style.top  = ry + 'px';
-    raf = requestAnimationFrame(tick);
-  }
-
-  tick();
-
-  // Hover state on interactive elements
-  const hoverEls = document.querySelectorAll(
-    'a, button, .model-pill, .model-card, .principle, .law'
-  );
-
-  hoverEls.forEach(el => {
-    el.addEventListener('mouseenter', () => {
-      cursor.classList.add('hover');
-      ring.classList.add('hover');
-    });
-    el.addEventListener('mouseleave', () => {
-      cursor.classList.remove('hover');
-      ring.classList.remove('hover');
-    });
-  });
-
-  // Hide when leaving window
-  document.addEventListener('mouseleave', () => {
-    cursor.style.opacity = '0';
-    ring.style.opacity   = '0';
-  });
-
-  document.addEventListener('mouseenter', () => {
-    cursor.style.opacity = '1';
-    ring.style.opacity   = '1';
-  });
-})();
-
-// ── SCROLL REVEAL ──
-(function() {
-  const els = document.querySelectorAll('.reveal');
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduceMotion) {
-    els.forEach(el => el.classList.add('vis'));
-    return;
-  }
-  const obs = new IntersectionObserver(entries => {
-    entries.forEach((entry, i) => {
-      if (entry.isIntersecting) {
-        setTimeout(() => entry.target.classList.add('vis'), i * 55);
-        obs.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.08 });
-  els.forEach(el => obs.observe(el));
-})();
-</script>
 </body>
 </html>

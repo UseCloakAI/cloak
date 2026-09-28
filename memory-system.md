@@ -12,6 +12,17 @@ Long-term memory, a live "Brain" view of it, and budgeted context compression �
 | Free-tier governor | `api-worker/src/governor.js` | `cloak-api` Worker |
 | Tables | `supabase/migrations/20260926230000_memory_system.sql` | Supabase |
 
+## One continuous conversation
+
+There are no separate chats. Each user has one thread (`thread_messages`, shared by web and Telegram) managed in conversation chunks:
+
+- A **conversation chunk** ends at a real pause (≥ 3 h between messages) or at ~2.4k tokens. As soon as a new conversation starts, the previous one is condensed (and its memories extracted, in the same `/v1/context/compress` call). Within a conversation, condensing starts once it outgrows the budget.
+- Chunk summaries fold into the **digest** as they pile up. The digest's last message id is the **moved-on boundary**: the web loads only messages after it, and above them shows *"Cloak has moved on from these chats. Important memories have been saved."* with **Return to most recent chat** (and a link to the Brain).
+- Time dividers mark conversation boundaries in the view.
+- **Telegram**: Settings → Telegram → *Link Telegram* opens `t.me/<bot>?start=link_<code>` (one-time code, 15 min). A linked chat continues the thread with the same context and memories. Web messages are mirrored into it by an `AFTER INSERT` trigger (pg_net → `telegram-bot?relay=<id>`) as *"Weston said: …"*, followed by Cloak's reply; Telegram messages appear on the web live (Realtime) tagged *via Telegram*. `/unlink` in Telegram or *Unlink* on the web stops it.
+- The bot compresses on its side too (same rules), so a Telegram-only user's thread stays bounded.
+- Settings → *Clear conversation* wipes the thread everywhere; memories are kept.
+
 ## Memories are markdown files
 
 One small `.md` file per memory, stored at `<type>/<slug>.md`:
@@ -54,6 +65,14 @@ source: auto
 4. The result becomes a `## USER MEMORY` block in the system prompt, after the stable search prompt and before the clock (keeps the cacheable prefix stable).
 
 The Brain lights up recalled nodes and sends a signal from the brainstem to each one. Replies that used a non-core memory get a small "N memories" chip.
+
+**Identity is always on**: every `profile` note (plus preferences ≥ 0.6) is included on every message. Questions like "who am I", "what's my name", or "what do you remember about me" are all stopwords to BM25, so they trigger a broad, importance-ranked recall instead. Signed-in users' display name is always sent as a baseline. The memory block tells the model explicitly that it *does* know the user, which overrides the persona's default "I don't know who you are".
+
+## Think-time recall
+
+For models that stream reasoning (Kairos, Linus), the client scans the live thoughts before the first answer token: first once ~80 chars have formed, then every ~200 chars or at a sentence end. It runs them through local recall with a stricter floor (0.38). If the thoughts point at memories the prompt doesn't have yet, the stream is stopped once and re-asked. The re-ask carries those memories plus the reasoning so far ("continue from it"), so the answer uses them. This costs at most one extra request per turn, and only when something new surfaces.
+
+The system prompt tells the model about this (`## MEMORY IN YOUR THINKING`): it should name the topics, projects, tools and people it's weighing in its thinking, because that's what pulls memories up. Memories its thinking surfaced, whether mid-thought or found in a final scan of the whole reasoning after the turn, are **carried into the next turn** (up to 5, marked `carried`, in the same chat) so it keeps that context. The Brain fires and the status log shows "Recalled while thinking: …".
 
 ## Writing memories (batched, cheap)
 
