@@ -219,13 +219,13 @@ function mLeave(el,done){ if(window.CloakMotion) CloakMotion.leave(el,done); els
 /* ── STATUS-BAR / THEME-COLOR SYNC ──
    The installed iOS app uses an opaque status bar painted from theme-color,
    so keep it matching whatever surface sits right under it — the loader's
-   paper while booting, the chat topbar's surf, the settings bar's p2 — and
+   paper while booting, the shell's topbar surf (every page has one) — and
    the Android address bar tracks light/dark + theme the same way. */
 function syncThemeColor(){
   try{
     const ld=document.getElementById('s-loading');
     const on=id=>{const el=document.getElementById(id);return !!el&&el.classList.contains('active');};
-    const v=(ld&&getComputedStyle(ld).display!=='none')?'--paper':on('s-chat')?'--surf':on('s-settings')?'--p2':'--paper';
+    const v=(ld&&getComputedStyle(ld).display!=='none')?'--paper':on('s-chat')?'--surf':'--paper';
     let c=getComputedStyle(document.body).getPropertyValue(v).trim();
     if(!c) c=dark?'#131110':'#F2EEE5';
     let m=document.querySelector('meta[name="theme-color"]');
@@ -1247,8 +1247,10 @@ async function enterChat(){
     const valuesEl=document.getElementById('s-values');if(valuesEl)valuesEl.style.display='none';
     const chatEl=document.getElementById('s-chat');if(!chatEl)return;
     chatEl.classList.add('active');
+    // Arrive on Chat; the sidebar toggle drops in with the shell this once.
+    chatEl.classList.add('shell-in');setTimeout(()=>chatEl.classList.remove('shell-in'),900);
+    goPage('chat',{instant:true});
     if(window._vv)window._vv();
-    syncThemeColor();
     if(!guest)name=name||email.split('@')[0];
     refreshUI();updateGreeting();
     if(window.CloakMemory)CloakMemory.init({sb,uid:guest?'':uid,guest}).catch(e=>log('err','Memory: '+e.message));
@@ -1374,23 +1376,67 @@ function refreshUI(){
 }
 function toggleDark(){hapticTap();mTheme(()=>{dark=!dark;document.body.classList.toggle('dark',dark);document.documentElement.classList.toggle('dark',dark);localStorage.setItem('cloak_dark',dark?'1':'0');const ml=document.getElementById('mode-label');if(ml)ml.textContent=dark?'dark':'light';refreshUI();syncThemeColor();});}
 function toggleSidebar(){hapticTap();const el=document.getElementById('sidebar');const mobile=window.innerWidth<=640;if(mobile){const open=!el.classList.contains('collapsed');if(open){el.classList.add('collapsed');document.getElementById('sb-overlay').classList.remove('show');}else{el.classList.remove('collapsed');document.getElementById('sb-overlay').classList.add('show');}}else el.classList.toggle('collapsed');}
+(function(){const sb=document.getElementById('sidebar');if(!sb)return;const sync=()=>{const open=!sb.classList.contains('collapsed');document.querySelectorAll('.sb-toggle').forEach(b=>b.setAttribute('aria-expanded',String(open)));};new MutationObserver(sync).observe(sb,{attributes:true,attributeFilter:['class']});whenDomReady().then(sync);})();
 function closeMobileSidebar(){document.getElementById('sidebar').classList.add('collapsed');document.getElementById('sb-overlay').classList.remove('show');}
 
-/* ── SETTINGS (full-page screen) ── */
-let _prevScreen='chat';
+/* ── PAGES ──
+   Chat, Brain, Settings and Values are pages in one shell: the sidebar stays,
+   #main swaps which page is showing, and the sidebar inks in the one you're
+   on. Entrances are CSS (a page's header drops in and its body rises each
+   time it's shown); here the leaving page is lifted out of flow on top and
+   fades while the next one comes up underneath. Scroll positions survive —
+   chat snaps back to the latest message if you were there when you left. */
+var curPage='chat',_pgSettle=null;   // var: log() may read it before this line runs
+const _pgReduced=()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(_){return false;}};
+function goPage(p,opts){
+  opts=opts||{};
+  const next=document.getElementById('page-'+p);if(!next)return;
+  const shell=document.getElementById('s-chat');
+  if(shell&&!shell.classList.contains('active'))show('chat');
+  if(window.innerWidth<=640)closeMobileSidebar();
+  document.querySelectorAll('.sidebar [data-nav]').forEach(b=>{const on=b.dataset.nav===p;b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  if(p===curPage&&!next.hidden){if(p==='brain'&&opts.recall&&window.CloakBrain&&CloakBrain.show)CloakBrain.show(opts);syncThemeColor();return;}
+  if(!opts.instant)hapticTap();
+  if(_pgSettle)_pgSettle();
+  const prev=document.getElementById('page-'+curPage),from=curPage;
+  curPage=p;
+  if(prev&&prev!==next){
+    const sc=prev.querySelector('[data-scroll]');
+    if(sc){prev._st=sc.scrollTop;prev._atEnd=sc.scrollHeight-sc.scrollTop-sc.clientHeight<48;}
+  }
+  if(from==='brain'&&window.CloakBrain&&CloakBrain.hide)CloakBrain.hide();
+  next.hidden=false;
+  const sc=next.querySelector('[data-scroll]');
+  if(sc&&next._st!=null)sc.scrollTo({top:(p==='chat'&&next._atEnd)?sc.scrollHeight:next._st,behavior:'instant'});
+  if(p==='settings')prepSettings();
+  if(p==='brain'&&window.CloakBrain&&CloakBrain.show)CloakBrain.show(opts);
+  if(prev&&prev!==next){
+    if(opts.instant||_pgReduced())prev.hidden=true;
+    else{
+      let t=0;
+      const settle=()=>{clearTimeout(t);prev.removeEventListener('animationend',onEnd);prev.classList.remove('pg-out');if(curPage!==prev.dataset.page)prev.hidden=true;_pgSettle=null;};
+      const onEnd=e=>{if(e.target===prev)settle();};
+      prev.addEventListener('animationend',onEnd);
+      prev.classList.add('pg-out');
+      t=setTimeout(settle,400);
+      _pgSettle=settle;
+    }
+  }
+  if(!opts.instant)try{next.focus({preventScroll:true});}catch(_){}
+  syncThemeColor();
+}
+
+/* ── SETTINGS (a page in the shell) ── */
 function openSettings(){
   if(guest){show('auth');return;}
-  hapticTap();
-  // Remember where we came from so the back button returns there.
-  const active=document.querySelector('.screen.active');
-  _prevScreen = (active && active.id && active.id!=='s-settings') ? active.id.replace(/^s-/,'') : 'chat';
-  try{ closeMobileSidebar(); }catch(_){ }
+  goPage('settings');
+}
+function closeSettings(){ goPage('chat'); }
+function prepSettings(){
   document.getElementById('s-name-inp').value=name;
   document.getElementById('mode-label').textContent=dark?'dark':'light';
-  show('settings');
   initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();if(window.CloakThread)CloakThread.refreshTelegram();
 }
-function closeSettings(){ hapticTap(); show(_prevScreen||'chat'); }
 function closeModal(id){const el=document.getElementById(id);if(!el)return;el.classList.add('hiding');setTimeout(()=>{el.style.display='none';el.classList.remove('hiding');},120);}
 function overlayClick(e,id){if(e.target===document.getElementById(id))closeModal(id);}
 function switchSettingsTab(t){hapticTap();atab=t;document.querySelectorAll('.snav-btn').forEach(el=>el.classList.toggle('on',el.id==='snav-'+t));document.querySelectorAll('.spane').forEach(el=>el.classList.remove('on'));const p=document.getElementById('spane-'+t);if(p)p.classList.add('on');if(t==='console'){updateStats();renderLogs();}}
@@ -1401,7 +1447,7 @@ async function start2FA(){try{const{data,error}=await sb.auth.mfa.enroll({factor
 async function confirmTOTP(){const code=document.getElementById('totp-code').value.trim();const err=document.getElementById('totp-err');if(!code){showE(err,'Enter code');return;}try{const{data:ch}=await sb.auth.mfa.challenge({factorId:window._totpFactorId});const{error}=await sb.auth.mfa.verify({factorId:window._totpFactorId,challengeId:ch.id,code});if(error){showE(err,error.message);return;}document.getElementById('totp-section').style.display='none';alert('2FA enabled!');}catch(e){showE(err,e.message);}}
 
 /* ── CONSOLE ── */
-function log(type,msg){const n=new Date();const ts=n.toLocaleTimeString('en-US',{hour12:false})+'.'+String(n.getMilliseconds()).padStart(3,'0');logs.push({type,msg,ts});if(logs.length>500)logs.shift();if(document.getElementById('s-settings')?.classList.contains('active')&&atab==='console'){renderLogs();updateStats();}}
+function log(type,msg){const n=new Date();const ts=n.toLocaleTimeString('en-US',{hour12:false})+'.'+String(n.getMilliseconds()).padStart(3,'0');logs.push({type,msg,ts});if(logs.length>500)logs.shift();if(curPage==='settings'&&atab==='console'){renderLogs();updateStats();}}
 function renderLogs(){const box=document.getElementById('console-log');const fl=logF==='all'?logs:logs.filter(l=>l.type===logF);if(!fl.length){box.innerHTML='<div class="log-empty">No logs yet</div>';return;}box.innerHTML=fl.map(l=>'<div class="log-row"><span class="log-ts">'+l.ts+'</span><span class="log-badge b-'+l.type+'">'+l.type+'</span><div class="log-msg">'+hesc(l.msg)+'</div></div>').join('');box.scrollTop=box.scrollHeight;}
 function updateStats(){document.getElementById('st-req').textContent=stats.req;document.getElementById('st-res').textContent=stats.res;document.getElementById('st-err').textContent=stats.err;const avg=stats.lat.length?Math.round(stats.lat.reduce((a,b)=>a+b,0)/stats.lat.length):null;document.getElementById('st-lat').textContent=avg?avg+'ms':'—';}
 function setFilter(f,el){logF=f;document.querySelectorAll('.filter-pill').forEach(b=>b.classList.remove('on'));el.classList.add('on');renderLogs();}
@@ -1568,6 +1614,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260928thread1').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260928pages1').catch(e=>console.warn('SW registration failed',e));
   });
 }
