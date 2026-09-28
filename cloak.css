@@ -55,7 +55,7 @@ html,body{height:100%;}
   --ease-out:cubic-bezier(.16,1,.3,1);--ease-in:cubic-bezier(.55,0,1,.45);--ease-io:cubic-bezier(.65,0,.35,1);
   --sp-snap:cubic-bezier(.3,1.35,.55,1);--sp-pop:var(--spring);--sp-soft:var(--ease-out);
   --tl:380ms;--tp:90ms;--lift:var(--tl) var(--sp-snap);
-  --sw:268px;
+  --sw:268px;--sw-c:76px;
   --fu:'Space Grotesk',system-ui,sans-serif;
   --fd:'Syne',system-ui,sans-serif;
 }
@@ -322,15 +322,30 @@ html.booting body>:not(#s-loading),html.booting body>:not(#s-loading) *{animatio
 .chat-shell{flex:1;display:flex;overflow:hidden;min-height:0;position:relative;flex-direction:row;}
 
 /* ── SIDEBAR ── */
-.sidebar{width:var(--sw);flex-shrink:0;background:var(--p2);border-right:var(--bd);display:flex;flex-direction:column;padding:0 8px 14px;gap:2px;overflow:hidden;transition:width .44s var(--ease-out),padding .44s var(--ease-out),opacity .3s ease;}
-.sidebar.collapsed{width:0;padding:0;opacity:0;pointer-events:none;}
+.sidebar{width:var(--sw);flex-shrink:0;background:var(--p2);border-right:var(--bd);display:flex;flex-direction:column;padding:0 8px 14px;gap:2px;overflow:hidden;transition:width .4s var(--ease-out),padding .4s var(--ease-out);}
+/* Collapsed = a narrow icon rail, not gone: brand mark + expand toggle stay,
+   every label hides (.sbl / .sb-label / conv list / account text), icons
+   center. Mobile overrides this below — there, collapsed slides fully
+   off-canvas instead (no room for a rail on a phone). */
+.sidebar.collapsed{width:var(--sw-c);padding:12px 6px;align-items:center;}
 /* contents cascade in whenever it opens (and on arrival); closing just
    folds the whole panel away */
 .sidebar:not(.collapsed)>*{animation:sbIn .5s var(--ease-out) backwards;}
+.sidebar.collapsed .sbl,.sidebar.collapsed .sb-label,.sidebar.collapsed .conv-list,
+.sidebar.collapsed .guest-note,.sidebar.collapsed .user-info,.sidebar.collapsed .sb-logo-name{display:none!important;}
+.sidebar.collapsed #sb-ann-bar{display:none!important;}
+.sidebar.collapsed .sb-btn{justify-content:center;padding:9px;gap:0;width:44px;}
+.sidebar.collapsed .sb-nav,.sidebar.collapsed .sb-footer,.sidebar.collapsed .sb-actions{align-items:center;}
+.sidebar.collapsed .sb-actions{display:flex;flex-direction:column;gap:4px;}
+.sidebar.collapsed .user-row{justify-content:center;padding:0;width:44px;height:44px;}
 .sidebar:not(.collapsed)>:nth-child(2){animation-delay:.04s;}.sidebar:not(.collapsed)>:nth-child(3){animation-delay:.08s;}
 .sidebar:not(.collapsed)>:nth-child(4){animation-delay:.11s;}.sidebar:not(.collapsed)>:nth-child(n+5){animation-delay:.14s;}
 @keyframes sbIn{from{opacity:0;translate:-14px 0;}}
-.sb-logo{display:flex;align-items:center;gap:10px;padding:0 16px;white-space:nowrap;border-bottom:var(--bd);margin:0 -8px 14px -8px;height:52px;}
+.sb-logo{display:flex;align-items:center;gap:10px;padding:0 16px;white-space:nowrap;border-bottom:var(--bd);margin:0 -8px 14px -8px;height:52px;flex-shrink:0;}
+.sidebar.collapsed .sb-logo{justify-content:center;gap:6px;padding:0;margin:0 0 14px;height:auto;padding-bottom:12px;}
+.sb-mark{flex-shrink:0;width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--acc);font-family:var(--fd);font-weight:800;font-size:14px;}
+.sb-logo .sb-collapse{width:30px;height:30px;flex-shrink:0;margin-left:auto;}
+.sidebar.collapsed .sb-collapse{margin-left:0;}
 
 .sb-logo-name{font-family:var(--fd);font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--ink);}
 
@@ -345,6 +360,7 @@ a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 /* Page nav: the page you're on is inked in. Selecting wipes the ink in from
    the left; the item you leave just lets go of it. */
 .sb-nav{display:flex;flex-direction:column;gap:2px;}
+.sb-nav .sb-btn{font-weight:700;}
 .sb-btn[data-nav]{position:relative;isolation:isolate;transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift),color .18s ease;}
 .sb-btn[data-nav]::before{content:"";position:absolute;inset:-1.5px;z-index:-1;background:var(--ink);opacity:0;clip-path:inset(0 100% 0 0);transition:opacity .2s ease,clip-path 0s .2s;}
 .sb-btn[data-nav].on{color:var(--paper);border-color:var(--ink);transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift),color .16s ease .06s;}
@@ -382,11 +398,21 @@ a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 .sb-footer{border-top:var(--bd);padding-top:4px;margin-top:4px;display:flex;flex-direction:column;gap:1px;}
 .sb-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
 .sb-actions .sb-btn{min-width:0;}
+.sb-util{font-size:12px;opacity:.75;}
+.sb-util:hover,.sb-util.on{opacity:1;}
+.sb-util[data-nav]::before{background:var(--p3);}
+.sb-util[data-nav].on{color:var(--acc);border-color:var(--ink);}
 @media(min-width:641px){
   .sidebar{padding-bottom:0;}
   .sb-footer{min-height:var(--input-h,auto);padding-bottom:8px;margin-top:6px;}
 }
-.user-row{display:flex;align-items:center;gap:9px;padding:7px 10px;}
+.user-row{
+  display:flex;align-items:center;gap:9px;padding:7px 10px;width:100%;
+  background:var(--surf);border:1.5px solid transparent;color:inherit;font:inherit;text-align:left;
+  cursor:pointer;box-shadow:none;transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift);
+}
+.user-row:hover{border-color:var(--ink);box-shadow:var(--shsm);transform:translate(-1px,-1px);}
+.user-row:active{box-shadow:none;transform:translate(1px,1px);transition-duration:var(--tp);}
 .user-av{width:30px;height:30px;background:var(--ink);color:var(--paper);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--fd);}
 .user-info{min-width:0;flex:1;}
 .user-name{font-size:12px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
