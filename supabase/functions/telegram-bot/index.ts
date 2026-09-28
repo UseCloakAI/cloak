@@ -3,10 +3,12 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 
 // Telegram ⇄ Cloak.
 //
-//  Linked chats (Settings → Telegram on the web) continue the user's Main
-//  chat: messages land in `thread_messages` tagged with that chat's id,
-//  replies use the same compressed context + memories as the web, and long
-//  stretches get condensed (with memory extraction) exactly like on the web.
+//  Linked chats (Settings → Telegram on the web) continue the user's active
+//  chat (`profiles.active_chat_id` — whichever chat is open on web, or the
+//  last one Telegram itself touched): messages land in `thread_messages`
+//  tagged with that chat's id, replies use the same compressed context +
+//  memories as the web, and long stretches get condensed (with memory
+//  extraction) exactly like on the web.
 //
 //  Routes on this one function:
 //    POST (Telegram webhook)       updates from Telegram
@@ -234,13 +236,21 @@ async function linkedUser(c: SupabaseClient, chatId: number | string): Promise<s
   return data?.user_id ?? null;
 }
 
-// Telegram always continues whichever chat is flagged Main — users can have
-// several chats on the web, but only one keeps a Telegram chat in step.
-async function getMainChatId(c: SupabaseClient, userId: string): Promise<number> {
-  const { data } = await c.from("chats").select("id").eq("user_id", userId).eq("is_main", true).maybeSingle();
-  if (data) return data.id;
-  const { data: created, error } = await c.from("chats").insert({ user_id: userId, title: "Main chat", is_main: true }).select("id").single();
+// Telegram continues whichever chat is active — users can have several
+// chats on the web; profiles.active_chat_id points at the one currently in
+// step with Telegram (set by the web on every chat switch; set here too, so
+// a Telegram-only user who has never opened the web still gets one).
+async function getActiveChatId(c: SupabaseClient, userId: string): Promise<number> {
+  const { data: prof } = await c.from("profiles").select("active_chat_id").eq("id", userId).maybeSingle();
+  if (prof?.active_chat_id) return prof.active_chat_id;
+  const { data: recent } = await c.from("chats").select("id").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  if (recent) {
+    await c.from("profiles").update({ active_chat_id: recent.id }).eq("id", userId);
+    return recent.id;
+  }
+  const { data: created, error } = await c.from("chats").insert({ user_id: userId, title: "New chat" }).select("id").single();
   if (error) throw error;
+  await c.from("profiles").update({ active_chat_id: created.id }).eq("id", userId);
   return created.id;
 }
 
@@ -496,29 +506,29 @@ async function handleThreadMessage(
   model: string,
   image?: { base64: string; mimeType: string },
 ) {
-  const mainChatId = await getMainChatId(c, userId);
+  const activeChatId = await getActiveChatId(c, userId);
   const stored = image ? (userText ? `[Image] ${userText}` : "[Image]") : userText;
-  await c.from("thread_messages").insert({ user_id: userId, chat_id: mainChatId, role: "user", content: stored, source: "telegram", relayed_at: new Date().toISOString() });
-  const ctx = await buildThreadContext(c, userId, mainChatId, userText);
+  await c.from("thread_messages").insert({ user_id: userId, chat_id: activeChatId, role: "user", content: stored, source: "telegram", relayed_at: new Date().toISOString() });
+  const ctx = await buildThreadContext(c, userId, activeChatId, userText);
   const raw = await callCloak(ctx.messages, clock() + ctx.system, model, image);
   const { react, silent, parts } = parseDirectives(raw);
   if (react) await reactTo(chatId, messageId, react);
   if (!silent) {
-    await c.from("thread_messages").insert({ user_id: userId, chat_id: mainChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
+    await c.from("thread_messages").insert({ user_id: userId, chat_id: activeChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
     await sendChain(chatId, parts);
   }
-  await later(maybeCompressThread(c, userId, mainChatId));
+  await later(maybeCompressThread(c, userId, activeChatId));
 }
 
 async function handleThreadReaction(c: SupabaseClient, userId: string, chatId: number, messageId: number, emojis: string[]) {
-  const mainChatId = await getMainChatId(c, userId);
+  const activeChatId = await getActiveChatId(c, userId);
   const note = `[User reacted ${emojis.join(" ")} to your message]`;
-  const ctx = await buildThreadContext(c, userId, mainChatId, note);
+  const ctx = await buildThreadContext(c, userId, activeChatId, note);
   const raw = await callCloak([...ctx.messages, { role: "user", content: note }].slice(-40), clock() + ctx.system, "pneuma");
   const { react, silent, parts } = parseDirectives(raw);
   if (react) await reactTo(chatId, messageId, react);
   if (!silent) {
-    await c.from("thread_messages").insert({ user_id: userId, chat_id: mainChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
+    await c.from("thread_messages").insert({ user_id: userId, chat_id: activeChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
     await sendChain(chatId, parts);
   }
 }
@@ -670,7 +680,7 @@ serve(async (req) => {
     }
     if (cmd === "reset" || cmd === "new" || cmd === "clear") {
       if (userId) {
-        await sendTelegram(chatId, "This chat continues your Main chat on the web — older parts get condensed into memories automatically. To wipe it, use Settings → Clear all chats on the web.");
+        await sendTelegram(chatId, "This chat continues whichever chat you have open on the web — older parts get condensed into memories automatically. To wipe it, use Settings → Clear all chats on the web.");
       } else {
         const session = await getOrCreateSession(c, String(chatId));
         await saveHistory(c, session.id, []);
