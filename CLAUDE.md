@@ -16,8 +16,8 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 
 - `index.html` — primary marketing landing. Self-contained (does NOT link `cloak.css`).
 - `landing.html` — deeper "What is Cloak?" page, reachable from the chat auth screen.
-- `values.html` — values / safety laws / principles page. Uses `cloak.css`.
-- `chat.html` — the main app (auth + chat UI). Uses `cloak.css` + `cloak.js`.
+- `values.html` — standalone values / safety laws / principles page (SEO, auth-screen link). Uses `cloak.css`. The in-app Values page in `chat.html` mirrors its copy — change both.
+- `chat.html` — the main app: auth screens + the app shell (sidebar + Chat / Brain / Settings / Values pages in `#main`). Uses `cloak.css` + `cloak.js`.
 - `agents.html` — standalone agent canvas. Has its OWN inlined theme tokens (`:root` block at lines ~22–58) — these are NOT duplicates of `cloak.css`; they are the page's only design source. Removing them breaks the page.
 - `admin-management.html` — internal admin dashboard. Separate design system (yellow accent). Ships with a placeholder anon key.
 - `cloak.css` — shared design system used by chat / values / landing.
@@ -40,7 +40,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - **Borders**: `--bd: 2px solid #0A0A0A`. Hard, not soft rgba.
 - **Shadows**: hard offset, no blur — `--sh: 4px 4px 0 #0A0A0A`, `--shsm: 2px 2px 0`, `--shlg: 6px 6px 0`. Neobrutalist aesthetic.
 - **Fonts**: `--fd: 'Syne'` (display, 700/800), `--fu: 'Space Grotesk'` (body, 400/500/600/700).
-- **Motion**: the shadow is the floor. Hover lifts by exactly the shadow gained (`translate(-2px,-2px)`, 2→4 / 4→6), press slams flat by the resting shadow (`2px`, `4px` on primary), on `--lift` (spring) / `--tp` (90ms). Spring tokens `--sp-snap/--sp-pop/--sp-soft` are real `linear()` curves with cubic-bezier fallbacks; `--ease-out/-in/-io` for entrances, exits, wipes. Entrances animate the individual `translate`/`scale`/`rotate` properties, never `transform`, so they stack with hover/press. Primitives (`[data-rv]`, `.ln`, `.uc`, `stamp`, theme wipe) live in `cloak.css` "MOTION PRIMITIVES" and are mirrored in `index.html`. Full spec: `design-system.md` §6–7.
+- **Motion**: the shadow is the floor. Hover lifts by exactly the shadow gained (`translate(-2px,-2px)`, 2→4 / 4→6), press slams flat by the resting shadow (`2px`, `4px` on primary), on `--lift` (spring) / `--tp` (90ms). Spring tokens `--sp-snap/--sp-pop/--sp-soft` are real `linear()` curves with cubic-bezier fallbacks; `--ease-out/-in/-io` for entrances, exits, wipes. Entrances animate the individual `translate`/`scale`/`rotate` properties, never `transform`, so they stack with hover/press. Primitives (`[data-rv]`, `.ln`, `.uc`, `stamp`, theme wipe) live in `cloak.css` "MOTION PRIMITIVES" and are mirrored in `index.html`. Page swaps in the app shell: the leaving page dissolves on top (130ms, opacity only), the next page's header drops in and its body rises — plain CSS that runs whenever a page is shown (`.page`, "PAGES" in `cloak.css`). Full spec: `design-system.md` §6–7.
 - **Themes**: `default`, `eco`, `aqua` × `light`/`dark`. Toggled via `localStorage.cloak_theme` and `localStorage.cloak_dark`. Each themed page has an early inline `<script>` that reads localStorage before paint to prevent FOUC — don't move or remove these.
 - **`index.html` is its own world**: it has a self-contained `<style>` block and uses `prefers-color-scheme` for dark mode (not the `.dark` class). Its tokens are kept in sync with `cloak.css` manually. When changing tokens, change BOTH places.
 
@@ -50,6 +50,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - "Launch App" / "Start Using Cloak" / "Open Cloak" CTAs always point to `https://chat.usecloak.org` (the production app subdomain).
 - "Back to Cloak" buttons inside app pages (values, agents) point to `chat.html`, NOT `index.html`. The user came from the app, so they go back to the app.
 - `chat.html` auth-note links to `landing.html` for "What is Cloak?".
+- Inside the app, Chat / Brain / Settings / Values are pages in one shell — switch with `goPage('<page>')` (`cloak.js`). No back buttons: every page header has the sidebar toggle, and the sidebar marks the current page (`[data-nav]` + `aria-current`). Brain mounts into `#page-brain` (`brain.js`); `CloakBrain.open()` navigates there.
 
 ## Accessibility conventions
 
@@ -63,7 +64,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 ## iOS installed app
 
 - `apple-mobile-web-app-status-bar-style` is `default` (opaque) on chat + values. Don't switch back to `black-translucent`: on iOS 26+ it triggers WebKit bug 301108 (window sized one status bar short → dead band under the composer that no CSS/JS can paint) plus the Liquid Glass edge blur over the topbar. iOS caches this meta at install — changes need the app removed and re-added.
-- The opaque bar is painted from `theme-color`. `syncThemeColor()` (`cloak.js`) keeps it on the surface under it — loader/auth paper, chat topbar surf, settings p2. Call it after any screen switch.
+- The opaque bar is painted from `theme-color`. `syncThemeColor()` (`cloak.js`) keeps it on the surface under it — loader/auth paper, the shell's topbar surf (every page has one). Call it after any screen switch.
 - The composer pads `env(safe-area-inset-bottom)` for the home indicator; the viewport fix pins `#s-chat` to `visualViewport` only while the keyboard is up and sets `html.kb-open`, which drops that padding.
 
 ## Don't-touch list

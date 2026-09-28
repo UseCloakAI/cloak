@@ -44,6 +44,7 @@
   const BRAIN_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3.5a3 3 0 0 0-3 3v.2A3 3 0 0 0 4 9.7a3 3 0 0 0 .6 4.8A3.2 3.2 0 0 0 7.7 19a2.8 2.8 0 0 0 4.3 1V4.9a2.7 2.7 0 0 0-2.5-1.4z"/><path d="M14.5 3.5a3 3 0 0 1 3 3v.2A3 3 0 0 1 20 9.7a3 3 0 0 1-.6 4.8 3.2 3.2 0 0 1-3.1 4.5 2.8 2.8 0 0 1-4.3 1"/><path d="M12 8.5h-1.6M12 13h2M7.6 11.6H9.2"/></svg>';
 
   let root = null;
+  let inShell = false;      // mounted as a page in chat.html's shell (#page-brain) vs. the old overlay
   let svg = null;
   let layers = {};
   let pos = new Map();
@@ -70,14 +71,41 @@
   /* ── DOM ── */
   function build() {
     if (root) return;
-    root = document.createElement('div');
-    root.id = 'brain-screen';
-    root.className = 'brain-screen';
-    root.hidden = true;
-    root.setAttribute('role', 'dialog');
-    root.setAttribute('aria-modal', 'true');
-    root.setAttribute('aria-labelledby', 'brain-title');
-    root.innerHTML = `
+    const page = document.getElementById('page-brain');
+    const memSwitch = `
+        <label class="brain-switch" title="When off, Cloak neither recalls nor saves memories">
+          <input type="checkbox" id="brain-on">
+          <span class="brain-switch-track" aria-hidden="true"><span class="brain-switch-knob"></span></span>
+          <span class="brain-switch-label">Memory</span>
+        </label>`;
+    let top;
+    if (page) {
+      // A page in the shell: same topbar as every page, the sidebar does navigation.
+      inShell = true;
+      root = page;
+      top = `
+      <div class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn sb-toggle" type="button" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar" aria-controls="sidebar">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+          <div class="brain-heading">
+            <h1 class="page-title" id="brain-title">Brain</h1>
+            <div class="brain-sub" id="brain-sub">Memory &amp; context</div>
+          </div>
+        </div>
+        <div class="topbar-right">${memSwitch}
+        </div>
+      </div>`;
+    } else {
+      root = document.createElement('div');
+      root.id = 'brain-screen';
+      root.className = 'brain-screen';
+      root.hidden = true;
+      root.setAttribute('role', 'dialog');
+      root.setAttribute('aria-modal', 'true');
+      root.setAttribute('aria-labelledby', 'brain-title');
+      top = `
       <div class="brain-top">
         <button class="settings-back" type="button" data-act="close" aria-label="Back to chat">
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
@@ -85,14 +113,11 @@
         <div class="brain-heading">
           <div class="modal-title" id="brain-title">Brain</div>
           <div class="brain-sub" id="brain-sub">Memory &amp; context</div>
-        </div>
-        <label class="brain-switch" title="When off, Cloak neither recalls nor saves memories">
-          <input type="checkbox" id="brain-on">
-          <span class="brain-switch-track" aria-hidden="true"><span class="brain-switch-knob"></span></span>
-          <span class="brain-switch-label">Memory</span>
-        </label>
-      </div>
-      <div class="brain-scroll">
+        </div>${memSwitch}
+      </div>`;
+    }
+    root.innerHTML = top + `
+      <div class="brain-scroll" data-scroll>
         <div class="brain-grid">
           <section class="brain-card brain-stage" aria-label="Memory map">
             <div class="brain-card-head">
@@ -150,7 +175,7 @@
           </div>
         </div>
       </div>`;
-    document.body.appendChild(root);
+    if (!inShell) document.body.appendChild(root);
     svg = root.querySelector('#brain-svg');
     drawAnatomy();
 
@@ -514,6 +539,8 @@
     }
   }
   function onKey(e) {
+    // As a page, only the editor is modal; the rest is ordinary page content.
+    if (inShell && $('#bedit').hidden) return;
     if (e.key === 'Tab') {
       // Keep focus inside the open dialog (editor first, else the brain).
       const scope = !$('#bedit').hidden ? $('#bedit') : root;
@@ -557,9 +584,20 @@
     } catch (_) { return []; }
   }
 
-  /* ── open / close ── */
+  /* ── open / close ──
+     In the shell, open/close are navigation (goPage in cloak.js), which calls
+     show()/hide() as the Brain page comes and goes. */
+  function show(opts) {
+    build();
+    if (opts && opts.recall) current = opts.recall;
+    else if (!current && M()) current = M().lastRecall();
+    renderAll();
+    requestAnimationFrame(() => { if (current && current.hits.length) paintRecall(current, true); });
+  }
+  function hide() { closeEditor(); }
   function open(opts) {
     build();
+    if (inShell && typeof goPage === 'function') { goPage('brain', opts); return; }
     if (!root.hidden) return;
     openerEl = document.activeElement;
     root.hidden = false;
@@ -575,6 +613,7 @@
     try { if (typeof closeMobileSidebar === 'function' && window.innerWidth <= 640) closeMobileSidebar(); } catch (_) {}
   }
   function close() {
+    if (inShell && typeof goPage === 'function') { goPage('chat'); return; }
     if (!root || root.hidden) return;
     closeEditor();
     root.classList.remove('in');
@@ -682,7 +721,7 @@
     }
   }
 
-  window.CloakBrain = { open, close, attachRecall, toast, pulse: pulseButton, icon: BRAIN_ICON };
+  window.CloakBrain = { open, close, show, hide, attachRecall, toast, pulse: pulseButton, icon: BRAIN_ICON };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire, { once: true });
   else wire();
 })();

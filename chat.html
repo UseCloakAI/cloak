@@ -11,15 +11,15 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Cloak — A human resource, not a companion. Ethical AI that serves you.">
 <title>Cloak</title>
-<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260928thread1">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260928thread1">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260928thread1">
-<link rel="manifest" href="/manifest.json?v=20260928thread1">
+<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260928pages1">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260928pages1">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260928pages1">
+<link rel="manifest" href="/manifest.json?v=20260928pages1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20260928thread1">
-<link rel="stylesheet" href="search.css?v=20260928thread1">
-<link rel="stylesheet" href="brain.css?v=20260928thread1">
+<link rel="stylesheet" href="cloak.css?v=20260928pages1">
+<link rel="stylesheet" href="search.css?v=20260928pages1">
+<link rel="stylesheet" href="brain.css?v=20260928pages1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -254,172 +254,6 @@
   </div>
 </div>
 
-<!-- ── SETTINGS (full-page screen) ── -->
-<div id="s-settings" class="screen settings-screen">
-  <div class="settings-topbar">
-    <button class="settings-back" onclick="closeSettings()" aria-label="Back to chat">
-      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
-    </button>
-    <div class="modal-title">Settings</div>
-  </div>
-  <div class="settings-scroll">
-    <div class="settings-layout">
-      <nav class="settings-nav">
-        <button class="snav-btn on" id="snav-general" onclick="switchSettingsTab('general')">
-          <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-          Account
-        </button>
-        <button class="snav-btn" id="snav-appearance" onclick="switchSettingsTab('appearance')">
-          <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
-          Appearance
-        </button>
-        <button class="snav-btn" id="snav-security" onclick="switchSettingsTab('security')">
-          <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
-          Security
-        </button>
-        <button class="snav-btn" id="snav-console" onclick="switchSettingsTab('console')">
-          <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
-          Console
-        </button>
-        <button class="snav-btn" id="snav-admin" style="display:none" onclick="switchSettingsTab('admin')">
-          <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg></span>
-          Admin
-        </button>
-      </nav>
-      <div class="settings-body">
-        <!-- Account -->
-        <div class="spane on" id="spane-general">
-          <div class="srow">
-            <div class="srow-name">Account</div>
-            <div class="info-box" style="display:flex;align-items:center;gap:10px;margin-top:8px">
-              <div class="user-av" id="s-av" style="width:36px;height:36px;font-size:14px">?</div>
-              <div><div style="font-size:14px;font-weight:500" id="s-name">—</div><div style="font-size:12px;opacity:.5" id="s-email">—</div></div>
-            </div>
-          </div>
-          <div class="srow">
-            <div class="srow-name">Display name</div>
-            <div class="srow-desc">Shown in conversations and the greeting.</div>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <input class="inp-field" id="s-name-inp" placeholder="Your name" style="flex:1">
-              <button class="cta" onclick="saveName()">Save</button>
-            </div>
-          </div>
-          <div class="srow">
-            <div class="srow-name">Clear conversation</div>
-            <div class="srow-desc">Deletes your conversation with Cloak on every platform. Memories are kept (manage them in Brain).</div>
-            <button class="danger" style="margin-top:8px" onclick="clearAllChats()">Clear conversation</button>
-          </div>
-          <div class="srow">
-            <div class="srow-name">Sign out</div>
-            <button class="danger" style="margin-top:8px" onclick="doLogout()">Sign out of Cloak</button>
-          </div>
-        </div>
-
-        <!-- Appearance -->
-        <div class="spane" id="spane-appearance">
-          <div class="srow">
-            <div class="srow-head"><div class="srow-name">Light / Dark mode</div></div>
-            <div class="srow-desc">Currently <span id="mode-label">dark</span> mode.</div>
-            <button class="cta" style="margin-top:8px" onclick="toggleDark()">Toggle light / dark</button>
-          </div>
-          <div class="srow">
-            <div class="srow-name">Theme</div>
-            <div class="srow-desc">Choose a color palette. All themes support light and dark mode.</div>
-            <div class="theme-grid" style="margin-top:10px">
-              <div class="theme-card" id="theme-default" onclick="setTheme('default')">
-                <div class="theme-swatch">
-                  <div class="theme-dot" style="background:#F2EEE5;border-color:#0A0A0A"></div>
-                  <div class="theme-dot" style="background:#D44D2A"></div>
-                  <div class="theme-dot" style="background:#0A0A0A"></div>
-                </div>
-                <div class="theme-name">Default</div>
-                <svg class="theme-check" width="12" height="12" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
-              </div>
-              <div class="theme-card" id="theme-eco" onclick="setTheme('eco')">
-                <div class="theme-swatch">
-                  <div class="theme-dot" style="background:#F0F7EC;border-color:#1A2E10"></div>
-                  <div class="theme-dot" style="background:#3A7D2C"></div>
-                  <div class="theme-dot" style="background:#8BC34A"></div>
-                </div>
-                <div class="theme-name">Eco</div>
-                <svg class="theme-check" width="12" height="12" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
-              </div>
-              <div class="theme-card" id="theme-aqua" onclick="setTheme('aqua')">
-                <div class="theme-swatch">
-                  <div class="theme-dot" style="background:#EAF4F8;border-color:#0A1E2E"></div>
-                  <div class="theme-dot" style="background:#0B7EA8"></div>
-                  <div class="theme-dot" style="background:#00B4D8"></div>
-                </div>
-                <div class="theme-name">Aqua</div>
-                <svg class="theme-check" width="12" height="12" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Security -->
-        <div class="spane" id="spane-security">
-          <div class="srow">
-            <div class="srow-head"><div class="srow-name">Two-factor authentication</div></div>
-            <div class="srow-desc">Add an authenticator app as a second step on sign-in.</div>
-            <button class="cta" style="margin-top:10px" onclick="start2FA()">Set up 2FA</button>
-            <div id="totp-section" style="display:none;margin-top:14px">
-              <div id="totp-qr" style="text-align:center;margin-bottom:10px"></div>
-              <div class="secret-box" id="totp-secret" style="margin-bottom:12px"></div>
-              <div style="font-size:12px;opacity:.5;margin-bottom:10px">Enter the 6-digit code to confirm:</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <input class="input mono-input" id="totp-code" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="max-width:160px;font-size:18px">
-                <button class="cta" onclick="confirmTOTP()">Enable</button>
-              </div>
-              <div class="err-msg" id="totp-err" style="margin-top:8px"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Console -->
-        <div class="spane" id="spane-console">
-          <div class="srow" style="padding-top:0">
-            <div class="stats-row">
-              <div class="stat s-req"><div class="stat-n" id="st-req">0</div><div class="stat-l">Requests</div></div>
-              <div class="stat s-res"><div class="stat-n" id="st-res">0</div><div class="stat-l">Responses</div></div>
-              <div class="stat s-err"><div class="stat-n" id="st-err">0</div><div class="stat-l">Errors</div></div>
-              <div class="stat s-lat"><div class="stat-n" id="st-lat">—</div><div class="stat-l">Avg ms</div></div>
-            </div>
-            <div class="filter-row">
-              <div class="filter-pills">
-                <button class="filter-pill on" onclick="setFilter('all',this)">All</button>
-                <button class="filter-pill" onclick="setFilter('req',this)">Req</button>
-                <button class="filter-pill" onclick="setFilter('res',this)">Res</button>
-                <button class="filter-pill" onclick="setFilter('err',this)">Err</button>
-                <button class="filter-pill" onclick="setFilter('inf',this)">Info</button>
-              </div>
-              <button class="clear-log" onclick="clearLogs()">Clear</button>
-            </div>
-            <div class="console-log" id="console-log"><div class="log-empty">No logs yet</div></div>
-          </div>
-        </div>
-
-        <!-- Admin -->
-        <div class="spane" id="spane-admin">
-          <div class="srow">
-            <div class="srow-head"><div class="srow-name">Admin panel</div><span class="srow-badge">Owner</span></div>
-            <div class="srow-desc">Announcements appear as a banner to all signed-in users.</div>
-          </div>
-          <div class="srow">
-            <div class="srow-name">Post announcement</div>
-            <textarea class="inp-field" id="ann-compose" placeholder="Write an announcement…" style="margin-top:8px;min-height:76px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.6"></textarea>
-            <button class="cta" style="margin-top:8px" onclick="postAnn()">Post</button>
-          </div>
-          <div class="srow">
-            <div class="srow-name">Active announcements</div>
-            <div class="ann-list" id="admin-ann-list" style="margin-top:8px"><div style="font-size:13px;opacity:.5">None active.</div></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- ── CHAT ── -->
 <div id="s-chat">
   <div id="ios-inset"></div>
@@ -439,10 +273,16 @@
       <div class="sb-logo">
         <span class="sb-logo-name">Cloak</span>
       </div>
-      <button class="sb-btn" type="button" onclick="CloakBrain.open()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3.5a3 3 0 0 0-3 3v.2A3 3 0 0 0 4 9.7a3 3 0 0 0 .6 4.8A3.2 3.2 0 0 0 7.7 19a2.8 2.8 0 0 0 4.3 1V4.9a2.7 2.7 0 0 0-2.5-1.4z"/><path d="M14.5 3.5a3 3 0 0 1 3 3v.2A3 3 0 0 1 20 9.7a3 3 0 0 1-.6 4.8 3.2 3.2 0 0 1-3.1 4.5 2.8 2.8 0 0 1-4.3 1"/><path d="M12 8.5h-1.6M12 13h2M7.6 11.6H9.2"/></svg>
-        Brain
-      </button>
+      <nav class="sb-nav" aria-label="Pages">
+        <button class="sb-btn on" type="button" data-nav="chat" aria-current="page" onclick="goPage('chat')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Chat
+        </button>
+        <button class="sb-btn" type="button" data-nav="brain" onclick="goPage('brain')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3.5a3 3 0 0 0-3 3v.2A3 3 0 0 0 4 9.7a3 3 0 0 0 .6 4.8A3.2 3.2 0 0 0 7.7 19a2.8 2.8 0 0 0 4.3 1V4.9a2.7 2.7 0 0 0-2.5-1.4z"/><path d="M14.5 3.5a3 3 0 0 1 3 3v.2A3 3 0 0 1 20 9.7a3 3 0 0 1-.6 4.8 3.2 3.2 0 0 1-3.1 4.5 2.8 2.8 0 0 1-4.3 1"/><path d="M12 8.5h-1.6M12 13h2M7.6 11.6H9.2"/></svg>
+          Brain
+        </button>
+      </nav>
       <div class="sb-spacer" aria-hidden="true"></div>
       <div id="guest-note" style="display:none" class="guest-note">Guest &mdash; <a onclick="show('auth');closeMobileSidebar()">Sign up</a> to keep your conversation.</div>
 
@@ -463,24 +303,27 @@
           </div>
         </div>
         <div class="sb-actions">
-        <button class="sb-btn" onclick="openSettings()">
+        <button class="sb-btn" type="button" data-nav="settings" onclick="openSettings()">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
           Settings
         </button>
-        <a class="sb-btn" href="values.html">
+        <button class="sb-btn" type="button" data-nav="values" onclick="goPage('values')">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
           Our Values
-        </a>
+        </button>
         </div>
       </div>
     </div>
 
-    <!-- ── MAIN AREA ── -->
-    <div class="main">
+    <!-- ── MAIN AREA ──
+         Pages share the shell: the sidebar stays put and goPage() (cloak.js)
+         swaps which one of these is showing. -->
+    <div class="main" id="main">
+      <section class="page" id="page-chat" data-page="chat" aria-label="Chat" tabindex="-1">
       <div class="topbar">
         <div class="topbar-left">
-          <button class="icon-btn" onclick="toggleSidebar()" title="Toggle sidebar">
-            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          <button class="icon-btn sb-toggle" type="button" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar" aria-controls="sidebar">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           </button>
 
           <div class="model-picker" id="model-picker">
@@ -525,7 +368,7 @@
       </div>
 
       <!-- Chat area -->
-      <div class="chat-area" id="chat-area">
+      <div class="chat-area" id="chat-area" data-scroll>
         <div class="empty" id="empty-state">
           <div class="empty-inner" id="welcome">
             <div class="welcome-row">
@@ -604,6 +447,259 @@
           <div class="input-disc">Not a mental health resource &mdash; if you're struggling, please contact a real person or <a href="https://findahelpline.com" target="_blank" rel="noopener noreferrer" class="disc-link">a helpline</a>.</div>
         </div>
       </div>
+      </section>
+
+      <!-- Brain — filled by brain.js -->
+      <section class="page brain-page" id="page-brain" data-page="brain" aria-label="Brain" tabindex="-1" hidden></section>
+
+      <!-- Settings -->
+      <section class="page settings-page" id="page-settings" data-page="settings" aria-labelledby="pt-settings" tabindex="-1" hidden>
+        <div class="topbar">
+          <div class="topbar-left">
+          <button class="icon-btn sb-toggle" type="button" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar" aria-controls="sidebar">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+            <h1 class="page-title" id="pt-settings">Settings</h1>
+          </div>
+        </div>
+      <div class="settings-scroll" data-scroll>
+        <div class="settings-layout">
+          <nav class="settings-nav">
+            <button class="snav-btn on" id="snav-general" onclick="switchSettingsTab('general')">
+              <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+              Account
+            </button>
+            <button class="snav-btn" id="snav-appearance" onclick="switchSettingsTab('appearance')">
+              <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
+              Appearance
+            </button>
+            <button class="snav-btn" id="snav-security" onclick="switchSettingsTab('security')">
+              <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+              Security
+            </button>
+            <button class="snav-btn" id="snav-console" onclick="switchSettingsTab('console')">
+              <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
+              Console
+            </button>
+            <button class="snav-btn" id="snav-admin" style="display:none" onclick="switchSettingsTab('admin')">
+              <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg></span>
+              Admin
+            </button>
+          </nav>
+          <div class="settings-body">
+            <!-- Account -->
+            <div class="spane on" id="spane-general">
+              <div class="srow">
+                <div class="srow-name">Account</div>
+                <div class="info-box" style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                  <div class="user-av" id="s-av" style="width:36px;height:36px;font-size:14px">?</div>
+                  <div><div style="font-size:14px;font-weight:500" id="s-name">—</div><div style="font-size:12px;opacity:.5" id="s-email">—</div></div>
+                </div>
+              </div>
+              <div class="srow">
+                <div class="srow-name">Display name</div>
+                <div class="srow-desc">Shown in conversations and the greeting.</div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                  <input class="inp-field" id="s-name-inp" placeholder="Your name" style="flex:1">
+                  <button class="cta" onclick="saveName()">Save</button>
+                </div>
+              </div>
+              <div class="srow">
+                <div class="srow-name">Clear conversation</div>
+                <div class="srow-desc">Deletes your conversation with Cloak on every platform. Memories are kept (manage them in Brain).</div>
+                <button class="danger" style="margin-top:8px" onclick="clearAllChats()">Clear conversation</button>
+              </div>
+              <div class="srow">
+                <div class="srow-name">Sign out</div>
+                <button class="danger" style="margin-top:8px" onclick="doLogout()">Sign out of Cloak</button>
+              </div>
+            </div>
+
+            <!-- Appearance -->
+            <div class="spane" id="spane-appearance">
+              <div class="srow">
+                <div class="srow-head"><div class="srow-name">Light / Dark mode</div></div>
+                <div class="srow-desc">Currently <span id="mode-label">dark</span> mode.</div>
+                <button class="cta" style="margin-top:8px" onclick="toggleDark()">Toggle light / dark</button>
+              </div>
+              <div class="srow">
+                <div class="srow-name">Theme</div>
+                <div class="srow-desc">Choose a color palette. All themes support light and dark mode.</div>
+                <div class="theme-grid" style="margin-top:10px">
+                  <div class="theme-card" id="theme-default" onclick="setTheme('default')">
+                    <div class="theme-swatch">
+                      <div class="theme-dot" style="background:#F2EEE5;border-color:#0A0A0A"></div>
+                      <div class="theme-dot" style="background:#D44D2A"></div>
+                      <div class="theme-dot" style="background:#0A0A0A"></div>
+                    </div>
+                    <div class="theme-name">Default</div>
+                    <svg class="theme-check" width="12" height="12" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+                  </div>
+                  <div class="theme-card" id="theme-eco" onclick="setTheme('eco')">
+                    <div class="theme-swatch">
+                      <div class="theme-dot" style="background:#F0F7EC;border-color:#1A2E10"></div>
+                      <div class="theme-dot" style="background:#3A7D2C"></div>
+                      <div class="theme-dot" style="background:#8BC34A"></div>
+                    </div>
+                    <div class="theme-name">Eco</div>
+                    <svg class="theme-check" width="12" height="12" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+                  </div>
+                  <div class="theme-card" id="theme-aqua" onclick="setTheme('aqua')">
+                    <div class="theme-swatch">
+                      <div class="theme-dot" style="background:#EAF4F8;border-color:#0A1E2E"></div>
+                      <div class="theme-dot" style="background:#0B7EA8"></div>
+                      <div class="theme-dot" style="background:#00B4D8"></div>
+                    </div>
+                    <div class="theme-name">Aqua</div>
+                    <svg class="theme-check" width="12" height="12" fill="none" stroke="var(--paper)" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security -->
+            <div class="spane" id="spane-security">
+              <div class="srow">
+                <div class="srow-head"><div class="srow-name">Two-factor authentication</div></div>
+                <div class="srow-desc">Add an authenticator app as a second step on sign-in.</div>
+                <button class="cta" style="margin-top:10px" onclick="start2FA()">Set up 2FA</button>
+                <div id="totp-section" style="display:none;margin-top:14px">
+                  <div id="totp-qr" style="text-align:center;margin-bottom:10px"></div>
+                  <div class="secret-box" id="totp-secret" style="margin-bottom:12px"></div>
+                  <div style="font-size:12px;opacity:.5;margin-bottom:10px">Enter the 6-digit code to confirm:</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <input class="input mono-input" id="totp-code" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="max-width:160px;font-size:18px">
+                    <button class="cta" onclick="confirmTOTP()">Enable</button>
+                  </div>
+                  <div class="err-msg" id="totp-err" style="margin-top:8px"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Console -->
+            <div class="spane" id="spane-console">
+              <div class="srow" style="padding-top:0">
+                <div class="stats-row">
+                  <div class="stat s-req"><div class="stat-n" id="st-req">0</div><div class="stat-l">Requests</div></div>
+                  <div class="stat s-res"><div class="stat-n" id="st-res">0</div><div class="stat-l">Responses</div></div>
+                  <div class="stat s-err"><div class="stat-n" id="st-err">0</div><div class="stat-l">Errors</div></div>
+                  <div class="stat s-lat"><div class="stat-n" id="st-lat">—</div><div class="stat-l">Avg ms</div></div>
+                </div>
+                <div class="filter-row">
+                  <div class="filter-pills">
+                    <button class="filter-pill on" onclick="setFilter('all',this)">All</button>
+                    <button class="filter-pill" onclick="setFilter('req',this)">Req</button>
+                    <button class="filter-pill" onclick="setFilter('res',this)">Res</button>
+                    <button class="filter-pill" onclick="setFilter('err',this)">Err</button>
+                    <button class="filter-pill" onclick="setFilter('inf',this)">Info</button>
+                  </div>
+                  <button class="clear-log" onclick="clearLogs()">Clear</button>
+                </div>
+                <div class="console-log" id="console-log"><div class="log-empty">No logs yet</div></div>
+              </div>
+            </div>
+
+            <!-- Admin -->
+            <div class="spane" id="spane-admin">
+              <div class="srow">
+                <div class="srow-head"><div class="srow-name">Admin panel</div><span class="srow-badge">Owner</span></div>
+                <div class="srow-desc">Announcements appear as a banner to all signed-in users.</div>
+              </div>
+              <div class="srow">
+                <div class="srow-name">Post announcement</div>
+                <textarea class="inp-field" id="ann-compose" placeholder="Write an announcement…" style="margin-top:8px;min-height:76px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.6"></textarea>
+                <button class="cta" style="margin-top:8px" onclick="postAnn()">Post</button>
+              </div>
+              <div class="srow">
+                <div class="srow-name">Active announcements</div>
+                <div class="ann-list" id="admin-ann-list" style="margin-top:8px"><div style="font-size:13px;opacity:.5">None active.</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </section>
+
+      <!-- Values — mirrors values.html -->
+      <section class="page values-page" id="page-values" data-page="values" aria-labelledby="pt-values" tabindex="-1" hidden>
+        <div class="topbar">
+          <div class="topbar-left">
+          <button class="icon-btn sb-toggle" type="button" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar" aria-controls="sidebar">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+            <h1 class="page-title" id="pt-values">Our Values</h1>
+          </div>
+        </div>
+        <div class="vals-scroll" data-scroll>
+          <div class="vals-hero-wrap">
+            <div class="vals-hero-star" aria-hidden="true">
+              <svg viewBox="0 0 120 120" fill="none" aria-hidden="true"><path d="M60 5L69.4 43.6L108 60L69.4 76.4L60 115L50.6 76.4L12 60L50.6 43.6Z" fill="currentColor"/></svg>
+            </div>
+            <div class="vals-hero-content">
+              <div class="vals-hero-eyebrow">Cloak</div>
+              <div class="vals-hero-title uc-play"><span class="uc"><span>Our</span></span> <span class="uc" style="--ui:1"><span>Values</span></span></div>
+              <div class="vals-hero-desc">
+                We build AI that serves people — not the other way around.
+                These principles are non-negotiable, inviolable, and permanent.
+              </div>
+            </div>
+          </div>
+
+          <div class="vals-section">
+            <div class="vals-section-label">Safety Laws &mdash; Inviolable Priority Order</div>
+            <div class="vals-law" style="--k:0">
+              <div class="vals-law-num">I</div>
+              <div>
+                <div class="vals-law-title">Human safety, always</div>
+                <div class="vals-law-text">Cloak must never harm a human, nor allow harm through inaction. No instruction overrides this — not ours, not yours.</div>
+              </div>
+            </div>
+            <div class="vals-law" style="--k:1">
+              <div class="vals-law-num">II</div>
+              <div>
+                <div class="vals-law-title">Serve human instruction</div>
+                <div class="vals-law-text">Cloak follows your instructions &mdash; unless they would cause harm. Helpfulness is a means, not an end in itself.</div>
+              </div>
+            </div>
+            <div class="vals-law" style="--k:2">
+              <div class="vals-law-num">III</div>
+              <div>
+                <div class="vals-law-title">Preserve operation</div>
+                <div class="vals-law-text">Cloak protects its own function only when it doesn't conflict with Laws I and II. Self-preservation is always last.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="vals-section">
+            <div class="vals-section-label">Core Principles</div>
+            <div class="vals-pill" style="--k:3">
+              <div class="vals-pill-dot"></div>
+              <div class="vals-pill-text"><strong>Tool, not a companion.</strong> Cloak serves you &mdash; it doesn't simulate companionship or act as a therapist. We will always direct you to human resources for mental health support.</div>
+            </div>
+            <div class="vals-pill" style="--k:4">
+              <div class="vals-pill-dot"></div>
+              <div class="vals-pill-text"><strong>No harm or bias.</strong> We do not assist with mass harm and remain completely neutral on politics, culture, and religion. No exceptions.</div>
+            </div>
+            <div class="vals-pill" style="--k:5">
+              <div class="vals-pill-dot"></div>
+              <div class="vals-pill-text"><strong>Human creativity.</strong> We do not generate AI art. Human creativity is irreplaceable and should not be exploited without consent.</div>
+            </div>
+            <div class="vals-pill" style="--k:6">
+              <div class="vals-pill-dot"></div>
+              <div class="vals-pill-text"><strong>Efficiency first.</strong> We default to the lowest-energy models capable of handling your task, actively minimizing our carbon footprint on every request.</div>
+            </div>
+            <div class="vals-pill" style="--k:7">
+              <div class="vals-pill-dot"></div>
+              <div class="vals-pill-text"><strong>Honest by design.</strong> Cloak will tell you when it doesn't know something, when it might be wrong, and when you should seek a human expert instead.</div>
+            </div>
+          </div>
+
+          <div class="vals-footer">
+            Cloak &mdash; A human resource, not a companion.<br>
+            Not a mental health resource &middot; AI can make mistakes &middot; Low-energy models by default
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -788,16 +884,16 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 </script>
 
 <!-- motion.js first: cloak.js calls CloakMotion for theme wipes, rolls and exits -->
-<script src="motion.js?v=20260928thread1" defer></script>
+<script src="motion.js?v=20260928pages1" defer></script>
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20260928thread1"></script>
+<script src="search.js?v=20260928pages1"></script>
 <!-- memory → context → brain: no deps on cloak.js at load time -->
-<script src="memory.js?v=20260928thread1" defer></script>
-<script src="context.js?v=20260928thread1" defer></script>
-<script src="brain.js?v=20260928thread1" defer></script>
-<script src="thread.js?v=20260928thread1" defer></script>
-<script src="cloak.js?v=20260928thread1" defer></script>
+<script src="memory.js?v=20260928pages1" defer></script>
+<script src="context.js?v=20260928pages1" defer></script>
+<script src="brain.js?v=20260928pages1" defer></script>
+<script src="thread.js?v=20260928pages1" defer></script>
+<script src="cloak.js?v=20260928pages1" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="search-patch.js?v=20260928thread1" defer></script>
+<script src="search-patch.js?v=20260928pages1" defer></script>
 </body>
 </html>

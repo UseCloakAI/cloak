@@ -220,7 +220,7 @@ html.booting body>:not(#s-loading),html.booting body>:not(#s-loading) *{animatio
   background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(0,0,0,.025) 24px,rgba(0,0,0,.025) 26px);
   pointer-events:none;
 }
-.screen:not(.settings-screen)::before{animation:hatch 1.6s linear infinite;}
+.screen::before{animation:hatch 1.6s linear infinite;}
 @keyframes hatch{to{transform:translateX(36.77px);}}
 .dark .screen::before{background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(255,255,255,.03) 24px,rgba(255,255,255,.03) 26px);}
 
@@ -339,6 +339,13 @@ html.booting body>:not(#s-loading),html.booting body>:not(#s-loading) *{animatio
 .sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 a.sb-btn{text-decoration:none;}
 a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
+/* Page nav: the page you're on is inked in. Selecting wipes the ink in from
+   the left; the item you leave just lets go of it. */
+.sb-nav{display:flex;flex-direction:column;gap:2px;}
+.sb-btn[data-nav]{position:relative;isolation:isolate;transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift),color .18s ease;}
+.sb-btn[data-nav]::before{content:"";position:absolute;inset:-1.5px;z-index:-1;background:var(--ink);opacity:0;clip-path:inset(0 100% 0 0);transition:opacity .2s ease,clip-path 0s .2s;}
+.sb-btn[data-nav].on{color:var(--paper);border-color:var(--ink);transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift),color .16s ease .06s;}
+.sb-btn[data-nav].on::before{opacity:1;clip-path:inset(0);transition:clip-path .38s var(--ease-out);}
 
 .sb-new{
   background:var(--ink);color:var(--paper);border:var(--bd);box-shadow:var(--shsm);
@@ -385,10 +392,46 @@ a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 .guest-note a{color:var(--acc);cursor:pointer;font-weight:700;}
 
 /* ── TOPBAR ── */
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--paper);min-width:0;}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--paper);min-width:0;position:relative;}
+
+/* ── PAGES ──
+   Chat / Brain / Settings / Values share the shell; goPage() (cloak.js)
+   swaps them. Entrances are plain CSS that run whenever a page is shown:
+   its header drops in (navIn, above) and its body rises off the floor.
+   The leaving page is lifted out of flow on top, backed with paper so the
+   next page can't show through early, and dissolves — opacity only, so the
+   shared chrome (topbar, toggle) doesn't shimmer. */
+.page{flex:1;min-height:0;display:flex;flex-direction:column;position:relative;--pg-d:40ms;}
+.page[hidden]{display:none;}
+.page:focus{outline:none;}
+.page.pg-out{position:absolute;inset:0;z-index:3;pointer-events:none;background:var(--paper);animation:pgOut .13s var(--ease-out) forwards;}
+@keyframes pgOut{to{opacity:0;}}
+@keyframes pgRise{from{opacity:0;translate:0 12px;}}
+#page-chat .chat-area{animation:pgRise .5s var(--ease-out) calc(var(--pg-d) + 20ms) backwards;}
+.page-title{margin:0;font-family:var(--fd);font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--ink);white-space:nowrap;line-height:1.1;}
+.vals-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:env(safe-area-inset-bottom,0px);}
+/* values.html's hero entrance, tightened for an in-app page visit */
+#page-values .vals-hero-wrap::after{animation-duration:.8s;animation-delay:.04s;}
+#page-values .vals-hero-eyebrow{animation-delay:.06s;}
+#page-values .vals-hero-eyebrow::before{animation-delay:.02s;}
+#page-values .vals-hero-title{--uc-d:.08s;}
+#page-values .vals-hero-desc{animation-duration:.6s;animation-delay:.3s;}
+#page-values .vals-hero-star{animation-duration:1s;animation-delay:.1s;}
+#page-values .vals-law,#page-values .vals-pill{animation:rvRise .6s var(--sp-snap) calc(.16s + var(--k,0) * 45ms) backwards;--rise:4px;}
+#page-values .vals-law-num{animation:stamp .62s var(--sp-pop) calc(.3s + var(--k,0) * 45ms) backwards;}
+#page-brain .topbar-left{flex:1;min-width:0;}
+#page-brain .topbar-right{flex-shrink:0;padding-left:10px;}
+#page-brain .brain-stage{animation:rvRise .62s var(--sp-snap) calc(var(--pg-d) + 20ms) backwards;--rise:4px;}
+#page-brain .brain-side>.brain-card{animation:rvRise .62s var(--sp-snap) calc(var(--pg-d) + 70ms + var(--k,0) * 55ms) backwards;--rise:4px;}
+#page-brain .brain-side>.brain-card:nth-child(2){--k:1;}
+#page-brain .brain-side>.brain-card:nth-child(3){--k:2;}
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:52px;border-bottom:var(--bd);flex-shrink:0;background:var(--surf);}
-#s-chat.active .topbar>*{animation:navIn .5s var(--ease-out) backwards;}
-#s-chat.active .topbar>:last-child{animation-delay:.06s;}
+#s-chat.active .topbar-left>*,#s-chat.active .topbar-right{animation:navIn .5s var(--ease-out) var(--pg-d) backwards;}
+#s-chat.active .topbar-right{animation-delay:calc(var(--pg-d) + .06s);}
+/* The sidebar toggle sits in the same spot on every page, so it holds still
+   while pages swap and only drops in with the shell itself. */
+#s-chat.active .topbar-left>.sb-toggle{animation:none;}
+#s-chat.active.shell-in .topbar-left>.sb-toggle{animation:navIn .5s var(--ease-out) backwards;}
 .topbar-left,.topbar-right{display:flex;align-items:center;gap:8px;}
 
 .icon-btn{
@@ -767,13 +810,7 @@ textarea.inp-field{height:auto;padding:10px 13px;}
 .danger:hover::before{transform:none;transform-origin:0 50%;}
 .danger:active{box-shadow:none;transform:none;transition-duration:var(--tp);}
 
-/* ── SETTINGS — FULL-PAGE SCREEN ── */
-.settings-screen{background:var(--paper);flex-direction:column;align-items:stretch;justify-content:flex-start;padding:0;overflow:hidden;height:100vh;height:100dvh;}
-.settings-topbar{
-  display:flex;align-items:center;gap:14px;flex-shrink:0;
-  padding:max(14px,calc(env(safe-area-inset-top,0px) + 12px)) max(18px,calc(env(safe-area-inset-right,0px) + 18px)) 14px max(18px,calc(env(safe-area-inset-left,0px) + 18px));
-  border-bottom:var(--bd);background:var(--p2);
-}
+/* ── SETTINGS — PAGE IN THE SHELL ── */
 .settings-back{
   width:42px;height:42px;flex-shrink:0;border:var(--bd);background:var(--surf);color:var(--ink);
   cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:var(--shsm);
@@ -783,18 +820,16 @@ textarea.inp-field{height:auto;padding:10px 13px;}
 .settings-back:active{box-shadow:none;transform:translate(2px,2px);transition-duration:var(--tp);}
 .settings-back svg{transition:translate var(--lift);}
 .settings-back:hover svg{translate:-3px 0;}
-.settings-screen.active .settings-topbar>*{animation:slideIn .5s var(--ease-out) backwards;}
-.settings-screen.active .settings-topbar>:nth-child(2){animation-delay:.05s;}
-.settings-screen.active .settings-layout{animation:rvRise .62s var(--sp-snap) .06s backwards;--rise:4px;}
+.settings-page .settings-layout{animation:rvRise .62s var(--sp-snap) calc(var(--pg-d) + 20ms) backwards;--rise:4px;}
 .settings-scroll{
   flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;min-height:0;
   padding-bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 20px));
 }
 /* In the full-page context the page scrolls, not the inner panes. */
-.settings-screen .settings-layout{overflow:visible;min-height:0;border:var(--bd);box-shadow:var(--sh);background:var(--surf);max-width:880px;margin:26px auto;width:calc(100% - 52px);}
-.settings-screen .settings-nav{overflow:visible;}
-.settings-screen .settings-body{overflow:visible;}
-.settings-screen .settings-nav{position:sticky;top:14px;align-self:flex-start;}
+.settings-page .settings-layout{overflow:visible;min-height:0;border:var(--bd);box-shadow:var(--sh);background:var(--surf);max-width:880px;margin:26px auto;width:calc(100% - 52px);}
+.settings-page .settings-nav{overflow:visible;}
+.settings-page .settings-body{overflow:visible;}
+.settings-page .settings-nav{position:sticky;top:14px;align-self:flex-start;}
 
 /* ── THEME PICKER ── */
 .theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;}
@@ -1032,12 +1067,11 @@ html.kb-open .input-area{padding-bottom:14px;}
   .snav-btn{font-size:9.5px;padding:9px 8px;}
   .spane{padding:14px;}
   /* Full-page settings on phones: nav becomes a horizontal tab strip on top */
-  .settings-topbar{padding-top:max(14px,calc(env(safe-area-inset-top,0px) + 10px));}
-  .settings-screen .settings-layout{flex-direction:column;margin:0;width:100%;border-left:none;border-right:none;border-top:none;box-shadow:none;}
-  .settings-screen .settings-nav{flex-direction:row;width:100%;position:static;border-right:none;border-bottom:var(--bd);overflow-x:auto;gap:4px;padding:8px;}
-  .settings-screen .settings-nav::-webkit-scrollbar{height:0;}
-  .settings-screen .snav-btn{width:auto;white-space:nowrap;flex:0 0 auto;min-height:40px;}
-  .settings-screen .snav-btn::after{display:none;}
+  .settings-page .settings-layout{flex-direction:column;margin:0;width:100%;border-left:none;border-right:none;border-top:none;box-shadow:none;}
+  .settings-page .settings-nav{flex-direction:row;width:100%;position:static;border-right:none;border-bottom:var(--bd);overflow-x:auto;gap:4px;padding:8px;}
+  .settings-page .settings-nav::-webkit-scrollbar{height:0;}
+  .settings-page .snav-btn{width:auto;white-space:nowrap;flex:0 0 auto;min-height:40px;}
+  .settings-page .snav-btn::after{display:none;}
   .stats-row{grid-template-columns:repeat(2,1fr);}
   .stat:nth-child(2){border-right:none;}.stat:nth-child(3){border-top:var(--bd);}.stat:nth-child(4){border-top:var(--bd);border-right:none;}
   .onboard-card{width:100%;border-left:none;border-right:none;border-bottom:none;}
