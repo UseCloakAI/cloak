@@ -3,10 +3,10 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 
 // Telegram ⇄ Cloak.
 //
-//  Linked chats (Settings → Telegram on the web) continue the user's single
-//  Cloak thread: messages land in `thread_messages`, replies use the same
-//  compressed context + memories as the web, and long stretches get condensed
-//  (with memory extraction) exactly like on the web.
+//  Linked chats (Settings → Telegram on the web) continue the user's Main
+//  chat: messages land in `thread_messages` tagged with that chat's id,
+//  replies use the same compressed context + memories as the web, and long
+//  stretches get condensed (with memory extraction) exactly like on the web.
 //
 //  Routes on this one function:
 //    POST (Telegram webhook)       updates from Telegram
@@ -670,7 +670,7 @@ serve(async (req) => {
     }
     if (cmd === "reset" || cmd === "new" || cmd === "clear") {
       if (userId) {
-        await sendTelegram(chatId, "This chat is your one continuous Cloak conversation — older parts get condensed into memories automatically. To wipe it, use Settings → Clear conversation on the web.");
+        await sendTelegram(chatId, "This chat continues your Main chat on the web — older parts get condensed into memories automatically. To wipe it, use Settings → Clear all chats on the web.");
       } else {
         const session = await getOrCreateSession(c, String(chatId));
         await saveHistory(c, session.id, []);
