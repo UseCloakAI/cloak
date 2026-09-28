@@ -25,10 +25,11 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `motion.js` — shared motion layer (index, landing, values, design-system, chat, agents): scroll reveals (`data-rv`), the crop-mark cursor (`<body data-cursor>`), nav scroll progress (`data-progress`), and `CloakMotion.swapTheme / roll / morph / leave`. No-ops under reduced motion.
 - `agent-orbit.js` — standalone "agents working" orb animation (`CloakAgentOrbit.mount(el,{state})`, states `starting`/`looping`/`completed`). Not wired into any page yet.
 - `search.js` + `search-patch.js` — web-search overlay used inside chat. `search-patch.js` owns the live `send()` and wires memory + context into it.
+- `thread.js` — the single continuous conversation (`CloakThread`): loads `thread_messages` after the "moved on" boundary, persists each message, live-syncs rows from Telegram over Realtime, renders the "Cloak has moved on from these chats" card, and the Settings → Telegram link row. There is no chat list any more.
 - `memory.js` / `context.js` / `brain.js` + `brain.css` — memory system: markdown memory files + local recall (`CloakMemory`), budgeted context with chunked compression (`CloakContext`), and the Brain panel (`CloakBrain`). Load before `cloak.js`. See `memory-system.md`.
 - `api-worker/` — the `cloak-api` Worker serving `https://api.usecloak.org` (chat, streaming, search, memory extraction, context compression). This is what `chat.html` / `cloak.js` / `search-patch.js` call. Every upstream call goes through `src/governor.js` (free-tier limits). Deploys via Cloudflare Workers Builds; see `api-worker/README.md`.
 - `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA). Used by `agents.html` and the Telegram bot, not the main chat.
-- `supabase/functions/telegram-bot/` — Telegram Bot webhook. Calls `chat-message` internally.
+- `supabase/functions/telegram-bot/` — Telegram bot (deployed with `verify_jwt: false`). Linked chats continue the user's thread (same context + memories, server-side compression); also serves `?action=link` (web → deep link) and `?relay=<id>` (DB trigger → mirrors web messages into the linked chat as "Name said: …"). Answers via cloak-api.
 - `supabase/migrations/` — SQL migrations. Apply via Supabase dashboard or CLI.
 - `robots.txt`, `sitemap.xml` — SEO.
 
@@ -113,6 +114,8 @@ No automated tests.
 
 ## Memory + context
 
+- **One conversation per user**: `thread_messages` (append-only, all platforms) + `threads.context`. Chunks/digest reference message **ids**, not array positions. The digest end is the "moved on" boundary; the web only loads messages after it.
+- **One Cloak**: every model (Pneuma/Logos/Kairos/Linus) uses the single `CLOAK` prompt in `api-worker/src/prompts.js`. Models differ in provider/settings only — never add per-model personas.
 - Full design: `memory-system.md`. Memories are `.md` files (`<type>/<slug>.md`, frontmatter + bullets) stored only in Supabase `memory_files` — never cache them in localStorage (guests: session-only, in RAM).
 - Chat history is no longer capped at 20 messages — `chats.context` holds chunk summaries + digest; don't reintroduce `hist.slice(-N)` in the send path.
 - Background model calls (extraction, compression) must use the worker's `utility` tier, never a chat tier.

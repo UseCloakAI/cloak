@@ -580,6 +580,15 @@
     catch (_) { return { used: 0, cap: EXTRACT_DAILY }; }
   }
 
+  // Notes an extraction call should see so it updates instead of duplicating:
+  // the ones related to `text` plus the strongest identity/preference notes.
+  function related(text, n) {
+    const rel = recall(text, { core: false, touch: false, emit: false, k: 10, budget: 3000, minRel: 0.12 }).hits.map((h) => files.get(h.path));
+    const core = [...files.values()].filter(isCore).sort((a, b) => b.importance - a.importance).slice(0, 4);
+    return [...new Set([...rel, ...core])].filter(Boolean).slice(0, n || 14)
+      .map((f) => ({ path: f.path, title: f.title, type: f.type, tags: f.tags, body: f.body }));
+  }
+
   // Call after each completed turn. Only turns with a self-disclosure signal
   // are queued, so most turns cost nothing.
   function observe(turn) {
@@ -605,11 +614,7 @@
     lastExtract = Date.now();
     emit('extracting', { turns: batch.length });
     try {
-      const probe = batch.map((t) => t.user).join('\n');
-      const rel = recall(probe, { core: false, touch: false, emit: false, k: 10, budget: 3000, minRel: 0.12 }).hits.map((h) => files.get(h.path));
-      const core = [...files.values()].filter(isCore).sort((a, b) => b.importance - a.importance).slice(0, 4);
-      const existing = [...new Set([...rel, ...core])].filter(Boolean).slice(0, 14)
-        .map((f) => ({ path: f.path, title: f.title, type: f.type, tags: f.tags, body: f.body }));
+      const existing = related(batch.map((t) => t.user).join('\n'), 14);
       const res = await fetch(API + '/v1/memory/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -665,7 +670,7 @@
   window.CloakMemory = {
     TYPES, TYPE_LABEL,
     init, reset, enabled, setEnabled,
-    recall, observe, flush, probe, extend,
+    recall, observe, flush, probe, extend, related,
     detectCommand, remember, forget,
     applyOps, saveFile, removeFile,
     list: sortedFiles,

@@ -375,24 +375,12 @@ function _carryThoughts(thinkText, recallRes) {
 
 function _afterTurn(txt, answer, model) {
   try {
+    if (window.CloakThread) CloakThread.drain();
     if (window.CloakMemory && txt) CloakMemory.observe({ user: txt, assistant: answer });
     if (window.CloakContext) setTimeout(() => CloakContext.maybeCompress({ hist, model }), 1200);
   } catch (e) { log('err', 'after-turn: ' + e.message); }
 }
 
-// Summaries/merges persist on the chat row without rewriting its messages.
-let _ctxSaveT = 0;
-if (window.CloakContext) CloakContext.on('change', (d) => {
-  if (!d || !/^(compress|merge|truncate)$/.test(d.source)) return;
-  if (guest || !uid || !chatId || !sb) return;
-  const id = chatId;
-  clearTimeout(_ctxSaveT);
-  _ctxSaveT = setTimeout(async () => {
-    if (id !== chatId) return;
-    const { error } = await sb.from('chats').update({ context: CloakContext.get() }).eq('id', id).eq('user_id', uid);
-    if (error) log('err', 'Context save: ' + error.message);
-  }, 800);
-});
 document.addEventListener('visibilitychange', () => { if (document.hidden && window.CloakMemory) CloakMemory.flush(); });
 
 /* ── SEARCH-AWARE SEND ── */
@@ -407,7 +395,6 @@ window.send = async function () {
   if (typeof hapticTap === 'function') hapticTap();
   if (typeof primeAudio === 'function') primeAudio();
   checkMentalHealth(txt);
-  if (!chatId) { chatId = Date.now().toString(); hist = []; }
 
   if (voiceMode) { voiceState = 'thinking'; if (recognition) recognition.stop(); }
 
@@ -416,7 +403,7 @@ window.send = async function () {
 
   inp.value = ''; inp.style.height = 'auto';
   setBusy(true);
-  addMsg('user', txt, false, imgs);
+  const _userEl = addMsg('user', txt, false, imgs);
 
   const t0 = Date.now();
   const hasImages = imgs.length > 0;
@@ -426,7 +413,7 @@ window.send = async function () {
   let userMsg = txt;
   if (hwMode && txt) userMsg = '[HOMEWORK MODE]\n\n' + txt;
   if (!userMsg && hasImages) userMsg = '[Image]';
-  hist.push({ role: 'USER', message: userMsg });
+  if (window.CloakThread) CloakThread.push('USER', userMsg, _userEl); else hist.push({ role: 'USER', message: userMsg });
 
   stats.req++;
   log('req', `"${(txt || '[image]').slice(0, 60)}" model=${model} search=enabled`);
@@ -625,7 +612,7 @@ window.send = async function () {
         stats.lat.push(ms); stats.res++;
         log('res', `${ms}ms | search+synthesis | len=${finalText.length}`);
 
-        hist.push({ role: 'CHATBOT', message: finalText });
+        if (window.CloakThread) CloakThread.push('CHATBOT', finalText, botMsgEl); else hist.push({ role: 'CHATBOT', message: finalText });
 
         if (synth.streamed) finishLive(botMsgEl, finalText);
         else replaceThinkWithContent(botMsgEl, finalText);
@@ -637,7 +624,6 @@ window.send = async function () {
 
         if (voiceMode) playVoice(finalText);
         if (guest) { guestN++; if (guestN >= GUEST_MAX) setTimeout(showLimit, 500); }
-        else saveConv(txt || '[Image]').catch(e => log('err', 'Save: ' + e.message));
         _carryThoughts(_thinkBuf, _cx.recall);
         _afterTurn(txt, finalText, model);
 
@@ -650,7 +636,7 @@ window.send = async function () {
     stats.lat.push(ms); stats.res++;
     log('res', `${ms}ms | no-search | len=${firstResponse.length}`);
 
-    hist.push({ role: 'CHATBOT', message: firstResponse });
+    if (window.CloakThread) CloakThread.push('CHATBOT', firstResponse, botMsgEl); else hist.push({ role: 'CHATBOT', message: firstResponse });
 
     // Streamed → let the last tokens land, then settle the orb.
     if (round1.streamed) finishLive(botMsgEl, firstResponse);
@@ -658,7 +644,6 @@ window.send = async function () {
 
     if (voiceMode) playVoice(firstResponse);
     if (guest) { guestN++; if (guestN >= GUEST_MAX) setTimeout(showLimit, 500); }
-    else saveConv(txt || '[Image]').catch(e => log('err', 'Save: ' + e.message));
     _carryThoughts(_thinkBuf, _cx.recall);
     _afterTurn(txt, firstResponse, model);
 
@@ -671,8 +656,8 @@ window.send = async function () {
         const msgs = document.getElementById('messages');
         if (msgs && msgs.lastChild?.classList?.contains('bot')) msgs.lastChild.remove();
       }
-      if (hist.length && hist[hist.length - 1].role === 'USER') hist.pop();
       setBusy(false);
+      if (window.CloakThread) CloakThread.drain();
     } else {
       stats.err++;
       log('err', ex.message);
@@ -682,6 +667,7 @@ window.send = async function () {
       if (!botMsgEl) botMsgEl = insertBotBubble();
       replaceThinkWithContent(botMsgEl, 'Error: ' + errTxt);
       if (voiceMode) playVoice('Sorry, I ran into an error.');
+      if (window.CloakThread) CloakThread.drain();
     }
   }
 };

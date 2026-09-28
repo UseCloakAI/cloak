@@ -1,23 +1,28 @@
 /* ════════════════════════════════════════════════════════
    CLOAK CONTEXT — budgeted context window + chunked compression
+   for the single, continuous Cloak thread.
 
-   Each request gets a token budget sized so persona + app prompt +
-   this budget + the reply stays under the tier's first provider's
-   free-tier tokens-per-minute cap. Inside it:
+   Each request gets a token budget sized so the Cloak prompt + app
+   prompt + this budget + the reply stays under the tier's first
+   provider's free-tier tokens-per-minute cap. Inside it:
 
      [memory]  recalled notes (CloakMemory)
-     [digest]  summary-of-summaries for the oldest part of the chat
-     [chunks]  per-chunk summaries (≈2.4k tokens of chat each, ~9:1)
+     [digest]  summary-of-summaries: everything Cloak has "moved on" from
+     [chunks]  per-conversation summaries (≈2.4k tokens of chat each, ~9:1)
      [gap]     local abbreviation of turns not yet summarised (free)
      [live]    the most recent turns verbatim
 
-   Compression only runs once a chat outgrows its budget, one chunk at a
-   time, in the background after a reply, on the cheap utility tier
-   (/v1/context/compress). When chunk summaries pile up they are merged
-   into the digest — so context stays bounded however long the chat gets.
-   State lives on the chat row (chats.context) as
-     { v:1, chunks:[{s,e,sum,tok,at}], digest:{e,sum,tok,n}|null }
-   where s/e index into the chat's message array.
+   The thread is split into conversation chunks: a chunk ends at a real
+   pause (≥ 3 h between messages) or when it reaches ~2.4k tokens. An
+   earlier conversation is compressed as soon as a new one starts; within
+   a conversation, compression starts once history outgrows the budget.
+   Compressing a chunk also extracts its memories (one utility call does
+   both). When chunk summaries pile up they are merged into the digest —
+   the thread's "moved on" boundary.
+
+   State lives on `threads.context` as
+     { v:2, chunks:[{s,e,sum,tok,n,from,to}], digest:{e,sum,tok,n}|null }
+   where s/e are thread message ids (inclusive) and from/to timestamps.
    ════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -37,6 +42,7 @@
   const GAP_BUDGET = 600;      // cap for the local abbreviation of unsummarised turns
   const OLD_MSG_CAP = 1400;    // older verbatim messages are clipped to this
   const COMPRESS_AT = 0.8;     // compress once history exceeds this share of the budget
+  const PAUSE_MS = 3 * 3600e3; // a pause this long starts a new conversation chunk
   const RETRY_MS = 60000;
 
   const est = (s) => (s ? Math.ceil(String(s).length / 3.6) : 0);
@@ -49,17 +55,17 @@
   let lastPlan = null;
   let calls = 0;
 
-  function empty() { return { v: 1, chunks: [], digest: null }; }
+  function empty() { return { v: 2, chunks: [], digest: null }; }
   function on(evt, fn) { (listeners[evt] = listeners[evt] || []).push(fn); }
   function emit(evt, data) { (listeners[evt] || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } }); }
   const log = (t, m) => { try { if (typeof window.log === 'function') window.log(t, '[context] ' + m); } catch (_) {} };
 
   function valid(o) {
-    if (!o || o.v !== 1 || !Array.isArray(o.chunks)) return false;
-    let at = o.digest ? o.digest.e : 0;
+    if (!o || o.v !== 2 || !Array.isArray(o.chunks)) return false;
     if (o.digest && (typeof o.digest.sum !== 'string' || !(o.digest.e > 0))) return false;
+    let at = o.digest ? o.digest.e : 0;
     for (const c of o.chunks) {
-      if (typeof c.sum !== 'string' || c.s !== at || !(c.e > c.s)) return false;
+      if (typeof c.sum !== 'string' || !(c.s > at) || !(c.e >= c.s)) return false;
       at = c.e;
     }
     return true;
@@ -73,16 +79,20 @@
   }
   function reset() { load(null); emit('plan', null); }
   function get() { return ctx; }
+  // Last message id summarised (chunks or digest); 0 = none.
   function covered() {
     if (ctx.chunks.length) return ctx.chunks[ctx.chunks.length - 1].e;
     return ctx.digest ? ctx.digest.e : 0;
   }
+  // Last message id Cloak has "moved on" from (folded into the digest).
+  function movedOn() { return ctx.digest ? ctx.digest.e : 0; }
+  const isCovered = (m, cov) => m.id != null && m.id <= cov;
 
-  // History was cut to n messages (message edit): drop summaries that covered removed turns.
-  function truncate(n) {
+  // Messages from `id` on were removed (edit): drop summaries that covered them.
+  function truncateFrom(id) {
     const before = JSON.stringify(ctx);
-    if (ctx.digest && ctx.digest.e > n) ctx = empty();
-    else ctx.chunks = ctx.chunks.filter((c) => c.e <= n);
+    if (ctx.digest && ctx.digest.e >= id) ctx = empty();
+    else ctx.chunks = ctx.chunks.filter((c) => c.e < id);
     if (JSON.stringify(ctx) !== before) { epoch++; emit('change', { source: 'truncate' }); }
   }
 
@@ -108,7 +118,6 @@
       }
       return '- ' + who + ': ' + t;
     });
-    // Over budget → keep the most recent lines.
     let out = [];
     let used = 0;
     for (let i = lines.length - 1; i >= 0; i--) {
@@ -121,21 +130,27 @@
     return out.join('\n');
   }
 
+  const when = (ms) => {
+    try { return new Date(ms).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    catch (_) { return ''; }
+  };
   function summaryText() {
     const parts = [];
-    if (ctx.digest) parts.push('Earliest part (digest):\n' + ctx.digest.sum);
-    ctx.chunks.forEach((c) => parts.push('Messages ' + (c.s + 1) + '–' + c.e + ':\n' + c.sum));
+    if (ctx.digest) parts.push('Earlier conversations (digest):\n' + ctx.digest.sum);
+    ctx.chunks.forEach((c) => parts.push('Conversation' + (c.from ? ' from ' + when(c.from) : '') + ':\n' + c.sum));
     return parts.join('\n\n');
   }
 
-  // hist: [{role:'USER'|'CHATBOT', message}] including the new user message last.
+  // hist: [{id?, role:'USER'|'CHATBOT', message, at?}] with the new user message last.
   // Returns { messages (API format), system (summary block), plan }.
   function build(o) {
     const hist = o.hist || [];
     const model = o.model || 'pneuma';
     const B = budgetFor(model);
     const n = hist.length;
-    const cov = Math.min(covered(), Math.max(0, n - 1));
+    const cov = covered();
+    let first = hist.findIndex((m) => !isCovered(m, cov));
+    if (first === -1 || first > n - 1) first = Math.max(0, n - 1);
     const sums = summaryText();
     const sumTok = est(sums);
     const memTok = est(o.memory || '');
@@ -143,7 +158,7 @@
 
     const live = [];
     let liveTok = 0;
-    for (let i = n - 1; i >= cov; i--) {
+    for (let i = n - 1; i >= first; i--) {
       const mustKeep = n - 1 - i < 2; // the new message and the reply it follows
       let content = String(hist[i].message || '');
       let t = est(content) + 4;
@@ -156,17 +171,18 @@
     while (live.length > 1 && live[0].role === 'assistant') { liveTok -= est(live[0].content) + 4; live.shift(); }
     const liveStart = live.length ? live[0].i : n;
 
-    const gapMsgs = hist.slice(cov, liveStart);
+    const gapMsgs = hist.slice(first, liveStart);
     const gap = gapMsgs.length ? gist(gapMsgs, Math.min(GAP_BUDGET, Math.max(150, avail - liveTok))) : '';
     const gapTok = est(gap);
 
     let system = '';
     if (sums || gap) {
-      system = '## CONVERSATION SO FAR (compressed)\nThis chat is longer than the messages shown. These are compressed notes of the earlier part; treat them as things that were actually said.\n' +
+      system = '## CONVERSATION SO FAR (compressed)\nYou and the user share one continuous conversation across web and Telegram. The messages shown are the most recent; these are compressed notes of what came before — treat them as things that were actually said.\n' +
         (sums ? '\n' + sums + '\n' : '') +
         (gap ? '\nMore recent earlier turns (abbreviated):\n' + gap + '\n' : '');
     }
 
+    const dEnd = ctx.digest ? hist.filter((m) => isCovered(m, ctx.digest.e)).length : 0;
     lastPlan = {
       model,
       budget: B.total,
@@ -178,8 +194,9 @@
       total: n,
       liveCount: live.length,
       gapCount: gapMsgs.length,
-      covered: cov,
-      chunks: ctx.chunks.map((c) => ({ s: c.s, e: c.e, tok: c.tok })),
+      covered: first,          // positions within the loaded history (for the Brain strip)
+      digestEnd: dEnd,
+      chunks: ctx.chunks.map((c) => ({ s: c.s, e: c.e, tok: c.tok, n: c.n })),
       digest: ctx.digest ? { e: ctx.digest.e, tok: ctx.digest.tok, n: ctx.digest.n || 1 } : null,
       at: Date.now(),
     };
@@ -195,48 +212,82 @@
     return d;
   }
 
-  // Runs after a reply. At most one chunk (plus an optional merge) per call.
-  async function maybeCompress(o) {
-    if (busy || Date.now() < retryAt) return false;
-    const hist = o.hist || [];
-    const B = budgetFor(o.model);
+  // Picks the next range to compress, or null. A finished earlier conversation
+  // (followed by a pause) is always compressed; otherwise only when over budget.
+  function nextChunk(hist, B) {
     const n = hist.length;
     const cov = covered();
-    let pendTok = 0;
-    for (let i = cov; i < n; i++) pendTok += est(hist[i].message) + 4;
-    if (pendTok + est(summaryText()) <= B.total * COMPRESS_AT) return mergeIfNeeded(B);
+    const first = hist.findIndex((m) => !isCovered(m, cov));
+    if (first === -1) return null;
 
     // Recent turns stay verbatim: at least `keep`, up to ~55% of the budget.
     let keepFrom = n;
     let keepTok = 0;
-    for (let i = n - 1; i >= cov; i--) {
+    for (let i = n - 1; i >= first; i--) {
       const t = est(hist[i].message) + 4;
       if (n - i > B.keep && keepTok + t > B.total * 0.55) break;
       keepTok += t;
       keepFrom = i;
     }
-    let e = cov;
-    let t = 0;
-    while (e < keepFrom && e - cov < CHUNK_MAX && t < CHUNK_TOKENS) { t += est(hist[e].message) + 4; e++; }
-    if (e - cov >= 3 && hist[e - 1].role === 'USER') e--; // end a chunk on a reply
-    if (e - cov < 2) return mergeIfNeeded(B);
+    // Only messages that already have server ids can be summarised.
+    let firstNoId = n;
+    for (let i = first; i < n; i++) if (hist[i].id == null) { firstNoId = i; break; }
 
+    // The latest pause marks where the current conversation began; everything
+    // unsummarised before it belongs to an earlier, finished conversation.
+    let pauseAt = -1;
+    for (let i = n - 1; i > first; i--) {
+      if (hist[i].at && hist[i - 1].at && hist[i].at - hist[i - 1].at >= PAUSE_MS) { pauseAt = i; break; }
+    }
+    let pendTok = 0;
+    for (let i = first; i < n; i++) pendTok += est(hist[i].message) + 4;
+    const overBudget = pendTok + est(summaryText()) > B.total * COMPRESS_AT;
+    // Over budget: everything older than the verbatim tail. Otherwise only a
+    // finished earlier conversation (everything before the latest pause).
+    const limit = Math.min(firstNoId, overBudget ? keepFrom : pauseAt === -1 ? -1 : pauseAt);
+    if (limit - first < (overBudget ? 2 : 4)) return null;
+
+    let e = first;
+    let t = 0;
+    while (e < limit && e - first < CHUNK_MAX && t < CHUNK_TOKENS) {
+      if (e > first + 1 && hist[e].at && hist[e - 1].at && hist[e].at - hist[e - 1].at >= PAUSE_MS) break; // end at a pause
+      t += est(hist[e].message) + 4;
+      e++;
+    }
+    if (e - first >= 3 && hist[e - 1].role === 'USER' && !(hist[e] && hist[e].at && hist[e - 1].at && hist[e].at - hist[e - 1].at >= PAUSE_MS)) e--; // end on a reply
+    if (e - first < 2) return null;
+    return { from: first, to: e, tok: t };
+  }
+
+  // Runs after a reply. At most one chunk (plus an optional merge) per call.
+  async function maybeCompress(o) {
+    if (busy || Date.now() < retryAt) return false;
+    const hist = o.hist || [];
+    const B = budgetFor(o.model);
+    const pick = nextChunk(hist, B);
+    if (!pick) return mergeIfNeeded(B);
+
+    const slice = hist.slice(pick.from, pick.to);
+    const s = slice[0].id;
+    const e = slice[slice.length - 1].id;
     busy = true;
     const myEpoch = epoch;
-    const s = cov;
-    emit('compressing', { s, e });
+    const covBefore = covered();
+    emit('compressing', { s, e, count: slice.length });
     try {
-      const words = Math.max(60, Math.min(200, Math.round(t / 10))); // ≈9:1 in tokens
-      const d = await post('/v1/context/compress', {
-        mode: 'chunk',
-        words,
-        messages: hist.slice(s, e).map((m) => ({ role: m.role === 'CHATBOT' ? 'assistant' : 'user', content: String(m.message || '').slice(0, 6000) })),
-      });
-      if (myEpoch !== epoch || covered() !== s) return false; // chat changed underneath us
-      ctx.chunks.push({ s, e, sum: d.summary, tok: est(d.summary), at: Date.now() });
+      const words = Math.max(60, Math.min(200, Math.round(pick.tok / 10))); // ≈9:1 in tokens
+      const msgs = slice.map((m) => ({ role: m.role === 'CHATBOT' ? 'assistant' : 'user', content: String(m.message || '').slice(0, 6000) }));
+      const M = window.CloakMemory;
+      const body = { mode: 'chunk', words, messages: msgs };
+      // Save what matters from this conversation before it leaves verbatim context.
+      if (M && M.enabled()) body.memory = { existing: M.related(slice.map((m) => m.message).join('\n'), 14), today: new Date().toISOString().slice(0, 10) };
+      const d = await post('/v1/context/compress', body);
+      if (myEpoch !== epoch || covered() !== covBefore) return false; // thread changed underneath us
+      ctx.chunks.push({ s, e, sum: d.summary, tok: est(d.summary), n: slice.length, from: slice[0].at || null, to: slice[slice.length - 1].at || null });
+      if (M && Array.isArray(d.ops) && d.ops.length) M.applyOps(d.ops.map((op) => Object.assign({}, op, { source: 'auto' })), 'auto');
       emit('change', { source: 'compress', s, e });
-      emit('compressed', { s, e, tok: est(d.summary), from: t });
-      log('inf', 'compressed ' + (e - s) + ' msgs ' + t + '→' + est(d.summary) + ' tok');
+      emit('compressed', { s, e, count: slice.length, tok: est(d.summary), from: pick.tok, ops: (d.ops || []).length });
+      log('inf', 'compressed ' + slice.length + ' msgs ' + pick.tok + '→' + est(d.summary) + ' tok, ' + (d.ops || []).length + ' memory op(s)');
       await mergeIfNeeded(B, true);
       return true;
     } catch (err) {
@@ -282,8 +333,9 @@
 
   window.CloakContext = {
     BUDGETS,
+    PAUSE_MS,
     est,
-    load, reset, get, truncate, covered,
+    load, reset, get, truncateFrom, covered, movedOn,
     build, maybeCompress,
     lastPlan: () => lastPlan,
     busy: () => busy,
