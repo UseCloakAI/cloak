@@ -1,11 +1,14 @@
 /* ════════════════════════════════════════════════════════
    CLOAK THREAD — multiple chats per user, synced live.
-   Each chat is a row in `chats` (title, is_main, its own compressed
-   context — see context.js); its messages are rows in `thread_messages`
-   tagged with `chat_id`. Exactly one chat is "Main" — the one a linked
-   Telegram chat continues. Switching chats swaps which one is loaded and
-   which Realtime channel is live; two tabs/devices open on the same chat
-   get new messages the instant they land, whichever platform sent them.
+   Each chat is a row in `chats` (title, its own compressed context — see
+   context.js); its messages are rows in `thread_messages` tagged with
+   `chat_id`. `profiles.active_chat_id` points at whichever chat is
+   "active" — set here on every switch — and is what a linked Telegram
+   chat continues (so Telegram follows whichever chat you have open on
+   web, or the last one it touched itself). Switching chats swaps which
+   one is loaded and which Realtime channel is live; two tabs/devices open
+   on the same chat get new messages the instant they land, whichever
+   platform sent them.
    Within one chat, the "moved on" boundary and time dividers work exactly
    as they did for the old single thread.
    Guests: in-memory only, one ephemeral chat, nothing is saved.
@@ -25,7 +28,7 @@
   let incoming = [];
   const pendingCids = new Map(); // client_id → hist entry awaiting its row id
 
-  let convs = [];        // [{id, title, isMain, updatedAt}], newest first
+  let convs = [];        // [{id, title, updatedAt}], newest first
   let activeId = null;   // current chat id ('guest' when not signed in)
   let _convSeen = new Set();
 
@@ -162,8 +165,8 @@
       if (!_convSeen.has(c.id)) { d.classList.add('conv-in'); d.style.setProperty('--k', first ? Math.min(k++, 12) : 0); }
       const lbl = document.createElement('div');
       lbl.className = 'conv-label';
-      lbl.innerHTML = '<svg class="conv-icon" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>' + esc(c.title) + (c.isMain ? ' · Main' : '') + '</span>';
-      lbl.title = c.title + (c.isMain ? ' (Main — linked to Telegram)' : '');
+      lbl.innerHTML = '<svg class="conv-icon" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>' + esc(c.title) + '</span>';
+      lbl.title = c.title;
       lbl.onclick = () => { if (chatBusy()) return; switchTo(c.id); if (typeof closeMobileSidebar === 'function') closeMobileSidebar(); };
       const del = document.createElement('button');
       del.className = 'conv-del';
@@ -199,8 +202,11 @@
     }
     try {
       await loadList();
-      let target = convs.find((c) => c.isMain) || convs[0];
-      if (!target) target = await createChat('Main chat', true);
+      let target = null;
+      const { data: prof } = await owner.sb.from('profiles').select('active_chat_id').eq('id', owner.uid).maybeSingle();
+      if (prof && prof.active_chat_id) target = convs.find((c) => c.id === prof.active_chat_id);
+      if (!target) target = convs[0];
+      if (!target) target = await createChat('New chat');
       if (target) { await switchTo(target.id); subscribeList(); }
       log('inf', 'loaded ' + convs.length + ' chat(s)');
     } catch (e) {
@@ -214,19 +220,25 @@
   }
 
   async function loadList() {
-    const { data, error } = await owner.sb.from('chats').select('id,title,is_main,updated_at').eq('user_id', owner.uid).order('updated_at', { ascending: false });
+    const { data, error } = await owner.sb.from('chats').select('id,title,updated_at').eq('user_id', owner.uid).order('updated_at', { ascending: false });
     if (error) throw error;
-    convs = (data || []).map((r) => ({ id: r.id, title: r.title, isMain: r.is_main, updatedAt: r.updated_at }));
+    convs = (data || []).map((r) => ({ id: r.id, title: r.title, updatedAt: r.updated_at }));
     renderConvs();
   }
 
-  async function createChat(title, isMain) {
-    const { data, error } = await owner.sb.from('chats').insert({ user_id: owner.uid, title: title || 'New chat', is_main: !!isMain }).select('id,title,is_main,updated_at').single();
+  async function createChat(title) {
+    const { data, error } = await owner.sb.from('chats').insert({ user_id: owner.uid, title: title || 'New chat' }).select('id,title,updated_at').single();
     if (error) { log('err', 'create chat failed: ' + error.message); return null; }
-    const c = { id: data.id, title: data.title, isMain: data.is_main, updatedAt: data.updated_at };
+    const c = { id: data.id, title: data.title, updatedAt: data.updated_at };
     convs.unshift(c);
     renderConvs();
     return c;
+  }
+
+  // profiles.active_chat_id is what a linked Telegram chat continues.
+  function setActiveChatId(id) {
+    owner.sb.from('profiles').update({ active_chat_id: id }).eq('id', owner.uid)
+      .then(({ error }) => { if (error) log('err', 'active chat save failed: ' + error.message); });
   }
 
   function stop() { stopMessages(); stopList(); }
@@ -250,6 +262,7 @@
     pendingCids.clear();
     renderConvs();
     if (!persisted()) { hist = []; if (window.CloakContext) CloakContext.reset(); renderAll(); return; }
+    setActiveChatId(id);
     try {
       const { data: c } = await owner.sb.from('chats').select('context').eq('id', id).maybeSingle();
       if (window.CloakContext) CloakContext.load(c && c.context);
@@ -276,7 +289,7 @@
     if (chatBusy()) return;
     if (window.CloakMemory) CloakMemory.flush();
     if (!persisted()) { activeId = 'guest'; chatId = 'guest'; hist = []; if (window.CloakContext) CloakContext.reset(); renderAll(); return; }
-    const c = await createChat('New chat', false);
+    const c = await createChat('New chat');
     if (c) await switchTo(c.id);
   }
 
@@ -290,8 +303,8 @@
     if (error) { log('err', 'delete failed: ' + error.message); renderConvs(); return; }
     convs = convs.filter((c) => c.id !== id);
     if (id === activeId) {
-      let next = convs.find((c) => c.isMain) || convs[0];
-      if (!next) next = await createChat('Main chat', true);
+      let next = convs[0];
+      if (!next) next = await createChat('New chat');
       activeId = null; // force switchTo to actually reload
       if (next) await switchTo(next.id);
     } else renderConvs();
@@ -307,8 +320,8 @@
     if (error) log('err', 'clear failed: ' + error.message);
     convs = [];
     activeId = null;
-    const main = await createChat('Main chat', true);
-    if (main) await switchTo(main.id);
+    const fresh = await createChat('New chat');
+    if (fresh) await switchTo(fresh.id);
   }
 
   /* ── live sync ── */
@@ -326,9 +339,9 @@
       .subscribe();
   }
 
-  // Keeps the sidebar (title/order/Main flag) in sync with other tabs and
-  // devices. Doesn't touch the open chat's messages or context — those are
-  // handled by the per-chat channel and by CloakContext's own staleness checks.
+  // Keeps the sidebar (title/order) in sync with other tabs and devices.
+  // Doesn't touch the open chat's messages or context — those are handled
+  // by the per-chat channel and by CloakContext's own staleness checks.
   function onListChange(p) {
     if (p.eventType === 'DELETE') {
       const id = p.old && p.old.id;
@@ -337,16 +350,16 @@
       convs = convs.filter((c) => c.id !== id);
       if (had) renderConvs();
       if (id === activeId) {
-        const next = convs.find((c) => c.isMain) || convs[0];
+        const next = convs[0];
         activeId = null;
-        if (next) switchTo(next.id); else createChat('Main chat', true).then((c) => c && switchTo(c.id));
+        if (next) switchTo(next.id); else createChat('New chat').then((c) => c && switchTo(c.id));
       }
       return;
     }
     const r = p.new;
     if (!r) return;
     const idx = convs.findIndex((c) => c.id === r.id);
-    const c = { id: r.id, title: r.title, isMain: r.is_main, updatedAt: r.updated_at };
+    const c = { id: r.id, title: r.title, updatedAt: r.updated_at };
     if (idx === -1) convs.unshift(c); else convs[idx] = c;
     convs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
     renderConvs();
@@ -482,7 +495,7 @@
     const row = telegramRow();
     if (!row) return;
     const who = (typeof name === 'string' && name.trim() ? name.trim().split(/\s+/)[0] : 'You');
-    row.querySelector('#tg-desc').textContent = 'Continue your Main chat in Telegram. What you send here appears there as “' + who + ' said: …”, and what you send there appears here.';
+    row.querySelector('#tg-desc').textContent = 'Telegram continues whichever chat you have open here — switch chats and it follows. What you send here appears there as “' + who + ' said: …”, and what you send there appears here.';
     const status = row.querySelector('#tg-status');
     const linkBtn = row.querySelector('#tg-link');
     const unlinkBtn = row.querySelector('#tg-unlink');
@@ -494,7 +507,7 @@
     }
     const { data, error } = await owner.sb.from('telegram_links').select('chat_id,linked_at').eq('user_id', owner.uid).maybeSingle();
     if (error) { status.textContent = 'Telegram status unavailable.'; return; }
-    status.textContent = data ? 'Linked — your Main chat continues in Telegram.' : 'Not linked.';
+    status.textContent = data ? 'Linked — Telegram follows whichever chat is open here.' : 'Not linked.';
     linkBtn.hidden = !!data;
     unlinkBtn.hidden = !data;
   }
@@ -525,7 +538,7 @@
   }
 
   async function unlinkTelegram() {
-    if (!confirm('Unlink Telegram? Your Main chat will stop continuing there.')) return;
+    if (!confirm('Unlink Telegram? It will stop continuing your chats.')) return;
     const { error } = await owner.sb.from('telegram_links').delete().eq('user_id', owner.uid);
     if (error) log('err', 'unlink failed: ' + error.message);
     refreshTelegram();
