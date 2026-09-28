@@ -248,10 +248,8 @@
 }
 
 /* ════════════════════════════════════════════════════════
-   THREAD — one continuous conversation (thread.js)
+   THREAD — per-chat conversation (thread.js)
    ════════════════════════════════════════════════════════ */
-/* Pushes .sb-footer to the bottom, flush with the input-area border (--input-h sync in cloak.js) — same job .conv-list used to do. */
-.sb-spacer{flex:1;}
 
 /* "Cloak has moved on" — the top of what's loaded */
 .moved-on{

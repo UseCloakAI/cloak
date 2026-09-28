@@ -20,7 +20,7 @@
    both). When chunk summaries pile up they are merged into the digest —
    the thread's "moved on" boundary.
 
-   State lives on `threads.context` as
+   State lives on `chats.context` (one row per chat) as
      { v:2, chunks:[{s,e,sum,tok,n,from,to}], digest:{e,sum,tok,n}|null }
    where s/e are thread message ids (inclusive) and from/to timestamps.
    ════════════════════════════════════════════════════════ */

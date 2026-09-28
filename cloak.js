@@ -375,8 +375,7 @@ function playVoice(text) {
   synth.speak(u);
 }
 
-// One continuous conversation (thread.js) — there is no chat list any more.
-function newChat(){if(window.CloakThread)CloakThread.jumpToLatest();}
+function newChat(){if(window.CloakThread)CloakThread.newChat();}
 function cpCode(id,btn){navigator.clipboard.writeText(document.getElementById(id)?.innerText||'').then(()=>{btn.textContent='Copied!';btn.classList.add('ok');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('ok');},1400);});}
 
 /* ── BUSY STATE ── */
@@ -1066,7 +1065,7 @@ function prepSettings(){
 function closeModal(id){const el=document.getElementById(id);if(!el)return;el.classList.add('hiding');setTimeout(()=>{el.style.display='none';el.classList.remove('hiding');},120);}
 function overlayClick(e,id){if(e.target===document.getElementById(id))closeModal(id);}
 function switchSettingsTab(t){hapticTap();atab=t;document.querySelectorAll('.snav-btn').forEach(el=>el.classList.toggle('on',el.id==='snav-'+t));document.querySelectorAll('.spane').forEach(el=>el.classList.remove('on'));const p=document.getElementById('spane-'+t);if(p)p.classList.add('on');if(t==='console'){updateStats();renderLogs();}}
-async function clearAllChats(){if(!confirm('Clear your whole conversation with Cloak? Your memories are kept.'))return;if(window.CloakThread)await CloakThread.clear();log('inf','Conversation cleared');}
+async function clearAllChats(){if(!confirm('Delete ALL conversations? Your memories are kept.'))return;if(window.CloakThread)await CloakThread.clearAll();log('inf','All chats deleted');}
 
 /* ── 2FA ── */
 async function start2FA(){try{const{data,error}=await sb.auth.mfa.enroll({factorType:'totp'});if(error)throw error;const sec=document.getElementById('totp-section');sec.style.display='block';document.getElementById('totp-secret').textContent='Secret: '+data.totp.secret;document.getElementById('totp-qr').innerHTML='<img src="'+data.totp.qr_code+'" style="width:160px;height:160px;border:var(--bd)" />';window._totpFactorId=data.id;}catch(e){alert('2FA setup failed: '+e.message);}}
