@@ -213,16 +213,19 @@ html.booting body>:not(#s-loading),html.booting body>:not(#s-loading) *{animatio
 .screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:24px 20px;padding-top:max(24px,calc(env(safe-area-inset-top,0px) + 20px));padding-bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 20px));background:var(--paper);position:relative;overflow:hidden;}
 .screen.active{display:flex;}
 
-/* ── AUTH BACKGROUND PATTERN ── 45° hatch; on auth screens it drifts
-   sideways one stripe (26px·√2) every 1.6s. */
-.screen::before{
+/* ── HATCH BACKGROUND ── 45° hatch that drifts sideways one stripe
+   (26px·√2) every 1.6s — behind the auth screens and the Settings page. */
+.screen::before,.settings-page::before{
   content:'';position:absolute;top:0;bottom:0;left:-40px;right:0;
   background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(0,0,0,.025) 24px,rgba(0,0,0,.025) 26px);
-  pointer-events:none;
+  pointer-events:none;animation:hatch 1.6s linear infinite;
 }
-.screen::before{animation:hatch 1.6s linear infinite;}
 @keyframes hatch{to{transform:translateX(36.77px);}}
-.dark .screen::before{background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(255,255,255,.03) 24px,rgba(255,255,255,.03) 26px);}
+.dark .screen::before,.dark .settings-page::before{background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(255,255,255,.03) 24px,rgba(255,255,255,.03) 26px);}
+/* In the shell it sits under the page's content (the topbar and the settings
+   card are opaque) and over #main's paper; it stays put while Settings scrolls. */
+.settings-page{isolation:isolate;}
+.settings-page::before{z-index:-1;}
 
 /* ── AUTH ── */
 .auth-card{
