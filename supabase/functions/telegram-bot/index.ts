@@ -108,13 +108,11 @@ async function sendTelegram(chatId: number | string, text: string, plain = false
   }
 }
 
+// No artificial "typing…" pauses — deliver every bubble as soon as it's ready.
+// The typing indicator is fire-and-forget so it never adds latency either.
 async function sendChain(chatId: number | string, parts: string[]) {
-  for (let i = 0; i < parts.length; i++) {
-    await tg("sendChatAction", { chat_id: chatId, action: "typing" });
-    const pause = i === 0 ? Math.min(1400, 250 + parts[0].length * 8) : Math.min(2200, 450 + parts[i].length * 18);
-    await new Promise((r) => setTimeout(r, pause));
-    await sendTelegram(chatId, parts[i]);
-  }
+  tg("sendChatAction", { chat_id: chatId, action: "typing" });
+  for (const part of parts) await sendTelegram(chatId, part);
 }
 
 async function reactTo(chatId: number | string, messageId: number, emoji: string) {
