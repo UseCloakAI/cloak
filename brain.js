@@ -391,7 +391,7 @@
     meta.textContent = `${fmt(plan.used)} / ${fmt(plan.budget)} tok`;
 
     const n = plan.total;
-    const dEnd = plan.digest ? plan.digest.e : 0;
+    const dEnd = plan.digestEnd || 0;
     const liveFrom = n - plan.liveCount;
     let cells = '';
     for (let i = 0; i < n; i++) {
@@ -400,16 +400,17 @@
     }
     strip.innerHTML = cells;
     const parts = [];
-    if (plan.digest) parts.push(`${dEnd} in digest`);
-    if (plan.chunks.length) parts.push(`${plan.covered - dEnd} in ${plan.chunks.length} chunk${plan.chunks.length > 1 ? 's' : ''}`);
+    if (plan.digest) parts.push(dEnd ? `${dEnd} moved on` : `${plan.digest.n} conversation${plan.digest.n > 1 ? 's' : ''} moved on`);
+    if (plan.chunks.length) parts.push(`${plan.covered - dEnd} in ${plan.chunks.length} condensed conversation${plan.chunks.length > 1 ? 's' : ''}`);
     if (plan.gapCount) parts.push(`${plan.gapCount} abbreviated`);
     parts.push(`${plan.liveCount} verbatim`);
     $('#bctx-strip-note').textContent = `· ${n} total · ` + parts.join(' · ');
 
     const ctx = C().get();
     const rows = [];
-    if (ctx.digest) rows.push({ label: `Digest · messages 1–${ctx.digest.e}`, tok: ctx.digest.tok, sum: ctx.digest.sum, k: 'd' });
-    ctx.chunks.forEach((c) => rows.push({ label: `Chunk · messages ${c.s + 1}–${c.e}`, tok: c.tok, sum: c.sum, k: 'c' }));
+    const day = (ms) => { try { return ms ? new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; } catch (_) { return ''; } };
+    if (ctx.digest) rows.push({ label: `Moved on · ${ctx.digest.n || 1} conversation${(ctx.digest.n || 1) > 1 ? 's' : ''}`, tok: ctx.digest.tok, sum: ctx.digest.sum, k: 'd' });
+    ctx.chunks.forEach((c) => rows.push({ label: `Conversation${c.from ? ' · ' + day(c.from) : ''} · ${c.n || '?'} msgs`, tok: c.tok, sum: c.sum, k: 'c' }));
     chunks.innerHTML = rows.map((r, i) => `
       <li class="bchunk k-${r.k}"><button type="button" class="bchunk-head" aria-expanded="false" data-chunk="${i}"><span>${r.label}</span><b>${fmt(r.tok)} tok</b></button><pre class="bchunk-sum" hidden>${esc(r.sum)}</pre></li>`).join('');
   }
@@ -671,11 +672,11 @@
     if (cx) {
       cx.on('plan', () => { if (root && !root.hidden) renderContext(); });
       cx.on('change', () => { if (root && !root.hidden) renderContext(); });
-      cx.on('compressing', (d) => { activity = d.merge ? 'Folding summaries into the digest…' : `Compressing messages ${d.s + 1}–${d.e}…`; layers.stem && layers.stem.classList.add('busy'); setTicker(activity); });
+      cx.on('compressing', (d) => { activity = d.merge ? 'Folding summaries into the digest…' : `Condensing a conversation (${d.count || '…'} messages)…`; layers.stem && layers.stem.classList.add('busy'); setTicker(activity); });
       cx.on('compressed', (d) => {
         activity = '';
         if (layers.stem) layers.stem.classList.remove('busy');
-        setTicker(d.error ? 'Compression failed — will retry' : d.merge ? 'Digest updated' : `Compressed ${d.e - d.s} messages · ${fmt(d.from)} → ${fmt(d.tok)} tok`);
+        setTicker(d.error ? 'Compression failed — will retry' : d.merge ? 'Digest updated' : `Condensed ${d.count} messages · ${fmt(d.from)} → ${fmt(d.tok)} tok${d.ops ? ' · ' + d.ops + ' memory update' + (d.ops > 1 ? 's' : '') : ''}`);
         if (root && !root.hidden) renderContext();
       });
     }

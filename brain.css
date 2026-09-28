@@ -246,3 +246,44 @@
   .br-signal,.br-ring{display:none;}
   .brain-btn.firing{animation:none;}
 }
+
+/* ════════════════════════════════════════════════════════
+   THREAD — one continuous conversation (thread.js)
+   ════════════════════════════════════════════════════════ */
+.sb-thread-note{margin:10px 10px 4px;font-size:11px;line-height:1.5;color:var(--ink);opacity:.5;}
+
+/* "Cloak has moved on" — the top of what's loaded */
+.moved-on{
+  align-self:center;width:min(520px,100%);margin:8px 0 28px;padding:22px 22px 20px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  background:var(--surf);border:var(--bd);box-shadow:var(--sh);
+  background-image:repeating-linear-gradient(135deg,transparent 0 10px,var(--p2) 10px 11px);
+}
+.moved-on-mark{width:28px;height:28px;margin-bottom:6px;border:var(--bd);background:var(--acc);box-shadow:var(--shsm);rotate:45deg;}
+.moved-on-title{font-family:var(--fd);font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);}
+.moved-on-sub{font-size:13px;color:var(--ink);opacity:.62;}
+.moved-on-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:12px;}
+.moved-on-btn{
+  height:38px;padding:0 16px;background:var(--ink);color:var(--paper);border:var(--bd);box-shadow:var(--shsm);
+  font:700 10px var(--fu);text-transform:uppercase;letter-spacing:.1em;cursor:pointer;
+  transition:box-shadow var(--lift),translate var(--lift),background var(--t);
+}
+.moved-on-btn:hover{box-shadow:var(--sh);translate:-2px -2px;}
+.moved-on-btn:active{box-shadow:none;translate:2px 2px;transition-duration:var(--tp);}
+.moved-on-link{height:38px;padding:0 6px;background:none;border:none;color:var(--ink);font:600 12px var(--fu);text-decoration:underline;text-underline-offset:3px;cursor:pointer;opacity:.7;}
+.moved-on-link:hover{opacity:1;color:var(--acc);}
+.moved-on-btn:focus-visible,.moved-on-link:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+.msg.moved-on-past{opacity:.38;filter:grayscale(.4);transition:opacity .6s ease;}
+
+/* Conversation boundaries (≥ 3 h pause) */
+.thread-divider{display:flex;align-items:center;gap:12px;margin:18px 0 10px;color:var(--ink);opacity:.5;font:700 10px var(--fu);text-transform:uppercase;letter-spacing:.14em;}
+.thread-divider::before,.thread-divider::after{content:"";flex:1;border-top:var(--bdt);}
+
+/* Messages that arrived from another platform */
+.msg-src{margin-top:4px;font:600 10px var(--fu);letter-spacing:.06em;text-transform:uppercase;color:var(--ink);opacity:.45;}
+.msg.user .msg-src{text-align:right;}
+
+/* Settings → Telegram */
+.tg-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:8px;}
+.tg-status{font-size:12px;font-weight:600;color:var(--ink);opacity:.7;margin-right:auto;}
+.tg-actions [hidden]{display:none;}

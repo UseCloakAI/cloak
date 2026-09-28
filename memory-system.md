@@ -12,6 +12,17 @@ Long-term memory, a live "Brain" view of it, and budgeted context compression �
 | Free-tier governor | `api-worker/src/governor.js` | `cloak-api` Worker |
 | Tables | `supabase/migrations/20260926230000_memory_system.sql` | Supabase |
 
+## One continuous conversation
+
+There are no separate chats. Each user has one thread (`thread_messages`, shared by web and Telegram) managed in conversation chunks:
+
+- A **conversation chunk** ends at a real pause (≥ 3 h between messages) or at ~2.4k tokens. As soon as a new conversation starts, the previous one is condensed (and its memories extracted, in the same `/v1/context/compress` call). Within a conversation, condensing starts once it outgrows the budget.
+- Chunk summaries fold into the **digest** as they pile up. The digest's last message id is the **moved-on boundary**: the web loads only messages after it, and above them shows *"Cloak has moved on from these chats. Important memories have been saved."* with **Return to most recent chat** (and a link to the Brain).
+- Time dividers mark conversation boundaries in the view.
+- **Telegram**: Settings → Telegram → *Link Telegram* opens `t.me/<bot>?start=link_<code>` (one-time code, 15 min). A linked chat continues the thread with the same context and memories. Web messages are mirrored into it by an `AFTER INSERT` trigger (pg_net → `telegram-bot?relay=<id>`) as *"Weston said: …"*, followed by Cloak's reply; Telegram messages appear on the web live (Realtime) tagged *via Telegram*. `/unlink` in Telegram or *Unlink* on the web stops it.
+- The bot compresses on its side too (same rules), so a Telegram-only user's thread stays bounded.
+- Settings → *Clear conversation* wipes the thread everywhere; memories are kept.
+
 ## Memories are markdown files
 
 One small `.md` file per memory, stored at `<type>/<slug>.md`:

@@ -14,7 +14,7 @@ let extraPrompt=localStorage.getItem('cloak_extra_prompt')||'';
 let email='',uid='',name='',admin=false;
 let guest=false,guestN=0;
 let verifyEmail='';
-let convs=[],chatId=null,hist=[],logs=[],logF='all',stats={req:0,res:0,err:0,lat:[]},atab='general';
+let chatId=null,hist=[],logs=[],logF='all',stats={req:0,res:0,err:0,lat:[]},atab='general';
 let annId=null;
 let hwMode=false, thinkModeActive=false, attachedImgs=[];
 let onboardingDone=false;
@@ -615,15 +615,11 @@ function addMsg(role,content,noAnim=false,imgs=[]){
 function editMessage(msgEl){
   if(busy)return;
   const rawText=msgEl.dataset.raw||'';
-  const box=document.getElementById('messages');
-  const msgs=Array.from(box.children);
-  const idx=msgs.indexOf(msgEl);
-  if(idx===-1)return;
-  const removed=msgs.slice(idx);
-  removed.forEach(el=>el.remove());
-  const toRemove=removed.length;
-  hist=hist.slice(0,Math.max(0,hist.length-toRemove));
-  if(window.CloakContext)CloakContext.truncate(hist.length);
+  const entry=msgEl._entry;
+  if(!entry||hist.indexOf(entry)===-1)return;
+  // Remove this bubble and everything after it (bubbles, dividers, notes).
+  let el=msgEl;while(el){const next=el.nextElementSibling;el.remove();el=next;}
+  if(window.CloakThread)CloakThread.truncateAt(entry);else hist=hist.slice(0,hist.indexOf(entry));
   trimToLatest();
   const inp=document.getElementById('chat-input');
   inp.value=rawText;inp.focus();onInput(inp);
@@ -738,30 +734,8 @@ function playVoice(text) {
   synth.speak(u);
 }
 
-let _convSeen=new Set();   // ids already on screen — only new rows animate in
-function renderConvs(){
-  const list=document.getElementById('conv-list');list.innerHTML='';
-  const first=!_convSeen.size;let k=0;
-  convs.forEach(c=>{
-    const d=document.createElement('div');d.className='conv-item'+(c.id===chatId?' active':'');d.dataset.id=c.id;
-    if(!_convSeen.has(c.id)){d.classList.add('conv-in');d.style.setProperty('--k',first?Math.min(k++,12):0);}
-    const lbl=document.createElement('div');lbl.className='conv-label';
-    lbl.innerHTML='<svg class="conv-icon" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>'+hesc(c.title)+'</span>';
-    lbl.title=c.title;lbl.onclick=()=>loadConv(c.id);
-    const del=document.createElement('button');del.className='conv-del';del.title='Delete';
-    del.innerHTML='<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
-    del.onclick=e=>{e.stopPropagation();delConv(c.id);};d.appendChild(lbl);d.appendChild(del);list.appendChild(d);
-  });
-  _convSeen=new Set(convs.map(c=>c.id));
-}
-
-function newChat(){
-  if(hist.length)_greetAfterChat=true;
-  if(window.CloakMemory)CloakMemory.flush();
-  if(window.CloakContext)CloakContext.reset();
-  chatId=null;hist=[];document.getElementById('messages').innerHTML='';
-  document.getElementById('messages').style.display='none';document.getElementById('empty-state').style.display='flex';renderConvs();updateGreeting();
-}
+// One continuous conversation (thread.js) — there is no chat list any more.
+function newChat(){if(window.CloakThread)CloakThread.jumpToLatest();}
 function cpCode(id,btn){navigator.clipboard.writeText(document.getElementById(id)?.innerText||'').then(()=>{btn.textContent='Copied!';btn.classList.add('ok');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('ok');},1400);});}
 
 /* ── BUSY STATE ── */
@@ -1256,7 +1230,7 @@ async function init(){
   sb.auth.onAuthStateChange(async(ev,sess)=>{
     if(ev==='INITIAL_SESSION'){if(_routed)return;_routed=true;if(sess?.user){email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}
     else if(ev==='SIGNED_IN'&&sess&&!_routed){_routed=true;email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}
-    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;convs=[];chatId=null;hist=[];admin=false;name='';guest=false;if(window.CloakMemory)CloakMemory.reset();if(window.CloakContext)CloakContext.reset();show('auth');}
+    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;chatId=null;hist=[];if(window.CloakThread)CloakThread.reset();admin=false;name='';guest=false;if(window.CloakMemory)CloakMemory.reset();if(window.CloakContext)CloakContext.reset();show('auth');}
     else if(ev==='TOKEN_REFRESHED'&&sess){email=sess.user.email||'';uid=sess.user.id;}
   });
   setTimeout(async()=>{if(_routed)return;try{const{data:{session}}=await sb.auth.getSession();if(_routed)return;_routed=true;if(session?.user){email=session.user.email||'';uid=session.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}catch(e){_routed=true;hideLoading();show('auth');}},800);
@@ -1278,7 +1252,8 @@ async function enterChat(){
     if(!guest)name=name||email.split('@')[0];
     refreshUI();updateGreeting();
     if(window.CloakMemory)CloakMemory.init({sb,uid:guest?'':uid,guest}).catch(e=>log('err','Memory: '+e.message));
-    if(!guest)Promise.all([loadProfile(),loadConvs(),loadAnn()]).catch(()=>{});
+    if(window.CloakThread)CloakThread.init({sb,uid:guest?'':uid,guest}).catch(e=>log('err','Thread: '+e.message));
+    if(!guest)Promise.all([loadProfile(),loadAnn()]).catch(()=>{});
     else{try{document.getElementById('guest-note').style.display='block';}catch(e){}log('inf','Guest mode');}
   }finally{entering=false;}
 }
@@ -1413,13 +1388,13 @@ function openSettings(){
   document.getElementById('s-name-inp').value=name;
   document.getElementById('mode-label').textContent=dark?'dark':'light';
   show('settings');
-  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();
+  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();if(window.CloakThread)CloakThread.refreshTelegram();
 }
 function closeSettings(){ hapticTap(); show(_prevScreen||'chat'); }
 function closeModal(id){const el=document.getElementById(id);if(!el)return;el.classList.add('hiding');setTimeout(()=>{el.style.display='none';el.classList.remove('hiding');},120);}
 function overlayClick(e,id){if(e.target===document.getElementById(id))closeModal(id);}
 function switchSettingsTab(t){hapticTap();atab=t;document.querySelectorAll('.snav-btn').forEach(el=>el.classList.toggle('on',el.id==='snav-'+t));document.querySelectorAll('.spane').forEach(el=>el.classList.remove('on'));const p=document.getElementById('spane-'+t);if(p)p.classList.add('on');if(t==='console'){updateStats();renderLogs();}}
-async function clearAllChats(){if(!confirm('Delete ALL conversations?'))return;const{error}=await sb.from('chats').delete().eq('user_id',uid);if(error)log('err','Clear failed: '+error.message);else{convs=[];newChat();log('inf','All chats deleted');}}
+async function clearAllChats(){if(!confirm('Clear your whole conversation with Cloak? Your memories are kept.'))return;if(window.CloakThread)await CloakThread.clear();log('inf','Conversation cleared');}
 
 /* ── 2FA ── */
 async function start2FA(){try{const{data,error}=await sb.auth.mfa.enroll({factorType:'totp'});if(error)throw error;const sec=document.getElementById('totp-section');sec.style.display='block';document.getElementById('totp-secret').textContent='Secret: '+data.totp.secret;document.getElementById('totp-qr').innerHTML='<img src="'+data.totp.qr_code+'" style="width:160px;height:160px;border:var(--bd)" />';window._totpFactorId=data.id;}catch(e){alert('2FA setup failed: '+e.message);}}
@@ -1433,17 +1408,7 @@ function setFilter(f,el){logF=f;document.querySelectorAll('.filter-pill').forEac
 function clearLogs(){logs=[];stats={req:0,res:0,err:0,lat:[]};renderLogs();updateStats();}
 
 /* ── STORAGE ── */
-async function loadConvs(){const{data,error}=await sb.from('chats').select('id,title,updated_at').eq('user_id',uid).order('updated_at',{ascending:false});if(error){log('err','Load convs: '+error.message);return;}convs=(data||[]).map(r=>({id:r.id,title:r.title}));renderConvs();log('inf','Loaded '+convs.length+' chat(s)');}
-async function loadConv(id){const{data,error}=await sb.from('chats').select('*').eq('id',id).single();if(error){log('err','Load chat: '+error.message);return;}if(window.CloakMemory)CloakMemory.flush();chatId=id;hist=data.messages||[];if(window.CloakContext)CloakContext.load(data.context);document.getElementById('messages').innerHTML='';hist.forEach(m=>addMsg(m.role==='CHATBOT'?'bot':'user',m.message,true));trimToLatest();showMessages();renderConvs();}
-function _makeTitle(first){const clean=first.replace(/\n+/g,' ').replace(/\s+/g,' ').trim();const sentenceEnd=clean.search(/[.!?](?:\s|$)/);let candidate=sentenceEnd>4&&sentenceEnd<70?clean.slice(0,sentenceEnd+1):clean;if(candidate.length>60)candidate=candidate.slice(0,58).replace(/\s+\S*$/,'')+'\u2026';return candidate||'New chat';}
-async function saveConv(first){if(!uid||guest)return;let currentUid=uid;try{const{data:{session}}=await sb.auth.getSession();if(!session?.user){log('err','Save aborted: no session');return;}currentUid=session.user.id;uid=currentUid;}catch(e){log('err','Save: session check failed');return;}const ex=convs.find(c=>c.id===chatId);const title=ex?ex.title:_makeTitle(first);if(!ex)convs.unshift({id:chatId,title});renderConvs();const row={id:chatId,user_id:currentUid,title,messages:hist,updated_at:new Date().toISOString()};if(window.CloakContext)row.context=CloakContext.get();let{error}=await sb.from('chats').upsert(row,{onConflict:'user_id,id'});if(error&&row.context&&/context/i.test(error.message)){delete row.context;({error}=await sb.from('chats').upsert(row,{onConflict:'user_id,id'}));}if(error){log('err','Save: '+error.message);}else{log('inf','Chat saved: '+title.slice(0,30));}}
-async function delConv(id){
-  // The row folds away straight away; a failed delete re-renders it.
-  const row=document.querySelector('.conv-item[data-id="'+CSS.escape(String(id))+'"]');
-  if(row&&row.animate&&!(window.CloakMotion&&CloakMotion.reduced())){row.style.pointerEvents='none';row.style.overflow='hidden';row.animate([{opacity:1,transform:'none',height:row.offsetHeight+'px'},{opacity:0,transform:'translateX(-16px)',height:'0px'}],{duration:260,easing:'cubic-bezier(.55,0,1,.45)',fill:'forwards'});}
-  const{error}=await sb.from('chats').delete().eq('id',id).eq('user_id',uid);if(error){log('err','Delete: '+error.message);renderConvs();return;}
-  convs=convs.filter(c=>c.id!==id);if(chatId===id)newChat();else renderConvs();
-}
+// Messages persist per-row via CloakThread.push (thread_messages); nothing to save per chat.
 
 /* ── MENTAL HEALTH INTERCEPT ── */
 const MH_PATTERNS=/\b(suicide|suicidal|kill myself|end my life|want to die|self[- ]?harm|cut myself|overdose|no reason to live|don't want to be here|can't go on|hopeless|worthless|crisis)\b/i;
@@ -1562,7 +1527,7 @@ async function send(){
 
     if(voiceMode)playVoice(responseText);
     if(guest){guestN++;if(guestN>=GUEST_MAX)setTimeout(showLimit,500);}
-    else saveConv(txt||'[Image]').catch(e=>log('err','Save: '+e.message));
+
 
   } catch(ex) {
     _fetchController=null;
@@ -1603,6 +1568,6 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260927ios1').catch(e=>console.warn('SW registration failed',e));
+    navigator.serviceWorker.register('/sw.js?v=20260928thread1').catch(e=>console.warn('SW registration failed',e));
   });
 }
