@@ -8,7 +8,7 @@ import { CLOAK, CODE_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
 
-const VERSION = "4.7.0";
+const VERSION = "4.8.0";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,71 +24,107 @@ const SSE_HEADERS = {
   "X-Accel-Buffering": "no",
 };
 
-// Model IDs verified live on 2026-09-26 (NVIDIA /v1/models, Groq + Gemini docs).
+// Model IDs checked 2026-09-29 against each provider's free tier. Groq retired
+// its Llama models for free accounts on 2026-08-16; its free chat models are
+// gpt-oss-120b/20b and Qwen 3.6/3.8 27B (8K tokens/min each).
 const GEMINI_MODEL = "gemini-3.5-flash";
+const GEMINI_LITE = "gemini-3.5-flash-lite";
 const NVIDIA_VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
+const NEMOTRON = "nvidia/nemotron-3-super-120b-a12b";
+const GPT_OSS = "openai/gpt-oss-120b";
+const QWEN = "qwen/qwen3.8-27b";
 
-// Tiers are routing only (fast / reasoning / deep / code). Every tier is the
-// same Cloak: one prompt, one name.
+// Each tier is an ordered lineup tried best-first; a retired, rate-limited or
+// slow model is skipped and the next takes over. Tiers are routing only (fast /
+// reasoning / deep / code): every tier is the same Cloak, one prompt, one name.
+// Per-model knobs:
+//   temperature   overrides the tier's (reasoning models get their recommended
+//                 one; Gemini 3 loops below 1.0)
+//   extra         provider params — OpenAI-style body keys, or Gemini
+//                 generationConfig keys. Dropped automatically if rejected (400).
+//   reserve       output tokens on top of max_tokens for the model's reasoning,
+//                 which every provider counts against the output cap
+//   firstTokenMs  wait for the first token before failing over (default 20s)
 const MODEL_CONFIG = {
   pneuma: {
     name: "Cloak",
     systemPrompt: CLOAK,
-    providers: ["groq", "nvidia"],
-    groqModel: "llama-3.3-70b-versatile",
-    nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
     temperature: 0.9,
+    lineup: [
+      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 512 },
+      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+      { provider: "groq", model: QWEN, temperature: 0.7, extra: { reasoning_effort: "none" } },
+    ],
   },
   logos: {
     name: "Cloak",
     systemPrompt: CLOAK,
-    providers: ["groq", "nvidia"],
-    groqModel: "llama-3.3-70b-versatile",
-    nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
     temperature: 0.3,
+    lineup: [
+      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "medium" }, reserve: 1024 },
+      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+      { provider: "groq", model: QWEN, temperature: 0.6, extra: { reasoning_effort: "low" }, reserve: 1024 },
+    ],
   },
   kairos: {
     name: "Cloak",
     systemPrompt: CLOAK,
-    providers: ["nvidia", "groq", "gemini"],
-    nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
-    groqModel: "llama-3.3-70b-versatile",
     temperature: 0.8,
+    lineup: [
+      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "medium" }, reserve: 1024 },
+      {
+        provider: "gemini",
+        model: GEMINI_MODEL,
+        temperature: 1.0,
+        extra: { thinkingConfig: { thinkingLevel: "medium", includeThoughts: true } },
+        reserve: 4096,
+      },
+    ],
   },
-  // Code tier. Several models per provider, best first — a retired or
-  // rate-limited one is skipped (governor marks dead models for 6h) and the
-  // next takes over. All free tier. IDs checked against the NVIDIA NIM
-  // catalog, Groq's free models and Gemini's free Flash tier (2026-09-26).
-  //   NVIDIA  kimi-k3 (agentic coding flagship) → glm-5.3 → laguna-xs-2.1
-  //           (Poolside's code model, fast, no reasoning)
-  //   Groq    gpt-oss-120b → qwen3.8-27b (fast when NVIDIA is slow/down)
-  //   Gemini  3.8 Flash (20/day) → 3.5 Flash-Lite (500/day), huge context
-  // Thinking models get their recommended temperatures; reasoning effort is
-  // "high" rather than "max" so first tokens land inside the timeout.
+  // Code tier: strongest free coding models that answer at chat speed, in
+  // order. Reasoning is kept short so the code gets the output budget, and
+  // thoughts stream so the reply is live from the first second.
+  //   Gemini 3.8 Flash   best code of the free tier, fast; 20/day per project
+  //   GLM-5.3-Flash      NVIDIA, 18B active, near-frontier coding, no daily cap
+  //   gpt-oss-120b       Groq, ~500 tok/s; its 8K TPM leaves ~2K output, so it
+  //                      goes last when the prompt is too big (minOutputTokens)
+  //   3.5 Flash-Lite     500/day, fast
+  //   Laguna XS 2.1      Poolside's code model, NVIDIA, fast, no reasoning
+  //   Qwen3.8-27B        Groq, thinking off (it overthinks by default)
+  //   Nemotron 3 Super   NVIDIA, the known-good last resort
+  // Not here: Kimi K3 and GLM-5.3 (full) — on NVIDIA's free tier they crawl
+  // (<10 tok/s, minute-long first tokens), which is what made Linus hang.
   linus: {
     name: "Cloak",
     systemPrompt: CLOAK,
     playbook: CODE_PLAYBOOK,
-    providers: ["nvidia", "groq", "gemini"],
-    models: {
-      nvidia: [
-        { model: "moonshotai/kimi-k3", temperature: 0.6 },
-        { model: "z-ai/glm-5.3", temperature: 0.6 },
-        { model: "poolside/laguna-xs-2.1", temperature: 0.2 },
-      ],
-      groq: [
-        { model: "openai/gpt-oss-120b", temperature: 1.0, extra: { reasoning_effort: "high" } },
-        { model: "qwen/qwen3.8-27b", temperature: 0.6 },
-      ],
-      gemini: [{ model: "gemini-3.8-flash" }, { model: "gemini-3.5-flash-lite" }],
-    },
-    // Fallbacks for anything that still reads the single-model fields.
-    nvidiaModel: "moonshotai/kimi-k3",
-    groqModel: "openai/gpt-oss-120b",
-    temperature: 0.2,
+    temperature: 0.3,
+    lineup: [
+      {
+        provider: "gemini",
+        model: "gemini-3.8-flash",
+        temperature: 1.0,
+        extra: { thinkingConfig: { thinkingLevel: "medium", includeThoughts: true } },
+        reserve: 4096,
+      },
+      { provider: "nvidia", model: "z-ai/glm-5.3-flash", temperature: 0.6, extra: { reasoning_effort: "low" }, reserve: 2048, firstTokenMs: 15_000 },
+      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "low" }, reserve: 512 },
+      {
+        provider: "gemini",
+        model: GEMINI_LITE,
+        temperature: 1.0,
+        extra: { thinkingConfig: { thinkingLevel: "low", includeThoughts: true } },
+        reserve: 2048,
+      },
+      { provider: "nvidia", model: "poolside/laguna-xs-2.1", temperature: 0.3, firstTokenMs: 15_000 },
+      { provider: "groq", model: QWEN, temperature: 0.7, extra: { reasoning_effort: "none" } },
+      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+    ],
     // Code needs room: whole files, full apps. Clients rarely send max_tokens.
     defaultMaxTokens: 8192,
     maxMaxTokens: 16384,
+    minOutputTokens: 2000,
   },
 };
 const VALID_MODELS = Object.keys(MODEL_CONFIG);
@@ -100,26 +136,46 @@ const TIERS = {
   utility: {
     name: "Utility",
     systemPrompt: "",
-    providers: ["groq", "nvidia", "gemini"],
-    groqModel: "llama-3.1-8b-instant",
-    nvidiaModel: "nvidia/nemotron-3-super-120b-a12b",
     temperature: 0.1,
+    lineup: [
+      { provider: "groq", model: "openai/gpt-oss-20b", extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 512 },
+      { provider: "groq", model: "qwen/qwen3.6-27b", extra: { reasoning_effort: "none" } },
+      { provider: "gemini", model: GEMINI_LITE, temperature: 1.0, extra: { thinkingConfig: { thinkingLevel: "low" } }, reserve: 1024 },
+      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+    ],
   },
 };
+
+// Images, any tier. If all fail, the tier answers text-only.
+const VISION_LINEUP = [
+  { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: { thinkingConfig: { thinkingLevel: "low" } }, reserve: 2048 },
+  { provider: "gemini", model: GEMINI_LITE, temperature: 1.0, extra: { thinkingConfig: { thinkingLevel: "low" } }, reserve: 1024 },
+  { provider: "nvidia", model: NVIDIA_VISION_MODEL },
+];
 
 const UNAVAILABLE = "Cloak AI is currently unavailable. Please try again later.";
 const DEFAULT_MAX_TOKENS = 2048;
 const MAX_MAX_TOKENS = 8192;
-// Time allowed to connect AND receive the first token before failing over.
-const FIRST_TOKEN_TIMEOUT_MS = 25_000;
+// Time allowed to connect AND receive the first token before failing over
+// (per model: `firstTokenMs`).
+const FIRST_TOKEN_TIMEOUT_MS = 20_000;
+// Longest gap between streamed tokens before the stream counts as dead.
+const STALL_MS = 45_000;
+// Longest a model may reason without starting its answer before handing over.
+const THINK_LIMIT_MS = 120_000;
+// Stop opening new candidates after this long with nothing to show.
+const OPEN_DEADLINE_MS = 60_000;
+// No handover to a fresh model once the reply is this old.
+const HANDOVER_WINDOW_MS = 150_000;
 // Time allowed for a complete non-streaming response.
 const FULL_RESPONSE_TIMEOUT_MS = 55_000;
 
 class UpstreamError extends Error {
-  constructor(message, { rateLimited = false } = {}) {
+  constructor(message, { rateLimited = false, status = 0 } = {}) {
     super(message);
     this.name = "UpstreamError";
     this.rateLimited = rateLimited;
+    this.status = status;
   }
 }
 
@@ -316,7 +372,7 @@ function openAIBody({ model, messages, temperature, maxTokens, tools, toolChoice
 }
 
 // Gemini: OpenAI-style messages → contents + systemInstruction.
-function toGeminiRequest(messages, temperature, maxTokens, wantJson) {
+function toGeminiRequest(messages, temperature, maxTokens, wantJson, extra) {
   const systemParts = [];
   const contents = [];
   for (const m of messages) {
@@ -333,7 +389,8 @@ function toGeminiRequest(messages, temperature, maxTokens, wantJson) {
   }
   const req = {
     contents,
-    generationConfig: { temperature, maxOutputTokens: maxTokens },
+    // Per-model knobs (thinkingConfig…) first so the core fields always win.
+    generationConfig: { ...(extra || {}), temperature, maxOutputTokens: maxTokens },
   };
   if (wantJson) req.generationConfig.responseMimeType = "application/json";
   if (systemParts.length) req.systemInstruction = { parts: systemParts };
@@ -355,9 +412,10 @@ function toGeminiParts(content) {
   return parts;
 }
 
-function geminiText(data) {
+// Answer text, or with thought=true the thought summaries (includeThoughts).
+function geminiText(data, thought = false) {
   const parts = data?.candidates?.[0]?.content?.parts || [];
-  return parts.filter((p) => typeof p.text === "string" && !p.thought).map((p) => p.text).join("");
+  return parts.filter((p) => typeof p.text === "string" && !!p.thought === thought).map((p) => p.text).join("");
 }
 
 function geminiFinish(data) {
@@ -375,14 +433,14 @@ async function sendUpstream(provider, apiKey, spec, stream, signal, ctx) {
     const method = stream ? "streamGenerateContent?alt=sse" : "generateContent";
     url = `https://generativelanguage.googleapis.com/v1beta/models/${spec.model}:${method}`;
     headers = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
-    body = toGeminiRequest(spec.messages, spec.temperature, spec.maxTokens, spec.json);
+    body = toGeminiRequest(spec.messages, spec.temperature, spec.maxTokens, spec.json, spec.extra);
   } else {
     url = OPENAI_COMPAT[provider];
     headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
     body = openAIBody({ ...spec, stream }, provider);
   }
 
-  gov.noteCall(gov.keyId(provider, apiKey));
+  gov.noteCall(gov.slotId(provider, apiKey, spec.model));
   let res;
   try {
     res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal });
@@ -396,12 +454,28 @@ async function sendUpstream(provider, apiKey, spec, stream, signal, ctx) {
     } catch {}
     gov.observe({ provider, model: spec.model, key: apiKey, res, bodyText: detail, ctx });
     if (res.status === 429) {
-      throw new UpstreamError(`${provider} (${spec.model}) 429 rate limited: ${detail.slice(0, 160)}`, { rateLimited: true });
+      throw new UpstreamError(`${provider} (${spec.model}) 429 rate limited: ${detail.slice(0, 160)}`, { rateLimited: true, status: 429 });
     }
-    throw new UpstreamError(`${provider} (${spec.model}) HTTP ${res.status}: ${detail.slice(0, 300)}`);
+    throw new UpstreamError(`${provider} (${spec.model}) HTTP ${res.status}: ${detail.slice(0, 300)}`, { status: res.status });
   }
   gov.observe({ provider, model: spec.model, key: apiKey, res, ctx });
   return res;
+}
+
+// Per-model params (`extra`) are best-effort: if the provider rejects a request
+// carrying them, retry once without and stop sending them to that model.
+const badExtra = new Set();
+
+async function send(c, spec, stream, signal, ctx) {
+  try {
+    return await sendUpstream(c.provider, c.key, spec, stream, signal, ctx);
+  } catch (e) {
+    if (!spec.extra || !(e.status === 400 || e.status === 422)) throw e;
+    const res = await sendUpstream(c.provider, c.key, { ...spec, extra: undefined }, stream, signal, ctx);
+    badExtra.add(`${c.provider}:${c.model}`);
+    console.warn(`[cloak-api] ${c.provider} (${c.model}) rejected ${Object.keys(spec.extra).join(", ")}; sending without: ${e.message.slice(0, 200)}`);
+    return res;
+  }
 }
 
 // Normalized stream of deltas from an upstream streaming response.
@@ -415,9 +489,11 @@ async function* upstreamDeltas(provider, res) {
       continue;
     }
     if (provider === "gemini") {
+      if (evt.error) throw new UpstreamError(`gemini stream error: ${JSON.stringify(evt.error).slice(0, 200)}`);
       const content = geminiText(evt);
+      const reasoning = geminiText(evt, true);
       const finish_reason = geminiFinish(evt);
-      if (content || finish_reason) yield { content, finish_reason };
+      if (content || reasoning || finish_reason) yield { content, reasoning, finish_reason };
       continue;
     }
     if (evt.error) throw new UpstreamError(`${provider} stream error: ${JSON.stringify(evt.error).slice(0, 200)}`);
@@ -438,23 +514,11 @@ async function* upstreamDeltas(provider, res) {
 // Routing with failover
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Builds the ordered list of attempts: [{provider, model}]
+// The ordered attempts for a request: the tier's lineup, or the vision lineup
+// when an image is attached.
 function planAttempts(config, { hasImage, hasTools }) {
-  if (hasImage) {
-    return [
-      { provider: "gemini", model: GEMINI_MODEL },
-      { provider: "nvidia", model: NVIDIA_VISION_MODEL },
-    ];
-  }
-  return config.providers
-    .filter((p) => !(p === "gemini" && hasTools)) // Gemini adapter has no tool support
-    .flatMap((p) => {
-      const list = config.models && config.models[p];
-      if (Array.isArray(list) && list.length) {
-        return list.map((m) => ({ provider: p, model: m.model, temperature: m.temperature, extra: m.extra }));
-      }
-      return [{ provider: p, model: p === "groq" ? config.groqModel : p === "nvidia" ? config.nvidiaModel : GEMINI_MODEL }];
-    });
+  const lineup = hasImage ? VISION_LINEUP : config.lineup;
+  return lineup.filter((a) => !(a.provider === "gemini" && hasTools)); // Gemini adapter has no tool support
 }
 
 function withImage(messages, imageBase64, mimeType) {
@@ -494,25 +558,38 @@ function prepare(tierKey, req) {
   };
 }
 
-// Every (attempt × key) combination: healthy keys first (round-robin), keys on
-// cooldown or dead models last, so quota-exhausted keys aren't spent first.
-async function* candidates(env, plan, errors) {
+// Every (attempt × key) combination: healthy keys first (round-robin), cooling
+// keys and slow models after, so quota-exhausted keys aren't spent first. With
+// a tier minimum (minOutputTokens), models whose free-tier caps leave less room
+// than that for the answer go to the very end.
+async function* candidates(env, plan, req, errors) {
   const groups = [
     ...plan.attempts.map((a) => ({ ...a, messages: plan.visionMessages || plan.textMessages })),
     ...plan.textFallback.map((a) => ({ ...a, messages: plan.textMessages })),
   ];
+  const keyring = new Map();
   const withKeys = [];
   for (const g of groups) {
-    try {
-      withKeys.push({ ...g, keys: await getKeys(env, g.provider) });
-    } catch (e) {
-      errors.push(`${g.provider}: ${e.message}`);
+    if (!keyring.has(g.provider)) {
+      try {
+        keyring.set(g.provider, await getKeys(env, g.provider));
+      } catch (e) {
+        keyring.set(g.provider, null);
+        errors.push(`${g.provider}: ${e.message}`);
+      }
     }
+    const keys = keyring.get(g.provider);
+    if (keys) withKeys.push({ ...g, keys });
   }
-  await gov.syncCooldowns(withKeys.flatMap((g) => g.keys.map((k) => gov.keyId(g.provider, k))));
+  await gov.syncCooldowns(gov.idsFor(withKeys));
   const { healthy, cold } = gov.orderCandidates(withKeys);
-  for (const c of healthy) yield c;
-  for (const c of cold) yield c;
+  const min = plan.config.minOutputTokens || 0;
+  const tight = [];
+  for (const c of [...healthy, ...cold]) {
+    if (min && specFor(c, plan, req).maxTokens < min) tight.push(c);
+    else yield c;
+  }
+  yield* tight;
 }
 
 // Request spec for one candidate, sized to the model's free-tier caps.
@@ -522,8 +599,8 @@ function specFor(c, plan, req) {
     model: c.model,
     messages: c.messages,
     temperature: c.temperature ?? plan.config.temperature,
-    extra: gemini ? undefined : c.extra,
-    maxTokens: req.maxTokens,
+    extra: badExtra.has(`${c.provider}:${c.model}`) ? undefined : c.extra,
+    maxTokens: req.maxTokens + (c.reserve || 0),
     tools: gemini ? undefined : req.tools,
     toolChoice: gemini ? undefined : req.toolChoice,
     json: req.json,
@@ -534,10 +611,10 @@ function specFor(c, plan, req) {
 async function completeOnce(env, tierKey, req) {
   const plan = prepare(tierKey, req);
   const errors = [];
-  for await (const c of candidates(env, plan, errors)) {
+  for await (const c of candidates(env, plan, req, errors)) {
     const spec = specFor(c, plan, req);
     try {
-      const res = await sendUpstream(c.provider, c.key, spec, false, AbortSignal.timeout(FULL_RESPONSE_TIMEOUT_MS), req.ctx);
+      const res = await send(c, spec, false, AbortSignal.timeout(FULL_RESPONSE_TIMEOUT_MS), req.ctx);
       const data = await res.json();
       let choice;
       if (c.provider === "gemini") {
@@ -566,60 +643,142 @@ async function completeOnce(env, tierKey, req) {
   throw new Error(UNAVAILABLE);
 }
 
-// Streaming: fails over until a provider produces its first token, then commits.
-// Returns { provider, deltas } where deltas is an async iterator of normalized deltas
-// with <think> spans already stripped.
+// Upstream deltas with <think>…</think> spans moved from content to reasoning.
+async function* cleanDeltas(provider, res) {
+  const stripper = makeThinkStripper();
+  for await (const d of upstreamDeltas(provider, res)) {
+    const out = { ...d };
+    if (d.content) out.content = stripper.push(d.content);
+    const think = (d.reasoning || "") + stripper.takeThink();
+    if (think) out.reasoning = think;
+    else delete out.reasoning;
+    if (out.content || out.reasoning || out.tool_calls || out.finish_reason) yield out;
+  }
+  const tail = stripper.flush();
+  if (tail) yield { content: tail };
+}
+
+// Resolves like `p`, or aborts `ctrl` and rejects once `ms` pass without it.
+function within(p, ms, ctrl, what) {
+  let timer;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      ctrl.abort();
+      reject(Object.assign(new UpstreamError(`${what} stalled for ${ms / 1000}s`), { slow: true }));
+    }, ms);
+  });
+  return Promise.race([p, late]).finally(() => clearTimeout(timer));
+}
+
+// Streaming with failover. Candidates are opened in order until one produces a
+// first delta (reasoning, text or a tool call); that decides the HTTP response.
+// After that, a stream that stalls, errors, or ends before any answer text
+// (reasoning ate the budget, a model too slow to get there) hands over to the
+// next candidate, so the client sees one continuous reply. Once answer text has
+// gone out, a failure ends the stream and the caller reports it with the partial.
+// Returns { provider, model, usage, deltas } — updated in place on a handover.
 async function openStream(env, tierKey, req) {
   const plan = prepare(tierKey, req);
   const errors = [];
-  for await (const c of candidates(env, plan, errors)) {
-    const spec = specFor(c, plan, req);
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), FIRST_TOKEN_TIMEOUT_MS);
-    try {
-      const res = await sendUpstream(c.provider, c.key, spec, true, ctrl.signal, req.ctx);
-      const stripper = makeThinkStripper();
-      const raw = upstreamDeltas(c.provider, res);
-      const cleaned = (async function* () {
-        for await (const d of raw) {
-          const out = { ...d };
-          if (d.content) out.content = stripper.push(d.content);
-          const think = (d.reasoning || "") + stripper.takeThink();
-          if (think) out.reasoning = think;
-          else delete out.reasoning;
-          if (out.content || out.reasoning || out.tool_calls || out.finish_reason) yield out;
-        }
-        const tail = stripper.flush();
-        if (tail) yield { content: tail };
-      })();
+  const queue = candidates(env, plan, req, errors);
+  const skip = new Set(); // models that missed their first-token deadline this request
+  const t0 = Date.now();
 
-      // Peek until the first visible token or tool call before committing.
-      const buffered = [];
-      let committed = false;
-      for (;;) {
-        const { value, done } = await cleaned.next();
-        if (done) break;
-        buffered.push(value);
-        if (value.content || value.reasoning || value.tool_calls) {
-          committed = true;
-          break;
+  const open = async () => {
+    const began = Date.now();
+    for (;;) {
+      if (Date.now() - began > OPEN_DEADLINE_MS) {
+        errors.push(`gave up after ${OPEN_DEADLINE_MS / 1000}s`);
+        return null;
+      }
+      const { value: c, done } = await queue.next();
+      if (done) return null;
+      const tag = `${c.provider} (${c.model})`;
+      if (skip.has(tag)) continue;
+      const spec = specFor(c, plan, req);
+      const ctrl = new AbortController();
+      const wait = c.firstTokenMs || FIRST_TOKEN_TIMEOUT_MS;
+      const timer = setTimeout(() => ctrl.abort(), wait);
+      try {
+        const res = await send(c, spec, true, ctrl.signal, req.ctx);
+        const it = cleanDeltas(c.provider, res);
+        const first = [];
+        let live = false;
+        while (!live) {
+          const { value, done: ended } = await it.next();
+          if (ended) break;
+          first.push(value);
+          live = !!(value.content || value.reasoning || value.tool_calls);
+        }
+        clearTimeout(timer);
+        if (!live) throw new UpstreamError(`${tag} returned empty stream`);
+        return { c, tag, spec, ctrl, first, it };
+      } catch (e) {
+        clearTimeout(timer);
+        if (ctrl.signal.aborted) {
+          // A slow queue belongs to the model, not the key: skip its other keys
+          // now and try it last for a while.
+          skip.add(tag);
+          gov.markSlow(c.provider, c.model, req.ctx);
+          errors.push(`${tag} first-token timeout (${wait / 1000}s)`);
+        } else {
+          errors.push(e.message);
         }
       }
-      clearTimeout(timer);
-      if (!committed) throw new UpstreamError(`${c.provider} (${c.model}) returned empty stream`);
-
-      const deltas = (async function* () {
-        yield* buffered;
-        yield* cleaned;
-      })();
-      return { provider: c.provider, model: c.model, deltas, usage: { in: spec.inTokens, dropped: spec.dropped } };
-    } catch (e) {
-      clearTimeout(timer);
-      errors.push(ctrl.signal.aborted ? `${c.provider} (${c.model}) first-token timeout` : e.message);
     }
-  }
-  console.error(`[cloak-api] all providers failed (stream) tier=${tierKey}: ${errors.join(" | ")}`);
-  throw new Error(UNAVAILABLE);
+  };
+  const fail = () => {
+    console.error(`[cloak-api] all providers failed (stream) tier=${tierKey}: ${errors.join(" | ")}`);
+    return new Error(UNAVAILABLE);
+  };
+
+  let cur = await open();
+  if (!cur) throw fail();
+  const usage = (x) => ({ in: x.spec.inTokens, dropped: x.spec.dropped });
+  const out = { provider: cur.c.provider, model: cur.c.model, usage: usage(cur) };
+  out.deltas = (async function* () {
+    let answered = false;
+    try {
+      for (;;) {
+        let why;
+        const since = Date.now();
+        try {
+          for (const d of cur.first) {
+            if (d.content || d.tool_calls) answered = true;
+            yield d;
+          }
+          for (;;) {
+            const { value, done } = await within(cur.it.next(), STALL_MS, cur.ctrl, cur.tag);
+            if (done) break;
+            if (value.content || value.tool_calls) answered = true;
+            else if (!answered && Date.now() - since > THINK_LIMIT_MS) {
+              throw Object.assign(new UpstreamError(`${cur.tag} still reasoning after ${THINK_LIMIT_MS / 1000}s`), { slow: true });
+            }
+            yield value;
+          }
+          if (answered) return;
+          why = `${cur.tag} ended without an answer`;
+        } catch (e) {
+          if (answered) throw e;
+          why = e.message;
+          if (e.slow) gov.markSlow(cur.c.provider, cur.c.model, req.ctx);
+        }
+        // Only reasoning has gone out so far: hand over to the next candidate
+        // (never another key of the same model — it would do the same).
+        cur.ctrl.abort();
+        skip.add(cur.tag);
+        errors.push(why);
+        if (Date.now() - t0 > HANDOVER_WINDOW_MS) throw fail();
+        console.warn(`[cloak-api] handover tier=${tierKey}: ${why}`);
+        cur = await open();
+        if (!cur) throw fail();
+        Object.assign(out, { provider: cur.c.provider, model: cur.c.model, usage: usage(cur) });
+      }
+    } finally {
+      cur?.ctrl.abort(); // client gone or stream over: release the upstream
+    }
+  })();
+  return out;
 }
 
 // Writes SSE events produced by `produce(send)` into a streaming Response.
@@ -685,7 +844,7 @@ async function handleNativeChat(env, request, ctx) {
         }
         await send({ done: true, model: name, response: full, usage: stream.usage });
       } catch (e) {
-        console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e.message}`);
+        console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e?.message || e}`);
         await send({ error: "The response was interrupted. Please try again.", partial: full });
       }
     });
@@ -760,7 +919,7 @@ async function handleOpenAIChat(env, request) {
           if (delta.content || delta.tool_calls) await send(chunk(delta));
         }
       } catch (e) {
-        console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e.message}`);
+        console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e?.message || e}`);
         await send({ error: { message: "stream interrupted", type: "server_error" } });
       }
       await send(chunk({}, sawTools && finish === "stop" ? "tool_calls" : finish));
@@ -934,7 +1093,7 @@ async function handleAnthropicMessages(env, request) {
           }
         }
       } catch (e) {
-        console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e.message}`);
+        console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e?.message || e}`);
         await send({ type: "error", error: { type: "api_error", message: "stream interrupted" } }, "error");
         return;
       }

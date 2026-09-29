@@ -178,10 +178,10 @@ curl -X POST https://api.usecloak.org/v1/chat \
 
 Cloak runs several models; they differ in the underlying model and settings, not in personality — every one answers as **Cloak** with the same system prompt (responses report `"model": "Cloak"`).
 
-- **`pneuma`** — Fast, lightweight model for quick responses
-- **`logos`** — Balanced model, lower temperature, for precise answers
-- **`kairos`** — Deep-reasoning model for complex analysis
-- **`linus`** — Code mode. Same Cloak, plus a code playbook (plan → complete runnable code → self-review) appended to the system prompt. Fails over across the strongest free-tier coding models: NVIDIA Kimi K3 → GLM-5.3 → Laguna XS, Groq gpt-oss-120b → Qwen3.8-27B, Gemini Flash → Flash-Lite. Defaults to 8,192 output tokens (max 16,384) since the client usually sends no `max_tokens`.
+- **`pneuma`** — Fast, lightweight model for quick responses (Groq gpt-oss-120b, low reasoning → NVIDIA Nemotron 3 Super → Groq Qwen3.8-27B)
+- **`logos`** — Balanced model, lower temperature, for precise answers (Groq gpt-oss-120b, medium reasoning → Nemotron 3 Super → Qwen3.8-27B)
+- **`kairos`** — Deep-reasoning model for complex analysis (Nemotron 3 Super → gpt-oss-120b → Gemini 3.5 Flash)
+- **`linus`** — Code mode. Same Cloak, plus a code playbook (plan → complete runnable code → self-review) appended to the system prompt. Fails over across free-tier coding models that answer at chat speed: Gemini 3.8 Flash → NVIDIA GLM-5.3-Flash → Groq gpt-oss-120b → Gemini 3.5 Flash-Lite → NVIDIA Laguna XS 2.1 → Groq Qwen3.8-27B → Nemotron 3 Super. Reasoning streams as `think` events; if a model stalls or runs out of room while reasoning, the next one takes over in the same stream. Defaults to 8,192 output tokens (max 16,384) since the client usually sends no `max_tokens`.
 
 ## Memory & Context Endpoints
 

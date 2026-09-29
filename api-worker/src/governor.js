@@ -2,9 +2,12 @@
 //
 //   • Keyring: PROVIDER_KEYS is read from KV at most once a minute per isolate
 //     (KV free tier = 100k reads/day; every chat used to cost 2–3 reads).
-//   • Key health: rate-limit headers + 429s put a key (or a dead model) on
-//     cooldown, so we stop spending requests on keys that will just 429 again.
-//     Cooldowns are shared across isolates in the same colo via the Cache API.
+//   • Key health: rate-limit headers + 429s put one key's quota for one model on
+//     cooldown (Groq and Gemini meter every model separately), so we stop
+//     spending requests that will just 429 again. Auth failures cool the whole
+//     key; retired models are skipped for hours; a model that missed its
+//     first-token deadline is tried last for a while. Cooldowns are shared
+//     across isolates in the same colo via the Cache API.
 //   • Rotation: healthy keys are tried round-robin, so pooled free keys wear
 //     evenly instead of key #1 burning its daily quota first.
 //   • Fit: prompt + max_tokens is sized under the model's tokens-per-minute cap
@@ -12,25 +15,27 @@
 
 // Conservative free-tier defaults. Groq values are replaced live by the
 // x-ratelimit-limit-* headers it returns. rpd/tpd are informational.
+// Groq free tier since 2026-08-16 (Llama models retired for free accounts):
+// 30 RPM, 1,000 RPD, 8K TPM, 200K TPD on each model.
 const LIMITS = {
-  "groq:llama-3.3-70b-versatile": { rpm: 30, rpd: 1000, tpm: 12000, ctx: 131072 },
-  "groq:llama-3.1-8b-instant": { rpm: 30, rpd: 14400, tpm: 6000, ctx: 131072 },
   "groq:openai/gpt-oss-120b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
   "groq:openai/gpt-oss-20b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
-  "groq:qwen/qwen3.8-27b": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 131072 },
-  "groq:qwen/qwen3.6-27b": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 131072 },
+  "groq:qwen/qwen3.8-27b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
+  "groq:qwen/qwen3.6-27b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
   "groq:*": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 32768 },
-  "nvidia:moonshotai/kimi-k3": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
-  "nvidia:z-ai/glm-5.3": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
+  "nvidia:z-ai/glm-5.3-flash": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:poolside/laguna-xs-2.1": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
+  "nvidia:nvidia/nemotron-3-super-120b-a12b": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:*": { rpm: 40, rpd: 0, tpm: 0, ctx: 65536 },
   "gemini:gemini-3.8-flash": { rpm: 5, rpd: 20, tpm: 250000, ctx: 1000000 },
+  "gemini:gemini-3.5-flash": { rpm: 5, rpd: 20, tpm: 250000, ctx: 1000000 },
   "gemini:gemini-3.5-flash-lite": { rpm: 15, rpd: 500, tpm: 250000, ctx: 1000000 },
   "gemini:*": { rpm: 10, rpd: 250, tpm: 250000, ctx: 1000000 },
 };
 
 const KEYRING_TTL_MS = 60_000;
 const DEAD_MODEL_MS = 6 * 3600_000;
+const SLOW_MODEL_MS = 10 * 60_000;
 const DEFAULT_COOL_MS = 20_000;
 const LOW_TOKENS = 1200; // below this many TPM tokens left, wait for the window to reset
 const SHARE_EVERY_MS = 30_000;
@@ -113,7 +118,10 @@ function hash(s) {
 }
 
 export const keyId = (provider, key) => `${provider}.${hash(key)}`;
+// One key's quota for one model.
+export const slotId = (provider, key, model) => `${provider}.${hash(key)}.${hash(model)}`;
 const modelId = (provider, model) => `${provider}.m.${hash(model)}`;
+const slowId = (provider, model) => `${provider}.s.${hash(model)}`;
 
 function cooling(id, now = Date.now()) {
   const h = health.get(id);
@@ -133,7 +141,7 @@ export function modelDead(provider, model) {
 }
 
 // Orders (attempt × key) candidates: healthy first, round-robin within each
-// provider group; cooling ones last as a final resort.
+// model group; cooling keys and slow models last as a final resort.
 export function orderCandidates(groups) {
   const now = Date.now();
   const healthy = [];
@@ -141,19 +149,42 @@ export function orderCandidates(groups) {
   rr = (rr + 1) % 1_000_000;
   for (const g of groups) {
     if (modelDead(g.provider, g.model)) continue;
+    const slow = cooling(slowId(g.provider, g.model), now);
     const keys = g.keys;
     const start = keys.length ? rr % keys.length : 0;
     for (let i = 0; i < keys.length; i++) {
       const key = keys[(start + i) % keys.length];
       const id = keyId(g.provider, key);
-      const c = { ...g, key, id };
+      const slot = slotId(g.provider, key, g.model);
+      const c = { ...g, key, id, slot };
       delete c.keys;
-      if (cooling(id, now) || overRpm(id, g.provider, g.model, now)) cold.push(c);
+      if (slow || cooling(id, now) || cooling(slot, now) || overRpm(slot, g.provider, g.model, now)) cold.push(c);
       else healthy.push(c);
     }
   }
-  cold.sort((a, b) => (health.get(a.id)?.coolUntil || 0) - (health.get(b.id)?.coolUntil || 0));
+  const until = (c) => Math.max(health.get(c.id)?.coolUntil || 0, health.get(c.slot)?.coolUntil || 0);
+  cold.sort((a, b) => until(a) - until(b));
   return { healthy, cold };
+}
+
+// Every cooldown id a set of candidate groups depends on (for syncCooldowns).
+export function idsFor(groups) {
+  const ids = new Set();
+  for (const g of groups) {
+    ids.add(modelId(g.provider, g.model));
+    ids.add(slowId(g.provider, g.model));
+    for (const k of g.keys) {
+      ids.add(keyId(g.provider, k));
+      ids.add(slotId(g.provider, k, g.model));
+    }
+  }
+  return [...ids];
+}
+
+// A model that missed its first-token deadline (a queue, not a key problem)
+// is tried last for a while instead of costing every request the full wait.
+export function markSlow(provider, model, ctx) {
+  cool(slowId(provider, model), SLOW_MODEL_MS, "slow first token", ctx);
 }
 
 function cool(id, ms, reason, shareCtx) {
@@ -179,7 +210,7 @@ export function parseDuration(s) {
   return Math.round(ms);
 }
 
-// Call before sending: counts toward the per-minute request window.
+// Call before sending (with the slot id): counts toward the per-minute window.
 export function noteCall(id) {
   const list = recent.get(id) || [];
   list.push(Date.now());
@@ -190,6 +221,7 @@ export function noteCall(id) {
 // Call after any upstream response (ok or not). Learns limits from headers.
 export function observe({ provider, model, key, res, bodyText, ctx }) {
   const id = keyId(provider, key);
+  const slot = slotId(provider, key, model);
   const hd = res.headers;
 
   if (provider === "groq") {
@@ -204,13 +236,13 @@ export function observe({ provider, model, key, res, bodyText, ctx }) {
     const leftReq = hd.get("x-ratelimit-remaining-requests");
     const leftTok = hd.get("x-ratelimit-remaining-tokens");
     if (leftReq !== null && Number(leftReq) <= 0) {
-      cool(id, parseDuration(hd.get("x-ratelimit-reset-requests")) || 3600_000, "daily requests", ctx);
+      cool(slot, parseDuration(hd.get("x-ratelimit-reset-requests")) || 3600_000, "daily requests", ctx);
     } else if (leftTok !== null && Number(leftTok) < LOW_TOKENS) {
-      cool(id, parseDuration(hd.get("x-ratelimit-reset-tokens")) || DEFAULT_COOL_MS, "minute tokens", ctx);
+      cool(slot, parseDuration(hd.get("x-ratelimit-reset-tokens")) || DEFAULT_COOL_MS, "minute tokens", ctx);
     }
     if (leftTok !== null) {
-      const h = health.get(id) || {};
-      health.set(id, { ...h, tokensLeft: Number(leftTok) });
+      const h = health.get(slot) || {};
+      health.set(slot, { ...h, tokensLeft: Number(leftTok) });
     }
   }
 
@@ -220,14 +252,18 @@ export function observe({ provider, model, key, res, bodyText, ctx }) {
       const m = /retryDelay"?\s*:\s*"?(\d+(?:\.\d+)?s)/.exec(bodyText) || /try again in ([\dhms.]+)/i.exec(bodyText);
       if (m) ms = parseDuration(m[1]);
     }
-    const daily = /per day|RPD|TPD|daily/i.test(bodyText || "");
-    cool(id, ms || (daily ? 3600_000 : DEFAULT_COOL_MS), daily ? "daily quota" : "rate limited", ctx);
+    // Gemini says "PerDay" in the quota id and still sends a short retryDelay.
+    const daily = /per ?day|RPD|TPD|daily/i.test(bodyText || "");
+    cool(slot, daily ? Math.max(ms, 3600_000) : ms || DEFAULT_COOL_MS, daily ? "daily quota" : "rate limited", ctx);
   } else if (
-    (res.status === 404 && /model/i.test(bodyText || "")) ||
+    res.status === 404 || // chat endpoints are fixed URLs: a 404 is the model (NVIDIA says "Function … Not found")
     (res.status === 400 && /model_not_found|model_decommissioned|decommissioned|unknown model|model .{0,40}(does not exist|not found|no longer supported)/i.test(bodyText || ""))
   ) {
     // Retired/unknown model: skip it for a few hours instead of paying a failed call every request.
     cool(modelId(provider, model), DEAD_MODEL_MS, "model unavailable", ctx);
+  } else if (res.status === 403 && /model/i.test(bodyText || "")) {
+    // This key's plan can't use this model (e.g. retired from the free tier): other models still can.
+    cool(slot, DEAD_MODEL_MS, "model not on this plan", ctx);
   } else if (res.status === 401 || res.status === 403) {
     cool(id, 600_000, "auth", ctx);
   }

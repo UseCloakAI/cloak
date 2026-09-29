@@ -104,10 +104,11 @@ Layout: `[memory] [digest] [chunk summaries] [gap] [recent turns verbatim]`.
 
 Every upstream call from the Worker goes through it:
 
-- **Utility tier** — extraction and compression run on `llama-3.1-8b-instant` (Groq free: 14,400 req/day) → NVIDIA → Gemini, so chat tiers keep their quota (Groq 70B: 1,000 req/day).
+- **Utility tier** — extraction and compression run on Groq `gpt-oss-20b` (low reasoning) → `qwen3.6-27b` → Gemini 3.5 Flash-Lite → NVIDIA, so chat tiers keep their quota (Groq meters every model separately: 1,000 req/day each).
 - **Fit** — `max_tokens` is shrunk (floor 900) so prompt + max_tokens stays under the model's TPM (Groq counts both), then the oldest turns are trimmed (tool-call pairs kept together). Prevents 413s.
 - **Learned limits** — Groq's `x-ratelimit-*` headers update TPM/RPD live and put a key on cooldown when its minute tokens or daily requests run out.
-- **Cooldowns** — 429s (`retry-after` / `retryDelay`), auth failures, and retired models (skipped for 6 h) are remembered per isolate and shared across isolates via the Cache API (no KV writes).
+- **Cooldowns** — 429s (`retry-after` / `retryDelay`; daily quotas at least 1 h) cool one key's quota for one model, auth failures the whole key, retired models are skipped for 6 h, and a model that misses its first-token deadline is tried last for 10 min. Remembered per isolate and shared across isolates via the Cache API (no KV writes).
+- **Params** — per-model `extra` params (reasoning effort, thinking level) that a provider rejects with a 400 are retried without and dropped for that model.
 - **Rotation** — healthy keys are tried round-robin so pooled free keys wear evenly; cooling keys go last.
 - **Keyring cache** — `PROVIDER_KEYS` is read from KV once a minute per isolate instead of 2–3 times per request (KV free: 100k reads/day).
 - `GET /v1/usage` — this isolate's view of key cooldowns and limits (hashed key ids, no key material).
@@ -116,10 +117,10 @@ Default limits (updated live from headers where available):
 
 | Provider:model | RPM | RPD | TPM |
 |---|---|---|---|
-| groq:llama-3.3-70b-versatile | 30 | 1,000 | 12,000 |
-| groq:llama-3.1-8b-instant | 30 | 14,400 | 6,000 |
-| groq:openai/gpt-oss-120b | 30 | 1,000 | 8,000 |
+| groq:openai/gpt-oss-120b · gpt-oss-20b · qwen3.8-27b · qwen3.6-27b | 30 | 1,000 | 8,000 |
 | nvidia:* | 40 | — | — |
+| gemini:gemini-3.8-flash · gemini-3.5-flash | 5 | 20 | 250,000 |
+| gemini:gemini-3.5-flash-lite | 15 | 500 | 250,000 |
 | gemini:* | 10 | 250 | 250,000 |
 
 ## Follow-ups

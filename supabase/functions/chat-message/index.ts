@@ -9,13 +9,19 @@ const GROQ_API_KEYS: string[] = [
   Deno.env.get("GROQ_API_KEY_3"),
 ].filter((k): k is string => typeof k === "string" && k.length > 0);
 
-const GROQ_MAIN_MODEL   = "llama-3.3-70b-versatile";
-const GROQ_VISION_MODEL = "llama-3.2-11b-vision-preview";
+// Groq retired its Llama models for free accounts on 2026-08-16.
+// gpt-oss-120b: tool calling, fast; reasoning kept low and out of the reply.
+const GROQ_MAIN_MODEL   = "openai/gpt-oss-120b";
+const GROQ_MAIN_PARAMS  = { reasoning_effort: "low", include_reasoning: false };
+// Qwen 3.8 27B reads images; thinking off so the answer fits max_tokens.
+const GROQ_VISION_MODEL = "qwen/qwen3.8-27b";
+const GROQ_VISION_PARAMS = { reasoning_effort: "none" };
 const NVIDIA_API_KEY    = Deno.env.get("NVIDIA_API_KEY") ?? "";
-// Try the full Ultra first; if it times-out or 404s, fall back to the 70B
-const NVIDIA_MODELS     = [
-  "nvidia/llama-3.1-nemotron-ultra-253b-v1",
-  "nvidia/llama-3.1-nemotron-70b-instruct",
+// Tried in order on timeout / 404 / empty reply. Both reason before answering
+// (reasoning comes back separately), so max_tokens leaves room for it.
+const NVIDIA_MODELS: { model: string; params?: Record<string, unknown> }[] = [
+  { model: "nvidia/nemotron-3-super-120b-a12b" },
+  { model: "z-ai/glm-5.3-flash", params: { reasoning_effort: "low" } },
 ];
 const NVIDIA_BASE_URL   = "https://integrate.api.nvidia.com/v1";
 
@@ -190,6 +196,7 @@ async function groqAgentCall(
     try {
       // deno-fmt-ignore
       const body: Record<string, unknown> = {
+        ...GROQ_MAIN_PARAMS,
         model: GROQ_MAIN_MODEL,
         messages: [{ role: "system", content: systemPrompt }, ...messages],
         temperature: 0.7,
@@ -231,7 +238,7 @@ async function groqAgentCall(
         r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: GROQ_MAIN_MODEL, messages: msgs2, temperature: 0.7, max_tokens: maxTokens }),
+          body: JSON.stringify({ ...GROQ_MAIN_PARAMS, model: GROQ_MAIN_MODEL, messages: msgs2, temperature: 0.7, max_tokens: maxTokens }),
           signal: AbortSignal.timeout(GROQ_TIMEOUT_MS),
         });
         if (!r.ok) {
@@ -275,17 +282,18 @@ async function nvidiaCall(
 
   let lastErr: Error = new Error("NVIDIA: no models succeeded.");
 
-  for (const model of NVIDIA_MODELS) {
+  for (const { model, params } of NVIDIA_MODELS) {
     console.log(`[${reqId}] NVIDIA trying model: ${model} (extended=${extendedThinking})`);
     try {
       const r = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${NVIDIA_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...params,
           model,
           messages: [{ role: "system", content: systemPrompt }, ...nmsgs],
           temperature: extendedThinking ? Math.max(0.3, temperature - 0.1) : temperature,
-          max_tokens:  extendedThinking ? 4096 : 2048,
+          max_tokens:  extendedThinking ? 8192 : 4096,
           top_p: 0.95,
         }),
         signal: AbortSignal.timeout(NVIDIA_TIMEOUT_MS),
@@ -313,9 +321,9 @@ async function nvidiaCall(
       return content;
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") {
-        console.error(`[${reqId}] NVIDIA ${model} timed out after ${NVIDIA_TIMEOUT_MS}ms, trying smaller model…`);
+        console.error(`[${reqId}] NVIDIA ${model} timed out after ${NVIDIA_TIMEOUT_MS}ms, trying next model…`);
         lastErr = new Error(`NVIDIA timed out after ${NVIDIA_TIMEOUT_MS / 1000}s.`);
-        continue; // fallback to 70B which is faster
+        continue; // next model
       }
       throw e;
     }
@@ -415,6 +423,7 @@ serve(async (req) => {
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
+              ...GROQ_VISION_PARAMS,
               model: GROQ_VISION_MODEL,
               messages: [{ role: "system", content: finalSystemPrompt }, ...conversationMessages],
               temperature,
