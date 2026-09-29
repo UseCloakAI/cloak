@@ -4,11 +4,11 @@
 // /admin/provider-keys. All chat routes support live token streaming.
 // Every upstream call goes through the free-tier governor (./governor.js).
 
-import { CLOAK } from "./prompts.js";
+import { CLOAK, CODE_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
 
-const VERSION = "4.6.0";
+const VERSION = "4.7.0";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -55,13 +55,40 @@ const MODEL_CONFIG = {
     groqModel: "llama-3.3-70b-versatile",
     temperature: 0.8,
   },
+  // Code tier. Several models per provider, best first — a retired or
+  // rate-limited one is skipped (governor marks dead models for 6h) and the
+  // next takes over. All free tier. IDs checked against the NVIDIA NIM
+  // catalog, Groq's free models and Gemini's free Flash tier (2026-09-26).
+  //   NVIDIA  kimi-k3 (agentic coding flagship) → glm-5.3 → laguna-xs-2.1
+  //           (Poolside's code model, fast, no reasoning)
+  //   Groq    gpt-oss-120b → qwen3.8-27b (fast when NVIDIA is slow/down)
+  //   Gemini  3.8 Flash (20/day) → 3.5 Flash-Lite (500/day), huge context
+  // Thinking models get their recommended temperatures; reasoning effort is
+  // "high" rather than "max" so first tokens land inside the timeout.
   linus: {
     name: "Cloak",
     systemPrompt: CLOAK,
-    providers: ["nvidia", "groq"],
-    nvidiaModel: "z-ai/glm-5.3",
+    playbook: CODE_PLAYBOOK,
+    providers: ["nvidia", "groq", "gemini"],
+    models: {
+      nvidia: [
+        { model: "moonshotai/kimi-k3", temperature: 0.6 },
+        { model: "z-ai/glm-5.3", temperature: 0.6 },
+        { model: "poolside/laguna-xs-2.1", temperature: 0.2 },
+      ],
+      groq: [
+        { model: "openai/gpt-oss-120b", temperature: 1.0, extra: { reasoning_effort: "high" } },
+        { model: "qwen/qwen3.8-27b", temperature: 0.6 },
+      ],
+      gemini: [{ model: "gemini-3.8-flash" }, { model: "gemini-3.5-flash-lite" }],
+    },
+    // Fallbacks for anything that still reads the single-model fields.
+    nvidiaModel: "moonshotai/kimi-k3",
     groqModel: "openai/gpt-oss-120b",
     temperature: 0.2,
+    // Code needs room: whole files, full apps. Clients rarely send max_tokens.
+    defaultMaxTokens: 8192,
+    maxMaxTokens: 16384,
   },
 };
 const VALID_MODELS = Object.keys(MODEL_CONFIG);
@@ -112,10 +139,11 @@ async function readJson(request) {
   }
 }
 
-function clampMaxTokens(v) {
+function clampMaxTokens(v, tierKey) {
+  const t = TIERS[tierKey] || {};
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) return DEFAULT_MAX_TOKENS;
-  return Math.min(Math.floor(n), MAX_MAX_TOKENS);
+  if (!Number.isFinite(n) || n <= 0) return t.defaultMaxTokens || DEFAULT_MAX_TOKENS;
+  return Math.min(Math.floor(n), t.maxMaxTokens || MAX_MAX_TOKENS);
 }
 
 function resolveTier(model) {
@@ -124,9 +152,11 @@ function resolveTier(model) {
 
 function buildSystemPrompt(config, extraSystem) {
   const extra = normalizeSystem(extraSystem);
-  if (!config.systemPrompt) return extra;
-  if (!extra) return config.systemPrompt;
-  return `${config.systemPrompt}\n\n## ADDITIONAL INSTRUCTIONS FROM THE CLOAK APP\n${extra}`;
+  // Same Cloak, plus a task playbook for tiers that have one (code).
+  const base = config.playbook ? `${config.systemPrompt}\n\n${config.playbook}` : config.systemPrompt;
+  if (!base) return extra;
+  if (!extra) return base;
+  return `${base}\n\n## ADDITIONAL INSTRUCTIONS FROM THE CLOAK APP\n${extra}`;
 }
 
 // Accepts a string or Anthropic-style [{type:"text", text}] blocks.
@@ -272,8 +302,10 @@ const OPENAI_COMPAT = {
   nvidia: "https://integrate.api.nvidia.com/v1/chat/completions",
 };
 
-function openAIBody({ model, messages, temperature, maxTokens, tools, toolChoice, stream, json: wantJson }, provider) {
-  const body = { model, messages, temperature, max_tokens: maxTokens };
+function openAIBody({ model, messages, temperature, maxTokens, tools, toolChoice, stream, json: wantJson, extra }, provider) {
+  // Per-model knobs (reasoning_effort, chat_template_kwargs…) go in first so
+  // the core fields below always win.
+  const body = { ...(extra || {}), model, messages, temperature, max_tokens: maxTokens };
   if (wantJson && provider === "groq") body.response_format = { type: "json_object" };
   if (tools && tools.length) {
     body.tools = tools;
@@ -416,10 +448,13 @@ function planAttempts(config, { hasImage, hasTools }) {
   }
   return config.providers
     .filter((p) => !(p === "gemini" && hasTools)) // Gemini adapter has no tool support
-    .map((p) => ({
-      provider: p,
-      model: p === "groq" ? config.groqModel : p === "nvidia" ? config.nvidiaModel : GEMINI_MODEL,
-    }));
+    .flatMap((p) => {
+      const list = config.models && config.models[p];
+      if (Array.isArray(list) && list.length) {
+        return list.map((m) => ({ provider: p, model: m.model, temperature: m.temperature, extra: m.extra }));
+      }
+      return [{ provider: p, model: p === "groq" ? config.groqModel : p === "nvidia" ? config.nvidiaModel : GEMINI_MODEL }];
+    });
 }
 
 function withImage(messages, imageBase64, mimeType) {
@@ -486,7 +521,8 @@ function specFor(c, plan, req) {
   return gov.fitSpec(c.provider, c.model, {
     model: c.model,
     messages: c.messages,
-    temperature: plan.config.temperature,
+    temperature: c.temperature ?? plan.config.temperature,
+    extra: gemini ? undefined : c.extra,
     maxTokens: req.maxTokens,
     tools: gemini ? undefined : req.tools,
     toolChoice: gemini ? undefined : req.toolChoice,
@@ -623,7 +659,7 @@ async function handleNativeChat(env, request, ctx) {
   const req = {
     messages: sanitizeMessages(body.messages),
     system: body.system,
-    maxTokens: clampMaxTokens(body.max_tokens),
+    maxTokens: clampMaxTokens(body.max_tokens, tierKey),
     imageBase64: body.imageBase64,
     mimeType: body.mimeType,
     ctx,
@@ -687,7 +723,7 @@ async function handleOpenAIChat(env, request) {
   const tierKey = resolveTier(body.model || "pneuma");
   const req = {
     messages: sanitizeMessages(body.messages),
-    maxTokens: clampMaxTokens(body.max_tokens ?? body.max_completion_tokens),
+    maxTokens: clampMaxTokens(body.max_tokens ?? body.max_completion_tokens, tierKey),
     tools: body.tools,
     toolChoice: body.tool_choice,
   };
@@ -837,7 +873,7 @@ async function handleAnthropicMessages(env, request) {
   const req = {
     messages: sanitizeMessages(flattenAnthropicMessages(body.messages)),
     system: body.system,
-    maxTokens: clampMaxTokens(body.max_tokens),
+    maxTokens: clampMaxTokens(body.max_tokens, tierKey),
     tools: anthropicToolsToOpenAI(body.tools),
     toolChoice: anthropicToolChoiceToOpenAI(body.tool_choice),
   };

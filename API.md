@@ -181,7 +181,7 @@ Cloak runs several models; they differ in the underlying model and settings, not
 - **`pneuma`** — Fast, lightweight model for quick responses
 - **`logos`** — Balanced model, lower temperature, for precise answers
 - **`kairos`** — Deep-reasoning model for complex analysis
-- **`linus`** — Code-focused model
+- **`linus`** — Code mode. Same Cloak, plus a code playbook (plan → complete runnable code → self-review) appended to the system prompt. Fails over across the strongest free-tier coding models: NVIDIA Kimi K3 → GLM-5.3 → Laguna XS, Groq gpt-oss-120b → Qwen3.8-27B, Gemini Flash → Flash-Lite. Defaults to 8,192 output tokens (max 16,384) since the client usually sends no `max_tokens`.
 
 ## Memory & Context Endpoints
 

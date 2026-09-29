@@ -88,7 +88,7 @@ Per request, `CloakContext.build()` spends a per-tier token budget:
 |---|---|---|---|
 | pneuma / logos | 5,200 | 420 | 900 |
 | kairos | 9,000 | 700 | 1,600 |
-| linus | 7,000 | 520 | 1,200 |
+| linus | 11,000 | 520 | 1,400 |
 
 Budget = memory + summaries + recent turns. Persona (~1.8k) + app prompt (~1k) + budget + 2k reply reserve ≈ 10k, under Groq 70B's 12K TPM.
 

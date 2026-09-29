@@ -17,8 +17,15 @@ const LIMITS = {
   "groq:llama-3.1-8b-instant": { rpm: 30, rpd: 14400, tpm: 6000, ctx: 131072 },
   "groq:openai/gpt-oss-120b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
   "groq:openai/gpt-oss-20b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
+  "groq:qwen/qwen3.8-27b": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 131072 },
+  "groq:qwen/qwen3.6-27b": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 131072 },
   "groq:*": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 32768 },
+  "nvidia:moonshotai/kimi-k3": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
+  "nvidia:z-ai/glm-5.3": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
+  "nvidia:poolside/laguna-xs-2.1": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:*": { rpm: 40, rpd: 0, tpm: 0, ctx: 65536 },
+  "gemini:gemini-3.8-flash": { rpm: 5, rpd: 20, tpm: 250000, ctx: 1000000 },
+  "gemini:gemini-3.5-flash-lite": { rpm: 15, rpd: 500, tpm: 250000, ctx: 1000000 },
   "gemini:*": { rpm: 10, rpd: 250, tpm: 250000, ctx: 1000000 },
 };
 

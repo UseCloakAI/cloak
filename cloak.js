@@ -24,7 +24,7 @@ let _thinkTimer=null, _thinkPhaseIdx=0;
 
 /** Should thoughts run for this model/mode? */
 function _shouldThink(model) {
-  return model === 'logos' || model === 'kairos' || thinkModeActive;
+  return model === 'logos' || model === 'kairos' || model === 'linus' || thinkModeActive;
 }
 /* Voice Mode Variables */
 let voiceMode = false;
@@ -1239,5 +1239,5 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260928sbrail5').catch(e=>console.warn('SW registration failed',e));  });
+    navigator.serviceWorker.register('/sw.js?v=20260929builds1').catch(e=>console.warn('SW registration failed',e));  });
 }
