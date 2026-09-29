@@ -450,6 +450,7 @@
     panel();
     const b = cur();
     if (!b) return;
+    if (S.closing) { clearTimeout(S.closing); finishClose(); }
     const wasOpen = isOpen();
     S.dirty = false;
     P.el.hidden = false;
@@ -494,9 +495,21 @@
     if (t === 'console') renderLog();
   }
 
+  const calm = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   function close() {
-    if (!P) return;
+    if (!P || P.el.hidden || S.closing) return;
     clearTimeout(S.fixTimer);
+    if (calm()) return finishClose();
+    // Play the exit, then tear down (show() during it cancels the close).
+    P.el.classList.remove('bp-in');
+    P.el.classList.add('bp-out');
+    S.closing = setTimeout(finishClose, 300);
+  }
+
+  function finishClose() {
+    S.closing = 0;
+    P.el.classList.remove('bp-out');
     P.el.hidden = true;
     P.el.classList.remove('bp-max', 'bp-over');
     const shell = $('.chat-shell');
@@ -1257,6 +1270,7 @@
     patchSend();
     initComposer();
     const box = $('#messages');
+    steadyCards();
     if (box && 'MutationObserver' in window) {
       let t = 0;
       new MutationObserver(() => { clearTimeout(t); t = setTimeout(prune, 60); }).observe(box, { childList: true });
@@ -1265,6 +1279,28 @@
     // Sidebar collapse changes the room available for a split.
     const sb = $('.sidebar');
     if (sb && 'ResizeObserver' in window) new ResizeObserver(() => { if (isOpen()) layout(); }).observe(sb);
+  }
+
+  // Streaming repaints rebuild the message HTML every frame, which replayed each
+  // card's entrance (the flash). Cards a message already showed stay still, and
+  // the working icon keeps its phase instead of restarting.
+  function steadyCards() {
+    const box = $('#messages');
+    if (!box || !('MutationObserver' in window)) return;
+    new MutationObserver(() => {
+      box.querySelectorAll('.msg.bot').forEach((m) => {
+        const cards = m.querySelectorAll('.bld');
+        if (!cards.length) return;
+        const seen = m._bldSeen || 0;
+        const phase = -(performance.now() % 2400) + 'ms';
+        cards.forEach((c, i) => {
+          if (i < seen) c.classList.add('still');
+          const ic = c.querySelector('.bld-ic svg');
+          if (ic) ic.style.animationDelay = phase;
+        });
+        m._bldSeen = Math.max(seen, cards.length);
+      });
+    }).observe(box, { childList: true, subtree: true });
   }
 
   patch();

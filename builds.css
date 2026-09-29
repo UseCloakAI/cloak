@@ -74,11 +74,24 @@
 .chat-shell.bp-open .main{min-width:380px;}
 .bp{position:relative;flex:0 0 auto;width:52%;min-width:0;display:flex;flex-direction:column;background:var(--surf);border-left:var(--bd);z-index:5;overflow:hidden;}
 .bp[hidden]{display:none;}
-.bp.bp-in{animation:bpIn .5s var(--ease-out) backwards;}
-@keyframes bpIn{from{opacity:0;translate:24px 0;}}
+/* In: the panel wipes open from its seam while its parts rise in, staggered. Out: wipes shut. */
+.bp.bp-in{animation:bpIn .55s var(--ease-out) backwards;}
+.bp.bp-in>*:not(.bp-resize){animation:bpKid .5s var(--sp-snap) backwards;}
+.bp.bp-in>*:nth-child(2){animation-delay:.06s;}.bp.bp-in>*:nth-child(3){animation-delay:.11s;}.bp.bp-in>*:nth-child(4){animation-delay:.16s;}.bp.bp-in>*:nth-child(n+5){animation-delay:.2s;}
+@keyframes bpIn{from{opacity:0;translate:32px 0;clip-path:inset(0 0 0 100%);}60%{opacity:1;}to{clip-path:inset(0);}}
+@keyframes bpKid{from{opacity:0;translate:14px 0;}}
+.bp.bp-out{animation:bpOut .28s var(--ease-in) forwards;pointer-events:none;}
+@keyframes bpOut{to{opacity:0;translate:28px 0;clip-path:inset(0 0 0 100%);}}
 .bp.bp-over{position:fixed;inset:0;width:auto!important;z-index:60;border-left:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
-.bp.bp-over.bp-in{animation:bpUp .45s var(--ease-out) backwards;}
-@keyframes bpUp{from{translate:0 36px;opacity:0;}}
+.bp.bp-over.bp-in{animation:bpUp .5s var(--ease-out) backwards;}
+.bp.bp-over.bp-in>*:not(.bp-resize){animation-name:bpKidUp;}
+@keyframes bpUp{from{translate:0 40px;opacity:0;clip-path:inset(100% 0 0 0);}60%{opacity:1;}to{clip-path:inset(0);}}
+@keyframes bpKidUp{from{opacity:0;translate:0 12px;}}
+.bp.bp-over.bp-out{animation-name:bpDown;}
+@keyframes bpDown{to{translate:0 40px;opacity:0;clip-path:inset(100% 0 0 0);}}
+.bp-view:not([hidden]){animation:bpView .32s var(--ease-out);}
+@keyframes bpView{from{opacity:0;translate:0 6px;}}
+.bld.still{animation:none;}
 .bp.bp-max{position:fixed;inset:0;width:auto!important;z-index:60;border-left:0;}
 .bp.resizing,.bp.resizing *{user-select:none;}
 .bp.resizing .bp-frame{pointer-events:none;}
@@ -240,6 +253,6 @@
   .cb .code-btn[data-act="download"]{display:none;}
 }
 @media(prefers-reduced-motion:reduce){
-  .bld,.bp.bp-in,.bp-err,.fchip.is-new{animation:none!important;}
+  .bld,.bp.bp-in,.bp.bp-in>*,.bp.bp-out,.bp-view,.bp-err,.fchip.is-new{animation:none!important;}
   .bld:not(.ready) .bld-ic svg,.bld-dots i,.bp-spin{animation:none!important;}
 }
