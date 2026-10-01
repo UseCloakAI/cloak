@@ -698,20 +698,29 @@ function restOrbBelow(botMsgEl, state){
 }
 
 // Fly the resting orb from the previous reply into the new bubble's header.
-function travelOrb(fromRect, botMsgEl){
+// Both ends are re-measured every frame, so the flight tracks the chat as it
+// (smooth-)scrolls instead of landing where the target *used* to be.
+function travelOrb(from, botMsgEl){
   const meta=botMsgEl&&botMsgEl.querySelector('.bot-meta .cloak-orb');
-  if(!meta||!fromRect) return;
-  const to=meta.getBoundingClientRect();
+  if(!meta||!from) return;
+  const ca=document.getElementById('chat-area');
+  const st0=ca?ca.scrollTop:0;              // start point is pinned to the content, not the viewport
   const fly=document.createElement('span');
   fly.className='orb-fly'; fly.setAttribute('aria-hidden','true');
   fly.innerHTML=CLOAK_ORB_HTML;
-  fly.style.transform='translate('+fromRect.left+'px,'+fromRect.top+'px)';
   document.body.appendChild(fly);
   meta.style.opacity='0';
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    fly.style.transform='translate('+to.left+'px,'+to.top+'px)';
-  }));
-  setTimeout(()=>{ fly.remove(); meta.style.opacity=''; }, 520);
+  const DUR=520, t0=performance.now();
+  const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+  (function step(now){
+    const p=Math.min(1,(now-t0)/DUR), k=ease(p);
+    const dy=ca?ca.scrollTop-st0:0;
+    const sx=from.left, sy=from.top-dy;
+    const to=meta.getBoundingClientRect();
+    fly.style.transform='translate('+(sx+(to.left-sx)*k)+'px,'+(sy+(to.top-sy)*k)+'px)';
+    if(p<1&&fly.isConnected) requestAnimationFrame(step);
+    else { fly.remove(); meta.style.opacity=''; }
+  })(t0);
 }
 function _takeRestingOrb(){
   const end=document.querySelector('#messages .bot-end-orb');
@@ -1239,5 +1248,5 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260929builds2').catch(e=>console.warn('SW registration failed',e));  });
+    navigator.serviceWorker.register('/sw.js?v=20261001orbfly').catch(e=>console.warn('SW registration failed',e));  });
 }

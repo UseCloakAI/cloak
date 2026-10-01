@@ -1883,7 +1883,7 @@ html.kb-open .input-area{padding-bottom:14px;}
 .bot-end-orb { margin-top: 8px; height: 15px; display: flex; }
 .orb-fly {
   position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
-  transition: transform .5s cubic-bezier(.65,0,.35,1);
+  will-change: transform;
 }
 /* Status log — thinking + research as single lines */
 .status-log { margin: 0 0 10px; }
