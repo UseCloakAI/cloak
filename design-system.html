@@ -255,7 +255,6 @@
 /* live chat reply demo — same markup/classes as chat.html */
 .ds-live{position:relative;min-height:190px;}
 .ds-live .msg{animation:none;padding:4px 0 0;}
-.ds-live .bot-dot.cloak-orb{width:15px;height:15px;}
 .ds-live .bot-content{font-size:14px;line-height:1.75;}
 .ds-live .ds-caret::after{content:'';display:inline-block;width:6px;height:1em;background:var(--acc);vertical-align:-2px;margin-left:2px;animation:pdot 1s steps(1) infinite;}
 .ds-live-step{position:absolute;right:0;top:-30px;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.45;}
@@ -500,7 +499,7 @@
             <div class="msg bot" id="ds-live-msg">
               <div class="bot-body">
                 <div class="bot-meta"><span class="bot-dot cloak-orb" role="button" tabindex="0" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span><span class="bot-label">Cloak</span></div>
-                <div class="status-log"><button class="status-head" type="button" aria-expanded="false"><span class="status-head-label">Show thinking</span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div></div>
+                <div class="status-log"><button class="status-head" type="button" aria-expanded="false"><span class="status-head-label">Thinking</span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div></div>
                 <div class="bot-content"></div>
               </div>
             </div>
@@ -584,8 +583,8 @@
           <tr><td class="ds-mono">--ease-in (.55,0,1,.45)</td><td>Exits: sink back into the page</td></tr>
           <tr><td class="ds-mono">Stagger · 80ms</td><td>Things that arrive together, in reading order</td></tr>
           <tr><td class="ds-mono">msgIn · 6px fade-up</td><td>Chat turns</td></tr>
-          <tr><td class="ds-mono">statusPop .42s · blur-up</td><td>Each new thought line, the live preview beside the orb</td></tr>
-          <tr><td class="ds-mono">statusShimmer 2.2s linear</td><td>The band sweeping across "Cloak is thinking…"</td></tr>
+          <tr><td class="ds-mono">statusPop .42s · blur-up</td><td>Each new thought line; the thinking box opening</td></tr>
+          <tr><td class="ds-mono">statusShimmer 2.2s linear</td><td>The band sweeping across "Thinking ▾" / "Searching for sources ▾"</td></tr>
         </table>
       </div>
     </section>
@@ -873,13 +872,23 @@
     var meta=msg.querySelector('.bot-meta .cloak-orb'),label=msg.querySelector('.bot-label'),body=msg.querySelector('.bot-body'),
         bc=msg.querySelector('.bot-content'),log=msg.querySelector('.status-log'),lines=log.querySelector('.status-lines'),
         head=log.querySelector('.status-head'),step=document.getElementById('ds-live-step'),timers=[];
-    head.addEventListener('click',function(){var o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);log.querySelector('.status-head-label').textContent=o?'Hide thinking':'Show thinking';});
+    // "Thinking ▾" beside the orb and the post-answer head both open the box (cloak.js · toggleStatusLog)
+    function toggle(force){var o=log.classList.toggle('open',force===undefined?!log.classList.contains('open'):force);
+      head.setAttribute('aria-expanded',o);if(label.classList.contains('cs-thinking-label'))label.setAttribute('aria-expanded',o);
+      if(o)lines.scrollTop=lines.scrollHeight;}
+    head.addEventListener('click',function(){toggle();});
+    label.addEventListener('click',function(){if(label.classList.contains('cs-thinking-label'))toggle();});
+    label.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&label.classList.contains('cs-thinking-label')){e.preventDefault();toggle();}});
     var THOUGHTS=['Reading the question','Checking what changed since last time','Searching sources','Weighing the two options'];
     var ANSWER='Short answer: yes. The one thing to check first is whether your **cache key** includes the version — if it doesn’t, old users keep the stale file.';
     function at(ms,fn){timers.push(setTimeout(fn,ms));}
-    function setLabel(t,pop){label.textContent=t||'Cloak';label.classList.toggle('cs-thinking-label',!!t);
-      if(t&&pop){label.classList.remove('pop');void label.offsetWidth;label.classList.add('pop');}}
-    function addLine(t){var p=lines.lastElementChild;if(p)p.classList.remove('live');var el=document.createElement('div');el.className='status-line live';el.textContent=t;lines.appendChild(el);}
+    // static label + chevron — never changes with the thoughts (cloak.js · setBotState)
+    function setLabel(t){label.classList.toggle('cs-thinking-label',!!t);
+      if(t){label.innerHTML='<span class="bl-text">'+t+'</span><svg class="bl-chev" width="12" height="8" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+        label.setAttribute('role','button');label.setAttribute('tabindex','0');label.setAttribute('aria-expanded',log.classList.contains('open'));}
+      else{label.textContent='Cloak';label.removeAttribute('role');label.removeAttribute('tabindex');label.removeAttribute('aria-expanded');}}
+    function addLine(t){var p=lines.lastElementChild;if(p)p.classList.remove('live');var el=document.createElement('div');el.className='status-line live';el.textContent=t;lines.appendChild(el);
+      if(log.classList.contains('open'))lines.scrollTop=lines.scrollHeight;}
     function tail(){var t=document.createElement('span');t.className='orb-tail';t.setAttribute('aria-hidden','true');t.innerHTML=ORB;
       var b=body.getBoundingClientRect(),r=meta.getBoundingClientRect();t.style.transform='translate('+(r.left-b.left)+'px,'+(r.top-b.top)+'px)';
       body.appendChild(t);meta.style.visibility='hidden';msg.classList.add('orb-streaming');setState(t.querySelector('.cloak-orb'),'streaming');return t;}
@@ -891,7 +900,7 @@
       msg.classList.remove('orb-streaming','orb-below');meta.style.visibility='';
       var t=body.querySelector('.orb-tail');if(t)t.remove();var e=msg.querySelector('.bot-end-orb');if(e)e.remove();
       bc.innerHTML='';bc.classList.remove('has-tail');lines.innerHTML='';log.classList.remove('done','open');head.setAttribute('aria-expanded','false');
-      log.querySelector('.status-head-label').textContent='Show thinking';setState(meta,null);setLabel(null);
+      setState(meta,null);setLabel(null);
     }
     function finish(){
       var t=body.querySelector('.orb-tail');if(t)t.remove();bc.classList.remove('has-tail');msg.classList.remove('orb-streaming');
@@ -902,13 +911,15 @@
     function run(){
       reset();
       if(RED){THOUGHTS.forEach(addLine);bc.innerHTML='<p>'+md(ANSWER)+'</p>';finish();return;}
-      step.textContent='thinking';setState(meta,'thinking');setLabel('Cloak is thinking…',true);
-      at(1200,function(){addLine(THOUGHTS[0]);setLabel(THOUGHTS[0],true);});
-      at(2400,function(){addLine(THOUGHTS[1]);setLabel(THOUGHTS[1],true);});
-      at(3600,function(){step.textContent='searching';setState(meta,'searching');addLine(THOUGHTS[2]);setLabel('Cloak is searching…',true);});
-      at(6000,function(){step.textContent='thinking';setState(meta,'thinking');addLine(THOUGHTS[3]);setLabel(THOUGHTS[3],true);});
+      step.textContent='thinking';setState(meta,'thinking');setLabel('Thinking');
+      at(900,function(){addLine(THOUGHTS[0]);});
+      at(1700,function(){toggle(true);});            // peek inside the box, as if tapped
+      at(2400,function(){addLine(THOUGHTS[1]);});
+      at(3600,function(){step.textContent='searching';setState(meta,'searching');addLine(THOUGHTS[2]);setLabel('Searching for sources');});
+      at(5200,function(){toggle(false);});
+      at(6000,function(){step.textContent='thinking';setState(meta,'thinking');addLine(THOUGHTS[3]);setLabel('Thinking');});
       at(7400,function(){
-        step.textContent='streaming';setState(meta,null);var t=tail(),words=ANSWER.split(' '),i=0,p=document.createElement('p');bc.appendChild(p);
+        step.textContent='streaming';setState(meta,null);setLabel(null);var t=tail(),words=ANSWER.split(' '),i=0,p=document.createElement('p');bc.appendChild(p);
         (function tick(){i++;p.innerHTML=md(words.slice(0,i).join(' '));placeTail(t);
           if(i<words.length)timers.push(setTimeout(tick,60+Math.random()*70));else at(300,finish);})();
       });
