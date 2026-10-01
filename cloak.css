@@ -1783,18 +1783,6 @@ html.kb-open .input-area{padding-bottom:14px;}
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* "Cloak is thinking…" — grayed-out italic, overrides the bot-label style */
-.bot-label.cs-thinking-label {
-  font-family: var(--fu);
-  font-weight: 500;
-  font-style: italic;
-  text-transform: none;
-  letter-spacing: .01em;
-  font-size: 11px;
-  color: var(--ink);
-  opacity: .42;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .cs-dot-glyph { animation: none; }
 }
@@ -1885,24 +1873,45 @@ html.kb-open .input-area{padding-bottom:14px;}
   position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
   will-change: transform;
 }
-/* Status log — thinking + research as single lines */
+/* Status log — "Thinking ▾" toggle; the thoughts sit in a scrollable box
+   that only exists while it's open. */
 .status-log { margin: 0 0 10px; }
 .status-head {
-  display: inline-flex; align-items: center; max-width: 100%; gap: 6px; background: none; border: none; padding: 2px 0;
-  font-family: var(--fu); font-size: 11px; font-weight: 500; font-style: italic; letter-spacing: .01em;
-  color: var(--ink); opacity: .42; cursor: pointer; transition: opacity var(--t);
+  display: none; align-items: center; gap: 8px; background: none; border: none; padding: 2px 0;
+  font-family: var(--fu); font-size: 15px; font-weight: 600; letter-spacing: .005em;
+  color: var(--ink); opacity: .55; cursor: pointer; transition: opacity var(--t);
 }
-.status-head:hover { opacity: .7; }
-.status-head:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.status-head svg { transition: transform .2s ease; }
-.status-head-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.status-head svg { flex-shrink: 0; }
-.status-head-label.pop { animation: statusPop .42s cubic-bezier(.2,.75,.25,1) both; }
-/* Live preview beside the orb: whole-line pop + a lighter band sweeping
-   left → right (one gradient tile per loop, so it wraps seamlessly). */
+.status-head:hover { opacity: .85; }
+.status-head:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.status-head svg { flex-shrink: 0; transition: transform .2s ease; }
+.status-log.done .status-head { display: inline-flex; }
+.status-log.open .status-head svg { transform: rotate(180deg); }
+.status-lines { display: none; }
+.status-log.open .status-lines {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 8px; max-height: 220px; overflow-y: auto;
+  padding: 12px 14px; background: var(--surf); border: var(--bdt); border-radius: 0;
+  animation: statusPop .3s cubic-bezier(.2,.75,.25,1) both;
+}
+.status-line {
+  font-family: var(--fu); font-size: 13.5px; font-weight: 400; line-height: 1.6;
+  color: var(--ink); opacity: .6; overflow-wrap: anywhere;
+  animation: statusPop .38s cubic-bezier(.2,.75,.25,1) both;
+}
+.status-line.live { opacity: .85; }
+/* Orb-side label: "Thinking ▾" — sized to sit beside the 24px orb. */
 .bot-label.cs-thinking-label {
-  display: inline-block; max-width: min(560px, 70vw);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--fu); font-size: 15px; font-weight: 600; font-style: normal;
+  text-transform: none; letter-spacing: .005em; color: var(--ink); opacity: .7;
+  transition: opacity var(--t);
+}
+.bot-label.cs-thinking-label:hover { opacity: 1; }
+.bot-label.cs-thinking-label:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.bot-label.cs-thinking-label .bl-chev { flex-shrink: 0; transition: transform .2s ease; }
+.bot-label.cs-thinking-label[aria-expanded="true"] .bl-chev { transform: rotate(180deg); }
+/* Lighter band sweeping left → right across the label text, looping cleanly */
+.bot-label.cs-thinking-label .bl-text {
   background: linear-gradient(90deg,
     var(--ink) 0%, var(--ink) 35%,
     color-mix(in srgb, var(--ink) 35%, transparent) 50%,
@@ -1911,23 +1920,7 @@ html.kb-open .input-area{padding-bottom:14px;}
   -webkit-text-fill-color: transparent;
   animation: statusShimmer 2.2s linear infinite;
 }
-.bot-label.cs-thinking-label.pop {
-  animation: statusPop .42s cubic-bezier(.2,.75,.25,1) both, statusShimmer 2.2s linear infinite;
-}
-/* Status log is only a "Show thinking" toggle, after the thinking is done */
-.status-log:not(.done) { display: none; }
 @keyframes statusShimmer { from { background-position: 200% 0; } to { background-position: 0 0; } }
-.status-log.open .status-head svg { transform: rotate(180deg); }
-.status-lines { display: none; flex-direction: column; gap: 3px; }
-.status-log.open .status-lines { display: flex; }
-.status-log .status-lines { margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--p3); }
-.status-line {
-  font-family: var(--fu); font-size: 11px; font-weight: 500; font-style: italic; letter-spacing: .01em;
-  line-height: 1.6; color: var(--ink); opacity: .42;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-  animation: statusPop .38s cubic-bezier(.2,.75,.25,1) both;
-}
-.status-line.live { opacity: .62; }
 @keyframes statusPop {
   from { opacity: 0; transform: translateY(.5em); filter: blur(4px); }
 }

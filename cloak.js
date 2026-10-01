@@ -541,7 +541,7 @@ function _csShape(kind, N){
    thinking → squish · searching → scan · streaming → hop · done → settle ·
    error → shake · listening → perk. null = rest. */
 const ORB_STATES=['thinking','searching','streaming','done','error','listening'];
-const BOT_STATE_LABELS={thinking:'Cloak is thinking…',searching:'Cloak is searching…'};
+const BOT_STATE_LABELS={thinking:'Thinking',searching:'Searching for sources'};
 
 function setOrbState(orb, state){
   if(!orb) return;
@@ -618,9 +618,20 @@ function setBotState(botMsgEl, state){
   setOrbState(botMsgEl.querySelector('.cloak-orb'), state);
   const label=botMsgEl.querySelector('.bot-label');
   if(!label) return;
-  const t=BOT_STATE_LABELS[state]?(botMsgEl._preview||BOT_STATE_LABELS[state]):null;
-  label.textContent=t||'Cloak';
+  const t=BOT_STATE_LABELS[state]||null;
+  const was=label.classList.contains('cs-thinking-label');
   label.classList.toggle('cs-thinking-label',!!t);
+  if(t){
+    // Static label + chevron: opens the thinking box. Never changes with the thoughts.
+    if(label.dataset.text!==t||!was){
+      label.dataset.text=t;
+      label.innerHTML='<span class="bl-text">'+t+'</span>'+'<svg class="bl-chev" width="12" height="8" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    }
+    label.setAttribute('role','button');label.setAttribute('tabindex','0');
+    const log=botMsgEl._log;label.setAttribute('aria-expanded',log&&log.classList.contains('open')?'true':'false');
+  }else{
+    label.textContent='Cloak';label.removeAttribute('role');label.removeAttribute('tabindex');label.removeAttribute('aria-expanded');delete label.dataset.text;
+  }
 }
 
 /* ── STREAMING TAIL ORB ──
@@ -734,6 +745,24 @@ function _takeRestingOrb(){
    Thinking + research steps as single lines that pop in (styled like
    "Cloak is thinking…"). When the answer starts, the log collapses to a
    one-line summary you can click to reopen. */
+function toggleStatusLog(botMsgEl){
+  const log=botMsgEl&&botMsgEl._log;if(!log)return;
+  const o=log.classList.toggle('open');
+  log.querySelector('.status-head').setAttribute('aria-expanded',o);
+  const lbl=botMsgEl.querySelector('.bot-label.cs-thinking-label');
+  if(lbl)lbl.setAttribute('aria-expanded',o);
+  if(o){const l=log.querySelector('.status-lines');l.scrollTop=l.scrollHeight;}
+}
+// The orb-side label ("Thinking ▾") is a toggle too.
+document.addEventListener('click',e=>{
+  const lbl=e.target.closest&&e.target.closest('.bot-label.cs-thinking-label');if(!lbl)return;
+  toggleStatusLog(lbl.closest('.msg'));
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const lbl=e.target.closest&&e.target.closest('.bot-label.cs-thinking-label');if(!lbl)return;
+  e.preventDefault();toggleStatusLog(lbl.closest('.msg'));
+});
 function statusLog(botMsgEl){
   if(!botMsgEl) return null;
   if(botMsgEl._log) return botMsgEl._log;
@@ -741,12 +770,9 @@ function statusLog(botMsgEl){
   if(!body||!bc) return null;
   const log=document.createElement('div');
   log.className='status-log';
-  log.innerHTML='<button class="status-head" type="button" aria-expanded="false"><span class="status-head-label"></span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
+  log.innerHTML='<button class="status-head" type="button" aria-expanded="false"><span class="status-head-label">Thinking</span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
   const head=log.querySelector('.status-head');
-  head.addEventListener('click',()=>{
-    const o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);
-    log.querySelector('.status-head-label').textContent=o?'Hide thinking':'Show thinking';
-  });
+  head.addEventListener('click',()=>toggleStatusLog(botMsgEl));
   log._t0=Date.now();
   body.insertBefore(log,bc);
   botMsgEl._log=log;
@@ -759,28 +785,19 @@ function addStatus(botMsgEl,text,noPreview){
   const el=document.createElement('div');
   el.className='status-line live';el.textContent=text;
   lines.appendChild(el);
-  if(!noPreview)setStatusPreview(botMsgEl,text,true);
-  scrollBottom();
+  if(log.classList.contains('open'))lines.scrollTop=lines.scrollHeight;
   return el;
 }
 // Collapsed view = one line: a live preview of the latest status/thought,
 // updated the instant it arrives (no artificial pacing — real reasoning
 // tokens are already paced by the model, not by us).
-function setStatusPreview(botMsgEl,text,isNew){
-  const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
-  botMsgEl._preview=text;
-  const lbl=botMsgEl.querySelector('.bot-label');
-  if(!lbl||!lbl.classList.contains('cs-thinking-label'))return;
-  lbl.textContent=text;
-  if(isNew){lbl.classList.remove('pop');void lbl.offsetWidth;lbl.classList.add('pop');}
-}
+function setStatusPreview(){ /* label stays a static "Thinking" — thoughts live in the dropdown */ }
 function finishStatus(botMsgEl){
   const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
   log._done=true;
   botMsgEl._preview=null;
   log.querySelectorAll('.status-line.live').forEach(l=>l.classList.remove('live'));
   if(!log.querySelector('.status-line')){log.remove();botMsgEl._log=null;return;}
-  log.querySelector('.status-head-label').textContent='Show thinking';
   log.classList.add('done');
 }
 
@@ -1248,5 +1265,5 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20261001orb2').catch(e=>console.warn('SW registration failed',e));  });
+    navigator.serviceWorker.register('/sw.js?v=20261001think3').catch(e=>console.warn('SW registration failed',e));  });
 }
