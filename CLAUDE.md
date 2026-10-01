@@ -39,7 +39,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 
 **Every commit, without exception, MUST bump the app version.** The version (`version.js` → `window.CLOAK_VERSION`, format `1.<release>.<build>`) is shown on the loading screen and at the bottom of the Settings nav, so users and support can tell exactly which build they're on.
 
-- It's automatic: `.githooks/pre-commit` runs `scripts/bump-version.sh`, which sets `build` to this commit's number (`git rev-list --count HEAD` + 1), stamps the date, rewrites `version.js`, updates its `?v=` cache tag in `chat.html` and `sw.js`, and stages them.
+- It's automatic: `.githooks/pre-commit` (and `pre-merge-commit`, for merges) runs `scripts/bump-version.sh`, which sets `build` to this commit's number (`git rev-list --count HEAD` + 1), stamps the date, rewrites `version.js`, updates its `?v=` cache tag in `chat.html` and `sw.js`, and stages them.
 - **Enable the hook in every clone/session before committing:** `git config core.hooksPath .githooks`. If the hook isn't active (or you commit another way), run `sh scripts/bump-version.sh` yourself before `git commit`. A commit that doesn't change `version.js` is a mistake — amend it.
 - Bump `release` in `version.js` by hand for notable releases (the hook keeps it and resets nothing else).
 - Never hard-code a version anywhere else — read `window.CLOAK_VERSION`, or put `data-cloak-version` (short `v1.x.y`) / `data-cloak-version="long"` (`Cloak v1.x.y · date`) on an element and `version.js` fills it.
