@@ -16,7 +16,7 @@ let guest=false,guestN=0;
 let verifyEmail='';
 let chatId=null,hist=[],logs=[],logF='all',stats={req:0,res:0,err:0,lat:[]},atab='general';
 let annId=null;
-let hwMode=false, thinkModeActive=false, attachedImgs=[];
+let hwMode=false, attachedImgs=[];
 let onboardingDone=false;
 let _fetchController=null;
 let _thinkTimer=null, _thinkPhaseIdx=0;
@@ -24,7 +24,7 @@ let _thinkTimer=null, _thinkPhaseIdx=0;
 
 /** Should thoughts run for this model/mode? */
 function _shouldThink(model) {
-  return model === 'logos' || model === 'kairos' || model === 'linus' || thinkModeActive;
+  return model === 'logos' || model === 'kairos' || model === 'linus';
 }
 /* Voice Mode Variables */
 let voiceMode = false;
@@ -820,17 +820,10 @@ function toggleHwMode(){
   hwMode=!hwMode;
   const hm=document.getElementById('menu-homework');if(hm)hm.classList.toggle('active-mode',hwMode);
   const hl=document.getElementById('hw-label');if(hl)hl.classList.toggle('show',hwMode);
-  const pb=document.getElementById('plus-btn');if(pb)pb.classList.toggle('has-mode',hwMode||thinkModeActive||attachedImgs.length>0);
+  const pb=document.getElementById('plus-btn');if(pb)pb.classList.toggle('has-mode',hwMode||attachedImgs.length>0);
   const pm=document.getElementById('plus-menu');if(pm)pm.classList.remove('open');
 }
 
-function toggleThinkMode() {
-  thinkModeActive=!thinkModeActive;
-  const mt=document.getElementById('menu-think');if(mt)mt.classList.toggle('active-mode',thinkModeActive);
-  const tl=document.getElementById('think-label');if(tl)tl.classList.toggle('show',thinkModeActive);
-  const pb=document.getElementById('plus-btn');if(pb)pb.classList.toggle('has-mode',hwMode||thinkModeActive||attachedImgs.length>0);
-  const pm=document.getElementById('plus-menu');if(pm)pm.classList.remove('open');
-}
 
 function onImgPick(inp){Array.from(inp.files).forEach(f=>{const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:f.name,data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});inp.value='';}
 function onPaste(e){const items=Array.from(e.clipboardData?.items||[]);const imageItems=items.filter(i=>i.type.startsWith('image/'));if(!imageItems.length)return;e.preventDefault();imageItems.forEach(item=>{const f=item.getAsFile();if(!f)return;const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:'pasted.png',data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});}
@@ -845,7 +838,7 @@ function renderImgStrip(){
     });
   } else strip.classList.remove('show');
   const pb=document.getElementById('plus-btn');
-  if(pb)pb.classList.toggle('has-mode',hwMode||thinkModeActive||attachedImgs.length>0);
+  if(pb)pb.classList.toggle('has-mode',hwMode||attachedImgs.length>0);
 }
 function removeImg(i){attachedImgs.splice(i,1);renderImgStrip();}
 
@@ -1086,7 +1079,7 @@ function closeSettings(){ goPage('chat'); }
 function prepSettings(){
   document.getElementById('s-name-inp').value=name;
   document.getElementById('mode-label').textContent=dark?'dark':'light';
-  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();if(window.CloakThread)CloakThread.refreshTelegram();
+  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();
 }
 function closeModal(id){const el=document.getElementById(id);if(!el)return;el.classList.add('hiding');setTimeout(()=>{el.style.display='none';el.classList.remove('hiding');},120);}
 function overlayClick(e,id){if(e.target===document.getElementById(id))closeModal(id);}
@@ -1150,7 +1143,7 @@ async function send(){
   hist.push({role:'USER',message:userMsg});
 
   stats.req++;
-  log('req',`"${(txt||'[image]').slice(0,60)}" model=${model} guest=${guest} hwMode=${hwMode} thinkMode=${thinkModeActive} imgs=${imgs.length} thoughts=${useThoughts}`);
+  log('req',`"${(txt||'[image]').slice(0,60)}" model=${model} guest=${guest} hwMode=${hwMode} imgs=${imgs.length} thoughts=${useThoughts}`);
 
   // Create bot bubble + Cloak status hero animation
   showMessages();

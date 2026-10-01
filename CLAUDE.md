@@ -26,12 +26,11 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `agent-orbit.js` — standalone "agents working" orb animation (`CloakAgentOrbit.mount(el,{state})`, states `starting`/`looping`/`completed`). Not wired into any page yet.
 - `effort.js` — the topbar Effort slider (`CloakEffort`): 0–100 with magnetic detents (Minimal/Low/Medium/High/Max), persisted in `localStorage.cloak_effort`. Sent as `effort` on every `/v1/chat` call (`streamChat` in `search-patch.js`) and sets client research depth (sources per search, verification rounds). The worker side is `api-worker/src/effort.js`.
 - `search.js` + `search-patch.js` — web-search overlay used inside chat. `search-patch.js` owns the live `send()` and wires memory + context into it.
-- `thread.js` — chat list + conversation (`CloakThread`): owns the sidebar's chat list (`chats` table), switches between them, loads the open chat's `thread_messages` after its "moved on" boundary, persists each message, live-syncs new rows over Realtime (filtered to the open chat, so the same chat open in another tab/device gets messages the instant they land), renders the "Cloak has moved on from these chats" card, and the Settings → Telegram link row.
+- `thread.js` — chat list + conversation (`CloakThread`): owns the sidebar's chat list (`chats` table), switches between them, loads the open chat's `thread_messages` after its "moved on" boundary, persists each message, live-syncs new rows over Realtime (filtered to the open chat, so the same chat open in another tab/device gets messages the instant they land), and renders the "Cloak has moved on from these chats" card.
 - `builds.js` + `builds.css` — code in chat (`CloakBuilds`): replaces the marked code renderer (filename-aware header, highlight.js, Copy/Download/Edit/Run), turns whole builds (full HTML page, React `jsx`/`tsx` with a default export, SVG, Mermaid) into build cards, and owns the Builds panel (Preview / Code / Console, versions, ask-to-change, "Fix with Cloak" + one-shot auto-repair, export). Builds run in a sandboxed iframe **without** `allow-same-origin` — never add it (the build would get Cloak's origin: session, storage). React compiles with Babel in the page, npm imports come from esm.sh, sibling `title="…"` files in the same message resolve as a multi-file project; JS/TS/Python (Pyodide) run with an output terminal. Editor is CodeMirror 5, lazy-loaded. Also: code-file attachments (+ menu / drop on composer → `[file: name]` + fence, chips in the user bubble). Loads after `cloak.js` (patches `postProcessBotEl` / `addMsg` / `onInput`) and wraps `send()` on DOMContentLoaded, after `search-patch.js`. CDN libs are pinned jsDelivr npm URLs (`CDN` at the top).
 - `memory.js` / `context.js` / `brain.js` + `brain.css` — memory system: markdown memory files + local recall (`CloakMemory`), budgeted context with chunked compression (`CloakContext`), and the Brain panel (`CloakBrain`). Load before `cloak.js`. See `memory-system.md`.
 - `api-worker/` — the `cloak-api` Worker serving `https://api.usecloak.org` (chat, streaming, search, memory extraction, context compression). This is what `chat.html` / `cloak.js` / `search-patch.js` call. Every upstream call goes through `src/governor.js` (free-tier limits). Deploys via Cloudflare Workers Builds; see `api-worker/README.md`.
-- `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA). Used by `agents.html` and the Telegram bot, not the main chat.
-- `supabase/functions/telegram-bot/` — Telegram bot (deployed with `verify_jwt: false`). A linked Telegram chat continues the user's active chat (`profiles.active_chat_id` — same context + memories, server-side compression); also serves `?action=link` (web → deep link) and `?relay=<id>` (DB trigger → mirrors web messages from the active chat into the linked Telegram chat as "Name said: …"). Answers via cloak-api.
+- `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA). Used by `agents.html`, not the main chat.
 - `supabase/migrations/` — SQL migrations. Apply via Supabase dashboard or CLI.
 - `robots.txt`, `sitemap.xml` — SEO.
 
@@ -106,28 +105,10 @@ Then click through:
 
 No automated tests.
 
-## Messaging integrations
-
-### Telegram
-- Edge Function: `supabase/functions/telegram-bot/index.ts`
-- Required secrets: `TELEGRAM_BOT_TOKEN`
-- Optional secrets: `TELEGRAM_WEBHOOK_SECRET` (adds request validation — recommended for production)
-- Setup:
-  1. Create a bot via [@BotFather](https://t.me/BotFather), get the token.
-  2. Set secret: `supabase secrets set TELEGRAM_BOT_TOKEN=<token>`
-  3. Deploy: `supabase functions deploy telegram-bot`
-  4. Register the webhook:
-     ```
-     curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<SUPABASE_URL>/functions/v1/telegram-bot"
-     ```
-
-### Session persistence
-- Uses the `messaging_sessions` table (see `supabase/migrations/20260512000000_messaging_sessions.sql`).
-- Apply the migration via Supabase dashboard SQL editor or `supabase db push`.
-
 ## Memory + context
 
-- **Multiple chats per user**: `chats` (one row per conversation: title, its own compressed `context`) + `thread_messages` (append-only, all platforms, tagged with `chat_id`). Chunks/digest reference message **ids**, not array positions, scoped to that chat. The digest end is the chat's "moved on" boundary; the web only loads messages after it. `profiles.active_chat_id` points at whichever chat is active — `thread.js` sets it on every switch, and a linked Telegram chat continues it (so Telegram follows whatever's open on web, or the last chat it touched itself if the web was never opened). Realtime is filtered by `chat_id`, so the same chat open in multiple tabs/devices gets new messages live.
+- **Multiple chats per user**: `chats` (one row per conversation: title, its own compressed `context`) + `thread_messages` (append-only, tagged with `chat_id`). Chunks/digest reference message **ids**, not array positions, scoped to that chat. The digest end is the chat's "moved on" boundary; the web only loads messages after it. `profiles.active_chat_id` points at whichever chat is active — `thread.js` sets it on every switch so the last-open chat reopens on any device. Realtime is filtered by `chat_id`, so the same chat open in multiple tabs/devices gets new messages live.
+- Telegram was removed (2026-10-01): no bot, no link tables, no relay trigger. Don't reintroduce messaging-platform integrations without being asked.
 - **One Cloak**: every model (Pneuma/Logos/Kairos/Linus) uses the single `CLOAK` prompt in `api-worker/src/prompts.js`. Models differ in provider/settings only — never add per-model personas.
 - **Linus = code mode**: same `CLOAK` prompt plus `CODE_PLAYBOOK` (task instructions — plan, complete runnable code, the build formats `builds.js` renders, self-review). It's a playbook, not a persona. Its `lineup` (like every tier's) is tried in order — Gemini 3.8 Flash → NVIDIA GLM-5.3-Flash → Groq gpt-oss-120b → Gemini 3.5 Flash-Lite → NVIDIA Laguna XS 2.1 → Groq Qwen3.8-27B → NVIDIA Nemotron 3 Super — with per-model temperature / `extra` params / reasoning `reserve` / `firstTokenMs`, and it defaults to 8,192 output tokens (client sends none). Only models that answer at chat speed on the free tier belong there: Kimi K3 and full GLM-5.3 crawl on NVIDIA free (<10 tok/s, minute-long first tokens) and made Linus hang. Keep the build format in `CODE_PLAYBOOK` in sync with what `builds.js` can run.
 - **Streaming failover** (`openStream` in `api-worker/src/index.js`): a model that misses its first-token deadline is skipped (and demoted for 10 min); after the stream starts, one that stalls 45s, reasons 2 min without answering, or ends with only reasoning hands over to the next model in the same SSE stream — only once answer text has gone out does a failure end the reply. Gemini 3.x runs at temperature 1.0 (lower loops) with a `thinkingLevel`; thinking counts against every provider's output cap, hence `reserve`. Groq retired its Llama models for free accounts on 2026-08-16 — never add them back.

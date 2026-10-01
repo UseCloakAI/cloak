@@ -176,7 +176,8 @@ const CloakEffort = (() => {
     if (!host || btn) return;
     host.innerHTML = `<button type="button" class="eff-btn" id="effort-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="effort-pop" title="Effort — how hard Cloak works">
       <svg class="eff-bars" width="20" height="12" viewBox="0 0 20 12" aria-hidden="true"></svg>
-      <span class="eff-btn-label"></span></button>`;
+      <span class="eff-btn-label"></span>
+      <span class="mdl-chevron"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>`;
     btn = host.querySelector('#effort-btn');
     btn.addEventListener('click', (e) => { e.stopPropagation(); pop && pop.classList.contains('open') ? close() : open(); });
     document.addEventListener('pointerdown', (e) => { if (pop && pop.classList.contains('open') && !host.contains(e.target)) close(); });

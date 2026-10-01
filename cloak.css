@@ -2058,27 +2058,38 @@ html.kb-open .input-area{padding-bottom:14px;}
    EFFORT — topbar chip + slider popover (effort.js)
    ═══════════════════════════════════════════════════════════ */
 .effort-picker{position:relative;display:inline-block;margin-left:8px;}
+/* Matches the model picker exactly: same button, chevron, and the dropdown
+   that unfolds out of the button while its sections step in. */
 .eff-btn{
-  display:flex;align-items:center;gap:8px;padding:7px 12px;
-  background:var(--surf);border:var(--bd);box-shadow:var(--shsm);cursor:pointer;
-  font-family:var(--fd);font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);white-space:nowrap;
+  display:flex;align-items:center;gap:10px;padding:7px 14px;
+  background:var(--surf);border:var(--bd);box-shadow:var(--shsm);
+  cursor:pointer;font-family:var(--fd);text-transform:uppercase;font-weight:800;
+  font-size:11px;letter-spacing:.1em;color:var(--ink);white-space:nowrap;
   transition:box-shadow var(--lift),transform var(--lift),background var(--t),color var(--t);
 }
-.eff-btn:hover{box-shadow:var(--sh);transform:translate(-2px,-2px);}
-.eff-btn:active{box-shadow:none;transform:translate(2px,2px);transition-duration:var(--tp);}
-.eff-btn.open{background:var(--ink);color:var(--paper);box-shadow:none;transform:translate(2px,2px);}
+.eff-btn:hover{box-shadow:var(--sh);transform:translate(-2px,-2px)}
+.eff-btn.open{background:var(--ink);color:var(--paper);box-shadow:none;transform:translate(2px,2px)}
 .eff-btn:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+.eff-btn .mdl-chevron{display:flex;transition:transform .5s var(--sp-pop)}
+.eff-btn.open .mdl-chevron{transform:rotate(180deg)}
 .eff-bars rect{fill:currentColor;opacity:.22;transition:opacity .25s var(--ease-out);}
 .eff-bars rect.on{opacity:1;fill:var(--acc);}
-.eff-btn.open .eff-bars rect.on{fill:var(--acc);}
 
 .eff-pop{
-  position:absolute;top:calc(100% + 8px);left:0;z-index:610;width:340px;max-width:calc(100vw - 24px);
+  position:absolute;top:calc(100% + 6px);left:0;z-index:600;width:340px;max-width:calc(100vw - 24px);
   background:var(--surf);border:var(--bd);box-shadow:var(--shlg);padding:16px 18px 14px;
-  opacity:0;translate:0 -6px;scale:.98;transform-origin:top left;pointer-events:none;visibility:hidden;
-  transition:opacity .16s var(--ease-out),translate .3s var(--sp-snap),scale .3s var(--sp-snap),visibility 0s .16s;
+  display:block;visibility:hidden;opacity:0;translate:0 -6px;clip-path:inset(0 -10px 100% 0);pointer-events:none;
+  transition:clip-path .2s var(--ease-in),translate .2s var(--ease-in),opacity .12s ease .08s,visibility 0s .2s;
 }
-.eff-pop.open{opacity:1;translate:0 0;scale:1;pointer-events:auto;visibility:visible;transition-delay:0s;}
+.eff-pop.open{
+  visibility:visible;opacity:1;translate:0 0;clip-path:inset(0 -10px -10px 0);pointer-events:auto;
+  transition:clip-path .42s var(--ease-out),translate .5s var(--sp-snap),opacity .1s ease,visibility 0s;
+}
+.eff-pop>*{opacity:0;translate:0 -8px;transition:opacity .12s ease,translate .12s ease;}
+.eff-pop.open>*{opacity:1;translate:0 0;transition:opacity .3s ease var(--od,0s),translate .5s var(--sp-snap) var(--od,0s);}
+.eff-pop.open>:nth-child(2){--od:.05s}
+.eff-pop.open>:nth-child(3){--od:.1s}
+.eff-pop.open>:nth-child(4){--od:.15s}
 .eff-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;}
 .eff-kicker{font-size:9px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);opacity:.45;}
 .eff-name{font-family:var(--fd);font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:-.2px;color:var(--ink);line-height:1.1;margin-top:2px;}
@@ -2127,7 +2138,7 @@ html.kb-open .input-area{padding-bottom:14px;}
   .eff-pop{position:fixed;top:60px;left:12px;right:12px;width:auto;}
 }
 @media(prefers-reduced-motion:reduce){
-  .eff-pop,.eff-fill,.eff-thumb,.eff-stat-bar i{transition:none;}
+  .eff-pop,.eff-pop>*,.eff-fill,.eff-thumb,.eff-stat-bar i{transition:none;}
   .eff-name.eff-bump{animation:none;}
 }
 
