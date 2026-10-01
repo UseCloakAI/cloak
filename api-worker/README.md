@@ -17,11 +17,11 @@ Cloudflare Worker behind `https://api.usecloak.org`. Deployed by Cloudflare Work
 
 ## Models
 
-Configured in `MODEL_CONFIG` in `src/index.js`. Each tier fails over provider → provider (and key → key) until one produces a first token. Vision goes Gemini → NVIDIA vision → text-only fallback. Model IDs go stale; when chat says "Cloak AI is currently unavailable", check Workers Logs for `[cloak-api] all providers failed` — the line lists each provider's exact error.
+Configured in `MODEL_CONFIG` in `src/index.js`: each tier is an ordered `lineup` of `{provider, model}` with per-model `temperature`, `extra` params (dropped automatically if a provider rejects them), a reasoning `reserve` and `firstTokenMs`. A tier fails over model → model (and key → key) until one produces a first token; a slow first token demotes the model for 10 min. After that, a stream that stalls, reasons too long without answering, or ends with only reasoning hands over to the next model inside the same SSE stream. Vision goes Gemini → NVIDIA vision → text-only fallback. Model IDs go stale; when chat says "Cloak AI is currently unavailable", check Workers Logs for `[cloak-api] all providers failed` — the line lists each provider's exact error.
 
 ## Free-tier governor
 
-`src/governor.js` sits in front of every upstream call: caches the KV keyring (1 read/min/isolate), rotates keys round-robin, cools keys on 429/quota headers (shared across isolates via the Cache API), skips retired models for 6 h, and sizes `max_tokens` + history under each model's TPM. Memory extraction and context compression run on the `utility` tier (`llama-3.1-8b-instant` first). Limits table: `LIMITS` in `src/governor.js`; details in `/memory-system.md`.
+`src/governor.js` sits in front of every upstream call: caches the KV keyring (1 read/min/isolate), rotates keys round-robin, cools keys on 429/quota headers (shared across isolates via the Cache API), skips retired models for 6 h, and sizes `max_tokens` + history under each model's TPM. Memory extraction and context compression run on the `utility` tier (Groq `gpt-oss-20b` first). Limits table: `LIMITS` in `src/governor.js`; details in `/memory-system.md`.
 
 ## Config
 

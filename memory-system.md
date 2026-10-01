@@ -10,18 +10,19 @@ Long-term memory, a live "Brain" view of it, and budgeted context compression �
 | Send-path glue | `search-patch.js` (`_prepareContext`, `_afterTurn`) | browser |
 | Extraction + compression endpoints | `api-worker/src/memory.js` | `cloak-api` Worker |
 | Free-tier governor | `api-worker/src/governor.js` | `cloak-api` Worker |
-| Tables | `supabase/migrations/20260926230000_memory_system.sql` | Supabase |
+| Tables | `supabase/migrations/20260926230000_memory_system.sql`, `20260928020000_multi_chat.sql` | Supabase |
 
-## One continuous conversation
+## Multiple chats, each managed in conversation chunks
 
-There are no separate chats. Each user has one thread (`thread_messages`, shared by web and Telegram) managed in conversation chunks:
+Each user can have several chats (`chats`, sidebar "Recent" list); their messages live in one append-only table (`thread_messages`, tagged with `chat_id`, shared by web and Telegram). Within a chat:
 
 - A **conversation chunk** ends at a real pause (≥ 3 h between messages) or at ~2.4k tokens. As soon as a new conversation starts, the previous one is condensed (and its memories extracted, in the same `/v1/context/compress` call). Within a conversation, condensing starts once it outgrows the budget.
-- Chunk summaries fold into the **digest** as they pile up. The digest's last message id is the **moved-on boundary**: the web loads only messages after it, and above them shows *"Cloak has moved on from these chats. Important memories have been saved."* with **Return to most recent chat** (and a link to the Brain).
+- Chunk summaries fold into that chat's **digest** as they pile up. The digest's last message id is the chat's **moved-on boundary**: the web loads only messages after it, and above them shows *"Cloak has moved on from these chats. Important memories have been saved."* with **Return to most recent chat** (and a link to the Brain).
 - Time dividers mark conversation boundaries in the view.
-- **Telegram**: Settings → Telegram → *Link Telegram* opens `t.me/<bot>?start=link_<code>` (one-time code, 15 min). A linked chat continues the thread with the same context and memories. Web messages are mirrored into it by an `AFTER INSERT` trigger (pg_net → `telegram-bot?relay=<id>`) as *"Weston said: …"*, followed by Cloak's reply; Telegram messages appear on the web live (Realtime) tagged *via Telegram*. `/unlink` in Telegram or *Unlink* on the web stops it.
-- The bot compresses on its side too (same rules), so a Telegram-only user's thread stays bounded.
-- Settings → *Clear conversation* wipes the thread everywhere; memories are kept.
+- **Live sync**: opening the same chat in another tab or device subscribes to the same Realtime channel (`thread_messages` filtered by `chat_id`), so new messages — from either tab, or from Telegram — land in both at once.
+- `profiles.active_chat_id` points at whichever chat is active. The web sets it on every chat switch (`thread.js`). **Telegram**: Settings → Telegram → *Link Telegram* opens `t.me/<bot>?start=link_<code>` (one-time code, 15 min). A linked Telegram chat continues the active chat with the same context and memories — switch chats on web and Telegram follows; if you've never opened the web, the bot picks your most recently active chat (or makes one) and sets `active_chat_id` itself. Web messages from the active chat are mirrored into it by an `AFTER INSERT` trigger (pg_net → `telegram-bot?relay=<id>`) as *"Weston said: …"*, followed by Cloak's reply; Telegram messages appear on the web live (Realtime) tagged *via Telegram*. `/unlink` in Telegram or *Unlink* on the web stops it.
+- The bot compresses the active chat on its side too (same rules), so a Telegram-only user's thread stays bounded.
+- Deleting a chat (sidebar) removes its messages with it; memories are kept. Settings → *Clear all chats* wipes every chat and starts a fresh one.
 
 ## Memories are markdown files
 
@@ -87,7 +88,7 @@ Per request, `CloakContext.build()` spends a per-tier token budget:
 |---|---|---|---|
 | pneuma / logos | 5,200 | 420 | 900 |
 | kairos | 9,000 | 700 | 1,600 |
-| linus | 7,000 | 520 | 1,200 |
+| linus | 11,000 | 520 | 1,400 |
 
 Budget = memory + summaries + recent turns. Persona (~1.8k) + app prompt (~1k) + budget + 2k reply reserve ≈ 10k, under Groq 70B's 12K TPM.
 
@@ -97,16 +98,17 @@ Layout: `[memory] [digest] [chunk summaries] [gap] [recent turns verbatim]`.
 - **Digest**: when there are 5 chunks or they exceed the summary budget, the oldest ones are merged into a digest (summary of summaries). Context stays bounded however long the chat gets.
 - **Gap**: turns that aren't summarised yet and don't fit verbatim get a free local abbreviation, so nothing silently drops out while compression catches up.
 - Old verbatim messages over 1,400 tokens are clipped head+tail; the new message and the reply before it are never clipped.
-- State lives on `chats.context` (`{v:1, chunks:[{s,e,sum,tok}], digest:{e,sum,tok,n}}`, indices into `chats.messages`). Editing a message drops summaries that covered removed turns. Full history is now kept (the old 20-message cap is gone).
+- State lives on that chat's own `chats.context` (`{v:2, chunks:[{s,e,sum,tok,n,from,to}], digest:{e,sum,tok,n}|null}`, `s`/`e` are `thread_messages` ids, not array positions). Editing a message drops summaries that covered removed turns. Full history is now kept (the old 20-message cap is gone).
 
 ## Free-tier governor (`api-worker/src/governor.js`)
 
 Every upstream call from the Worker goes through it:
 
-- **Utility tier** — extraction and compression run on `llama-3.1-8b-instant` (Groq free: 14,400 req/day) → NVIDIA → Gemini, so chat tiers keep their quota (Groq 70B: 1,000 req/day).
+- **Utility tier** — extraction and compression run on Groq `gpt-oss-20b` (low reasoning) → `qwen3.6-27b` → Gemini 3.5 Flash-Lite → NVIDIA, so chat tiers keep their quota (Groq meters every model separately: 1,000 req/day each).
 - **Fit** — `max_tokens` is shrunk (floor 900) so prompt + max_tokens stays under the model's TPM (Groq counts both), then the oldest turns are trimmed (tool-call pairs kept together). Prevents 413s.
 - **Learned limits** — Groq's `x-ratelimit-*` headers update TPM/RPD live and put a key on cooldown when its minute tokens or daily requests run out.
-- **Cooldowns** — 429s (`retry-after` / `retryDelay`), auth failures, and retired models (skipped for 6 h) are remembered per isolate and shared across isolates via the Cache API (no KV writes).
+- **Cooldowns** — 429s (`retry-after` / `retryDelay`; daily quotas at least 1 h) cool one key's quota for one model, auth failures the whole key, retired models are skipped for 6 h, and a model that misses its first-token deadline is tried last for 10 min. Remembered per isolate and shared across isolates via the Cache API (no KV writes).
+- **Params** — per-model `extra` params (reasoning effort, thinking level) that a provider rejects with a 400 are retried without and dropped for that model.
 - **Rotation** — healthy keys are tried round-robin so pooled free keys wear evenly; cooling keys go last.
 - **Keyring cache** — `PROVIDER_KEYS` is read from KV once a minute per isolate instead of 2–3 times per request (KV free: 100k reads/day).
 - `GET /v1/usage` — this isolate's view of key cooldowns and limits (hashed key ids, no key material).
@@ -115,10 +117,10 @@ Default limits (updated live from headers where available):
 
 | Provider:model | RPM | RPD | TPM |
 |---|---|---|---|
-| groq:llama-3.3-70b-versatile | 30 | 1,000 | 12,000 |
-| groq:llama-3.1-8b-instant | 30 | 14,400 | 6,000 |
-| groq:openai/gpt-oss-120b | 30 | 1,000 | 8,000 |
+| groq:openai/gpt-oss-120b · gpt-oss-20b · qwen3.8-27b · qwen3.6-27b | 30 | 1,000 | 8,000 |
 | nvidia:* | 40 | — | — |
+| gemini:gemini-3.8-flash · gemini-3.5-flash | 5 | 20 | 250,000 |
+| gemini:gemini-3.5-flash-lite | 15 | 500 | 250,000 |
 | gemini:* | 10 | 250 | 250,000 |
 
 ## Follow-ups

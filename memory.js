@@ -198,7 +198,7 @@
     return s;
   }
 
-  const BLOCK_HEAD = '## USER MEMORY\nYou DO remember this user. These notes are what you know about them from past chats; the user saved them and can see and edit them in Cloak\'s Brain panel, so using them is expected and is not a privacy problem. This overrides any default of saying you don\'t know who the user is. Use them silently to tailor answers; don\'t recite them unprompted. When the user asks who they are, their name, or what you know or remember about them, answer directly from these notes. If a note conflicts with what the user says now, trust the user.\n';
+  const BLOCK_HEAD = '## USER MEMORY\nYou DO remember this user. These notes are what you know about them from past chats; the user saved them and can see and edit them in Cloak\'s Brain panel, so using them is expected. This overrides any default of saying you don\'t know who the user is. Use them silently to tailor answers; don\'t recite them unprompted. When the user asks who they are, their name, or what you know or remember about them, answer directly from these notes. If a note conflicts with what the user says now, trust the user.\n';
   const lineFor = (f) => '- [' + f.type + '] ' + f.title + ': ' + oneLine(f.body).slice(0, 240);
 
   // Always-on: identity is tiny and shapes everything; strong preferences too.

@@ -3,10 +3,12 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 
 // Telegram ⇄ Cloak.
 //
-//  Linked chats (Settings → Telegram on the web) continue the user's single
-//  Cloak thread: messages land in `thread_messages`, replies use the same
-//  compressed context + memories as the web, and long stretches get condensed
-//  (with memory extraction) exactly like on the web.
+//  Linked chats (Settings → Telegram on the web) continue the user's active
+//  chat (`profiles.active_chat_id` — whichever chat is open on web, or the
+//  last one Telegram itself touched): messages land in `thread_messages`
+//  tagged with that chat's id, replies use the same compressed context +
+//  memories as the web, and long stretches get condensed (with memory
+//  extraction) exactly like on the web.
 //
 //  Routes on this one function:
 //    POST (Telegram webhook)       updates from Telegram
@@ -234,6 +236,24 @@ async function linkedUser(c: SupabaseClient, chatId: number | string): Promise<s
   return data?.user_id ?? null;
 }
 
+// Telegram continues whichever chat is active — users can have several
+// chats on the web; profiles.active_chat_id points at the one currently in
+// step with Telegram (set by the web on every chat switch; set here too, so
+// a Telegram-only user who has never opened the web still gets one).
+async function getActiveChatId(c: SupabaseClient, userId: string): Promise<number> {
+  const { data: prof } = await c.from("profiles").select("active_chat_id").eq("id", userId).maybeSingle();
+  if (prof?.active_chat_id) return prof.active_chat_id;
+  const { data: recent } = await c.from("chats").select("id").eq("user_id", userId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  if (recent) {
+    await c.from("profiles").update({ active_chat_id: recent.id }).eq("id", userId);
+    return recent.id;
+  }
+  const { data: created, error } = await c.from("chats").insert({ user_id: userId, title: "New chat" }).select("id").single();
+  if (error) throw error;
+  await c.from("profiles").update({ active_chat_id: created.id }).eq("id", userId);
+  return created.id;
+}
+
 async function handleLinkRequest(req: Request) {
   const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!jwt) return json({ error: "Sign in first." }, 401);
@@ -318,7 +338,7 @@ async function loadMemories(c: SupabaseClient, userId: string): Promise<MemFile[
   return (data ?? []).map((r) => parseMem(r.path, r.content));
 }
 
-const MEMORY_HEAD = "## USER MEMORY\nYou DO remember this user. These notes are what you know about them from past chats; the user saved them and can see and edit them in Cloak's Brain panel, so using them is expected and is not a privacy problem. This overrides any default of saying you don't know who the user is. Use them silently to tailor answers; don't recite them unprompted. When the user asks who they are, their name, or what you know or remember about them, answer directly from these notes. If a note conflicts with what the user says now, trust the user.\n";
+const MEMORY_HEAD = "## USER MEMORY\nYou DO remember this user. These notes are what you know about them from past chats; the user saved them and can see and edit them in Cloak's Brain panel, so using them is expected. This overrides any default of saying you don't know who the user is. Use them silently to tailor answers; don't recite them unprompted. When the user asks who they are, their name, or what you know or remember about them, answer directly from these notes. If a note conflicts with what the user says now, trust the user.\n";
 
 function relatedMemories(files: MemFile[], text: string, k: number) {
   const q = new Set(toks(text));
@@ -352,8 +372,8 @@ function memoryBlock(files: MemFile[], text: string) {
 const validCtx = (o: unknown): o is Ctx => !!o && (o as Ctx).v === 2 && Array.isArray((o as Ctx).chunks);
 const coveredId = (x: Ctx) => (x.chunks.length ? x.chunks[x.chunks.length - 1].e : x.digest ? x.digest.e : 0);
 
-async function loadCtx(c: SupabaseClient, userId: string): Promise<Ctx> {
-  const { data } = await c.from("threads").select("context").eq("user_id", userId).maybeSingle();
+async function loadCtx(c: SupabaseClient, chatId: number): Promise<Ctx> {
+  const { data } = await c.from("chats").select("context").eq("id", chatId).maybeSingle();
   return validCtx(data?.context) ? data!.context as Ctx : { v: 2, chunks: [], digest: null };
 }
 
@@ -364,10 +384,10 @@ function summaryText(x: Ctx) {
   return parts.join("\n\n");
 }
 
-async function buildThreadContext(c: SupabaseClient, userId: string, text: string) {
-  const [x, files, who] = await Promise.all([loadCtx(c, userId), loadMemories(c, userId), displayName(c, userId)]);
+async function buildThreadContext(c: SupabaseClient, userId: string, chatId: number, text: string) {
+  const [x, files, who] = await Promise.all([loadCtx(c, chatId), loadMemories(c, userId), displayName(c, userId)]);
   const { data } = await c.from("thread_messages").select("id, role, content, created_at")
-    .eq("user_id", userId).gt("id", coveredId(x)).order("id", { ascending: false }).limit(60);
+    .eq("chat_id", chatId).gt("id", coveredId(x)).order("id", { ascending: false }).limit(60);
   const rows = ((data ?? []) as Msg[]).reverse();
   const sums = summaryText(x);
   const mem = memoryBlock(files, text);
@@ -415,11 +435,11 @@ async function applyMemoryOps(c: SupabaseClient, userId: string, ops: Record<str
   }
 }
 
-async function maybeCompressThread(c: SupabaseClient, userId: string) {
-  const x = await loadCtx(c, userId);
+async function maybeCompressThread(c: SupabaseClient, userId: string, chatId: number) {
+  const x = await loadCtx(c, chatId);
   const cov = coveredId(x);
   const { data } = await c.from("thread_messages").select("id, role, content, created_at")
-    .eq("user_id", userId).gt("id", cov).order("id", { ascending: true }).limit(120);
+    .eq("chat_id", chatId).gt("id", cov).order("id", { ascending: true }).limit(120);
   const rows = (data ?? []) as Msg[];
   if (rows.length < 4) return;
   const at = (m: Msg) => Date.parse(m.created_at) || 0;
@@ -454,7 +474,7 @@ async function maybeCompressThread(c: SupabaseClient, userId: string) {
     messages: slice.map((m) => ({ role: m.role, content: m.content.slice(0, 6000) })),
     memory: { existing, today: new Date().toISOString().slice(0, 10) },
   });
-  const fresh = await loadCtx(c, userId);
+  const fresh = await loadCtx(c, chatId);
   if (coveredId(fresh) !== cov) return; // someone else compressed meanwhile
   fresh.chunks.push({ s: slice[0].id, e: slice[slice.length - 1].id, sum: d.summary, tok: est(d.summary), n: slice.length, from: at(slice[0]), to: at(slice[slice.length - 1]) });
   if (Array.isArray(d.ops)) await applyMemoryOps(c, userId, d.ops);
@@ -472,7 +492,7 @@ async function maybeCompressThread(c: SupabaseClient, userId: string) {
       }
     }
   }
-  await c.from("threads").upsert({ user_id: userId, context: fresh, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  await c.from("chats").update({ context: fresh }).eq("id", chatId);
 }
 
 /* ── Linked chat: one continuous thread ───────────────────────────────────── */
@@ -486,27 +506,29 @@ async function handleThreadMessage(
   model: string,
   image?: { base64: string; mimeType: string },
 ) {
+  const activeChatId = await getActiveChatId(c, userId);
   const stored = image ? (userText ? `[Image] ${userText}` : "[Image]") : userText;
-  await c.from("thread_messages").insert({ user_id: userId, role: "user", content: stored, source: "telegram", relayed_at: new Date().toISOString() });
-  const ctx = await buildThreadContext(c, userId, userText);
+  await c.from("thread_messages").insert({ user_id: userId, chat_id: activeChatId, role: "user", content: stored, source: "telegram", relayed_at: new Date().toISOString() });
+  const ctx = await buildThreadContext(c, userId, activeChatId, userText);
   const raw = await callCloak(ctx.messages, clock() + ctx.system, model, image);
   const { react, silent, parts } = parseDirectives(raw);
   if (react) await reactTo(chatId, messageId, react);
   if (!silent) {
-    await c.from("thread_messages").insert({ user_id: userId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
+    await c.from("thread_messages").insert({ user_id: userId, chat_id: activeChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
     await sendChain(chatId, parts);
   }
-  await later(maybeCompressThread(c, userId));
+  await later(maybeCompressThread(c, userId, activeChatId));
 }
 
 async function handleThreadReaction(c: SupabaseClient, userId: string, chatId: number, messageId: number, emojis: string[]) {
+  const activeChatId = await getActiveChatId(c, userId);
   const note = `[User reacted ${emojis.join(" ")} to your message]`;
-  const ctx = await buildThreadContext(c, userId, note);
+  const ctx = await buildThreadContext(c, userId, activeChatId, note);
   const raw = await callCloak([...ctx.messages, { role: "user", content: note }].slice(-40), clock() + ctx.system, "pneuma");
   const { react, silent, parts } = parseDirectives(raw);
   if (react) await reactTo(chatId, messageId, react);
   if (!silent) {
-    await c.from("thread_messages").insert({ user_id: userId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
+    await c.from("thread_messages").insert({ user_id: userId, chat_id: activeChatId, role: "assistant", content: parts.join("\n\n"), source: "telegram", relayed_at: new Date().toISOString() });
     await sendChain(chatId, parts);
   }
 }
@@ -658,7 +680,7 @@ serve(async (req) => {
     }
     if (cmd === "reset" || cmd === "new" || cmd === "clear") {
       if (userId) {
-        await sendTelegram(chatId, "This chat is your one continuous Cloak conversation — older parts get condensed into memories automatically. To wipe it, use Settings → Clear conversation on the web.");
+        await sendTelegram(chatId, "This chat continues whichever chat you have open on the web — older parts get condensed into memories automatically. To wipe it, use Settings → Clear all chats on the web.");
       } else {
         const session = await getOrCreateSession(c, String(chatId));
         await saveHistory(c, session.id, []);

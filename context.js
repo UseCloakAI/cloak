@@ -20,7 +20,7 @@
    both). When chunk summaries pile up they are merged into the digest —
    the thread's "moved on" boundary.
 
-   State lives on `threads.context` as
+   State lives on `chats.context` (one row per chat) as
      { v:2, chunks:[{s,e,sum,tok,n,from,to}], digest:{e,sum,tok,n}|null }
    where s/e are thread message ids (inclusive) and from/to timestamps.
    ════════════════════════════════════════════════════════ */
@@ -34,7 +34,7 @@
     pneuma: { total: 5200, memory: 420, summary: 900, keep: 4 },
     logos: { total: 5200, memory: 420, summary: 900, keep: 4 },
     kairos: { total: 9000, memory: 700, summary: 1600, keep: 6 },
-    linus: { total: 7000, memory: 520, summary: 1200, keep: 6 },
+    linus: { total: 11000, memory: 520, summary: 1400, keep: 6 },
   };
   const CHUNK_TOKENS = 2400;   // target raw size of one compressed chunk
   const CHUNK_MAX = 14;        // messages per chunk at most

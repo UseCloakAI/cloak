@@ -135,7 +135,7 @@ function _renderLive(container, text) {
   const nodes = [];
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   for (let n; (n = walker.nextNode());) {
-    if (!n.parentElement.closest('button')) nodes.push(n);
+    if (!n.parentElement.closest('button, pre, .bld')) nodes.push(n); // code streams in plain
   }
   let total = 0;
   const split = nodes.map(n => {
