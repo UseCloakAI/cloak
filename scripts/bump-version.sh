@@ -9,6 +9,10 @@ cd "$ROOT"
 RELEASE=$(sed -n 's/.*release: *\([0-9]*\).*/\1/p' version.js 2>/dev/null | head -1)
 [ -n "$RELEASE" ] || RELEASE=0
 COUNT=$(( $(git rev-list --count HEAD 2>/dev/null || echo 0) + 1 ))
+# A shallow clone undercounts history; never let the build go backwards.
+PREV=$(sed -n 's/.*build: *\([0-9]*\).*/\1/p' version.js 2>/dev/null | head -1)
+[ -n "$PREV" ] || PREV=0
+[ "$COUNT" -gt "$PREV" ] || COUNT=$((PREV + 1))
 DATE=$(date -u +%Y-%m-%d)
 VERSION="1.$RELEASE.$COUNT"
 cat > version.js <<JS
