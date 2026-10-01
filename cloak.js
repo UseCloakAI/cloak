@@ -1260,10 +1260,70 @@ async function send(){
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(sync);
   sync();
 })();
+/* ── SIDEBAR MOTION ──
+   The C of the wordmark is centered on the icon spine by its real width.
+   The page ink glides between Chat and Brain, leading edge first (.down/.up
+   pick which edge lags), and lets go when a page outside the nav opens. On the
+   collapsed rail, hovering or focusing an item flies its name out beside it;
+   moving down the rail, the label glides along. Native titles move to
+   data-tip (and aria-label) so they don't double up with it. */
+(function(){
+  const sb=document.getElementById('sidebar');if(!sb)return;
+  const c=sb.querySelector('.sb-c');
+  const fitC=()=>{if(c&&c.offsetWidth)sb.querySelector('.sb-word').style.setProperty('--c-w',c.offsetWidth+'px');};
+  fitC();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitC);
+  sb.querySelectorAll('.sb-btn[title],.user-row[title]').forEach(b=>{
+    const l=b.querySelector('.sbl'),t=b.getAttribute('title');
+    b.dataset.tip=l?l.textContent.trim():t;
+    if(!b.getAttribute('aria-label'))b.setAttribute('aria-label',b.dataset.tip);
+    b.removeAttribute('title');
+  });
+  const nav=sb.querySelector('.sb-nav');
+  if(nav){
+    const ink=document.createElement('i');ink.className='sb-ink';ink.setAttribute('aria-hidden','true');nav.prepend(ink);
+    let at=null;
+    const place=()=>{
+      if(!nav.offsetHeight)return; // screen not shown yet: placed once it lays out
+      const on=nav.querySelector('.sb-btn.on');
+      if(!on){ink.classList.remove('show');at=null;return;}
+      const t=on.offsetTop,b=nav.clientHeight-t-on.offsetHeight;
+      if(at===null){ink.classList.add('jump');ink.classList.remove('up','down');}
+      else ink.classList.toggle('down',t>at),ink.classList.toggle('up',t<at);
+      ink.style.setProperty('--ink-t',t+'px');ink.style.setProperty('--ink-b',b+'px');
+      if(at===null){void ink.offsetWidth;ink.classList.remove('jump');}
+      ink.classList.add('show');at=t;
+    };
+    const mo=new MutationObserver(place);
+    nav.querySelectorAll('.sb-btn').forEach(b=>mo.observe(b,{attributes:true,attributeFilter:['class']}));
+    if('ResizeObserver' in window)new ResizeObserver(()=>{fitC();place();}).observe(nav);
+    place();
+  }
+  const tip=document.createElement('div');tip.className='sb-tip';tip.setAttribute('aria-hidden','true');document.body.appendChild(tip);
+  let shown=false,hideT=0;
+  const rail=()=>sb.classList.contains('collapsed')&&window.innerWidth>640;
+  const item=e=>{const el=e.target.closest&&e.target.closest('[data-tip]');return el&&sb.contains(el)?el:null;};
+  const show=el=>{
+    if(!rail())return;
+    clearTimeout(hideT);
+    const r=el.getBoundingClientRect();
+    tip.textContent=el.classList.contains('user-row')?((document.getElementById('sb-name')||{}).textContent||'').trim()||el.dataset.tip:el.dataset.tip;
+    tip.style.left=(sb.getBoundingClientRect().right+10)+'px';
+    tip.style.setProperty('--tip-y',(r.top+r.height/2)+'px');
+    if(!shown){tip.classList.add('jump');void tip.offsetWidth;tip.classList.remove('jump');}
+    tip.classList.add('show');shown=true;
+  };
+  const hide=(now)=>{clearTimeout(hideT);const go=()=>{tip.classList.remove('show');shown=false;};if(now===true)go();else hideT=setTimeout(go,80);};
+  sb.addEventListener('pointerover',e=>{const el=item(e);if(el)show(el);});
+  sb.addEventListener('pointerout',e=>{const el=item(e);if(el&&!el.contains(e.relatedTarget))hide();});
+  sb.addEventListener('focusin',e=>{const el=item(e);if(el&&el.matches(':focus-visible'))show(el);});
+  sb.addEventListener('focusout',hide);
+  sb.addEventListener('click',()=>hide(true));
+  new MutationObserver(()=>hide(true)).observe(sb,{attributes:true,attributeFilter:['class']});
+})();
 whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20261001effort').catch(e=>console.warn('SW registration failed',e));  });
+    navigator.serviceWorker.register('/sw.js?v=20261001rail').catch(e=>console.warn('SW registration failed',e));  });
 }
