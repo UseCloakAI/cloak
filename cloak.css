@@ -159,7 +159,11 @@ body{font-family:var(--fu);font-size:14px;background:var(--paper);color:var(--in
 
 /* Roll — slot-machine text swap (CloakMotion.roll): both words share one
    clipped grid cell while the old one leaves and the new one arrives. */
-.m-roll{display:inline-grid;overflow:hidden;justify-items:center;vertical-align:top;}
+/* justify-items:start — NOT center. While the old text is still in the cell the
+   grid track is as wide as the LONGER text; centering put the new text in the
+   middle of that wider track (shifted right, clipped by the shorter slot).
+   Anchored left, the new text always sits at the slot's left edge. */
+.m-roll{display:inline-grid;overflow:hidden;justify-items:start;vertical-align:top;}
 .m-roll>span{grid-area:1/1;white-space:nowrap;}
 
 /* Theme wipe — the new theme grows out of the control that asked for it
