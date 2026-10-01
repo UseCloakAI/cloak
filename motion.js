@@ -131,7 +131,11 @@
     el._rollTo = text;
     var snap = token('--sp-snap', 'cubic-bezier(.3,1.35,.55,1)');
     var anims = [
-      slot.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: 380, easing: token('--ease-out', 'ease-out') }),
+      // fill:'forwards' — the old text stays in the grid cell until teardown, so once
+      // this 380ms animation ends the slot would otherwise spring back to the WIDER
+      // of the two texts (a long → short swap popped back to the old width for ~100ms
+      // before the roll finished). Hold the end width until el._roll cleans up.
+      slot.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: 380, easing: token('--ease-out', 'ease-out'), fill: 'forwards' }),
       out.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(-105%)', opacity: 0 }], { duration: 200, easing: token('--ease-in', 'ease-in'), fill: 'forwards' }),
       inn.animate([{ transform: 'translateY(105%)' }, { transform: 'none' }], { duration: 420, delay: 60, easing: snap, fill: 'backwards' })
     ];
