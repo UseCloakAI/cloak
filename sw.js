@@ -9,26 +9,26 @@
    Bump CACHE_VERSION in lockstep with the ?v= asset query strings
    in chat.html on every deploy so old shells are purged.
    ════════════════════════════════════════════════════════ */
-const CACHE_VERSION = 'cloak-v20261001notg';
+const CACHE_VERSION = 'cloak-v20261001effroll';
 
 const SHELL = [
   '/chat.html',
-  '/version.js?v=1.0.208',
-  '/cloak.css?v=20261001notg',
-  '/cloak.js?v=20261001notg',
-  '/search.js?v=20261001notg',
-  '/effort.js?v=20261001notg',
-  '/search-patch.js?v=20261001notg',
-  '/search.css?v=20261001notg',
-  '/brain.css?v=20261001notg',
+  '/version.js?v=1.0.209',
+  '/cloak.css?v=20261001effroll',
+  '/cloak.js?v=20261001effroll',
+  '/search.js?v=20261001effroll',
+  '/effort.js?v=20261001effroll',
+  '/search-patch.js?v=20261001effroll',
+  '/search.css?v=20261001effroll',
+  '/brain.css?v=20261001effroll',
   '/memory.js?v=20261001nopriv',
-  '/context.js?v=20261001notg',
-  '/brain.js?v=20261001notg',
-  '/thread.js?v=20261001notg',
-  '/builds.js?v=20261001notg',
-  '/builds.css?v=20261001notg',
-  '/motion.js?v=20261001notg',
-  '/manifest.json?v=20261001notg',  '/icons/orb.svg',
+  '/context.js?v=20261001effroll',
+  '/brain.js?v=20261001effroll',
+  '/thread.js?v=20261001effroll',
+  '/builds.js?v=20261001effroll',
+  '/builds.css?v=20261001effroll',
+  '/motion.js?v=20261001effroll',
+  '/manifest.json?v=20261001effroll',  '/icons/orb.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-maskable-512.png',

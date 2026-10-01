@@ -51,11 +51,18 @@ const CloakEffort = (() => {
       `<rect x="${i * 4}" y="${12 - (i + 1) * 2.4}" width="3" height="${(i + 1) * 2.4}" class="${i < lit ? 'on' : ''}"/>`).join('');
   }
 
+  function swapText(el, text) {
+    if (!el || (el._rollTo != null ? el._rollTo : el.textContent) === text) return;
+    if (el.textContent && window.CloakMotion && CloakMotion.roll) CloakMotion.roll(el, text);
+    else el.textContent = text;
+  }
+
   function render() {
     if (!btn) return;
     const L = level();
     btn.querySelector('.eff-bars').innerHTML = bars(value);
-    btn.querySelector('.eff-btn-label').textContent = L.name;
+    // Same slot-roll text swap the model picker uses (motion.js).
+    swapText(btn.querySelector('.eff-btn-label'), L.name);
     btn.setAttribute('aria-label', `Effort: ${L.name} (${value})`);
     btn.dataset.level = L.name.toLowerCase();
     if (!pop) return;
@@ -64,10 +71,7 @@ const CloakEffort = (() => {
     thumb.setAttribute('aria-valuenow', value);
     thumb.setAttribute('aria-valuetext', `${L.name}, ${value} of 100`);
     readout.textContent = value;
-    if (nameEl.textContent !== L.name) {
-      nameEl.textContent = L.name;
-      nameEl.classList.remove('eff-bump'); void nameEl.offsetWidth; nameEl.classList.add('eff-bump');
-    }
+    swapText(nameEl, L.name);
     descEl.textContent = L.desc;
     pop.querySelectorAll('.eff-tick').forEach(t => t.classList.toggle('on', Number(t.dataset.v) <= value));
     pop.querySelectorAll('.eff-stop').forEach(t => t.classList.toggle('on', t.dataset.name === L.name));
