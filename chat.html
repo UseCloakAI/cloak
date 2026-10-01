@@ -11,16 +11,16 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Cloak — A human resource, not a companion. Ethical AI that serves you.">
 <title>Cloak</title>
-<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20261001think3">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261001think3">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20261001think3">
-<link rel="manifest" href="/manifest.json?v=20261001think3">
+<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20261001effort">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261001effort">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20261001effort">
+<link rel="manifest" href="/manifest.json?v=20261001effort">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20261001think3">
-<link rel="stylesheet" href="search.css?v=20261001think3">
-<link rel="stylesheet" href="brain.css?v=20261001think3">
-<link rel="stylesheet" href="builds.css?v=20261001think3"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<link rel="stylesheet" href="cloak.css?v=20261001effort">
+<link rel="stylesheet" href="search.css?v=20261001effort">
+<link rel="stylesheet" href="brain.css?v=20261001effort">
+<link rel="stylesheet" href="builds.css?v=20261001effort"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   if(localStorage.getItem('cloak_dark')!=='0') document.documentElement.classList.add('dark');
@@ -363,6 +363,9 @@
               </div>
             </div>
           </div>
+
+          <!-- Effort slider (effort.js) -->
+          <div class="effort-picker" id="effort-picker"></div>
         </div>
 
         <div class="topbar-right">
@@ -897,18 +900,19 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 </script>
 
 <!-- motion.js first: cloak.js calls CloakMotion for theme wipes, rolls and exits -->
-<script src="motion.js?v=20261001think3" defer></script>
+<script src="motion.js?v=20261001effort" defer></script>
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20261001think3"></script>
+<script src="search.js?v=20261001effort"></script>
 <!-- memory → context → brain: no deps on cloak.js at load time -->
 <script src="memory.js?v=20261001nopriv" defer></script>
-<script src="context.js?v=20261001think3" defer></script>
-<script src="brain.js?v=20261001think3" defer></script>
-<script src="thread.js?v=20261001think3" defer></script>
-<script src="cloak.js?v=20261001think3" defer></script>
+<script src="context.js?v=20261001effort" defer></script>
+<script src="brain.js?v=20261001effort" defer></script>
+<script src="thread.js?v=20261001effort" defer></script>
+<script src="cloak.js?v=20261001effort" defer></script>
 <!-- highlight.js + builds.js: code blocks, Builds panel, editor, file attachments (patches cloak.js) -->
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js" defer></script>
-<script src="builds.js?v=20261001think3" defer></script>
+<script src="builds.js?v=20261001effort" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="search-patch.js?v=20261001think3" defer></script></body>
+<script src="effort.js?v=20261001effort" defer></script>
+<script src="search-patch.js?v=20261001effort" defer></script></body>
 </html>

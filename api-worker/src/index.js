@@ -7,6 +7,10 @@
 import { CLOAK, CODE_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
+import {
+  EFFORT_LEVELS, DEFAULT_EFFORT, parseEffort, effortFromBudget, effortName,
+  reserveScale, tokensScale, patienceScale, effortExtra, effortInstruction,
+} from "./effort.js";
 
 const VERSION = "4.8.0";
 
@@ -195,11 +199,17 @@ async function readJson(request) {
   }
 }
 
-function clampMaxTokens(v, tierKey) {
+// With an effort, the default budget scales (×0.6 → ×1.6) and the ceiling
+// doubles at "max". An explicit max_tokens is kept, just clamped.
+function clampMaxTokens(v, tierKey, effort) {
   const t = TIERS[tierKey] || {};
+  const e = effort ?? DEFAULT_EFFORT;
+  const ceiling = (t.maxMaxTokens || MAX_MAX_TOKENS) * (effortName(e) === "max" ? 2 : 1);
   const n = Number(v);
-  if (!Number.isFinite(n) || n <= 0) return t.defaultMaxTokens || DEFAULT_MAX_TOKENS;
-  return Math.min(Math.floor(n), t.maxMaxTokens || MAX_MAX_TOKENS);
+  if (!Number.isFinite(n) || n <= 0) {
+    return Math.min(ceiling, Math.round((t.defaultMaxTokens || DEFAULT_MAX_TOKENS) * tokensScale(e)));
+  }
+  return Math.min(Math.floor(n), ceiling);
 }
 
 function resolveTier(model) {
@@ -545,7 +555,9 @@ function prepare(tierKey, req) {
   const config = TIERS[tierKey];
   const hasImage = !!(req.imageBase64 && String(req.imageBase64).trim());
   const hasTools = !!(req.tools && req.tools.length);
-  const system = { role: "system", content: buildSystemPrompt(config, req.system) };
+  const guide = req.effort != null ? effortInstruction(req.effort) : "";
+  const prompt = buildSystemPrompt(config, req.system);
+  const system = { role: "system", content: guide ? `${prompt}\n\n${guide}` : prompt };
   const base = [system, ...req.messages];
   return {
     config,
@@ -599,8 +611,8 @@ function specFor(c, plan, req) {
     model: c.model,
     messages: c.messages,
     temperature: c.temperature ?? plan.config.temperature,
-    extra: badExtra.has(`${c.provider}:${c.model}`) ? undefined : c.extra,
-    maxTokens: req.maxTokens + (c.reserve || 0),
+    extra: badExtra.has(`${c.provider}:${c.model}`) ? undefined : effortExtra(c.extra, req.effort ?? DEFAULT_EFFORT),
+    maxTokens: req.maxTokens + Math.round((c.reserve || 0) * reserveScale(req.effort ?? DEFAULT_EFFORT)),
     tools: gemini ? undefined : req.tools,
     toolChoice: gemini ? undefined : req.toolChoice,
     json: req.json,
@@ -679,6 +691,9 @@ function within(p, ms, ctrl, what) {
 // Returns { provider, model, usage, deltas } — updated in place on a handover.
 async function openStream(env, tierKey, req) {
   const plan = prepare(tierKey, req);
+  // Higher effort = more patience before treating a thinking model as stuck.
+  const P = patienceScale(req.effort ?? DEFAULT_EFFORT);
+  const OPEN_DEADLINE = OPEN_DEADLINE_MS * P, STALL = STALL_MS * P, THINK_LIMIT = THINK_LIMIT_MS * P, HANDOVER = HANDOVER_WINDOW_MS * P;
   const errors = [];
   const queue = candidates(env, plan, req, errors);
   const skip = new Set(); // models that missed their first-token deadline this request
@@ -687,8 +702,8 @@ async function openStream(env, tierKey, req) {
   const open = async () => {
     const began = Date.now();
     for (;;) {
-      if (Date.now() - began > OPEN_DEADLINE_MS) {
-        errors.push(`gave up after ${OPEN_DEADLINE_MS / 1000}s`);
+      if (Date.now() - began > OPEN_DEADLINE) {
+        errors.push(`gave up after ${Math.round(OPEN_DEADLINE / 1000)}s`);
         return null;
       }
       const { value: c, done } = await queue.next();
@@ -697,7 +712,7 @@ async function openStream(env, tierKey, req) {
       if (skip.has(tag)) continue;
       const spec = specFor(c, plan, req);
       const ctrl = new AbortController();
-      const wait = c.firstTokenMs || FIRST_TOKEN_TIMEOUT_MS;
+      const wait = (c.firstTokenMs || FIRST_TOKEN_TIMEOUT_MS) * P;
       const timer = setTimeout(() => ctrl.abort(), wait);
       try {
         const res = await send(c, spec, true, ctrl.signal, req.ctx);
@@ -748,11 +763,11 @@ async function openStream(env, tierKey, req) {
             yield d;
           }
           for (;;) {
-            const { value, done } = await within(cur.it.next(), STALL_MS, cur.ctrl, cur.tag);
+            const { value, done } = await within(cur.it.next(), STALL, cur.ctrl, cur.tag);
             if (done) break;
             if (value.content || value.tool_calls) answered = true;
-            else if (!answered && Date.now() - since > THINK_LIMIT_MS) {
-              throw Object.assign(new UpstreamError(`${cur.tag} still reasoning after ${THINK_LIMIT_MS / 1000}s`), { slow: true });
+            else if (!answered && Date.now() - since > THINK_LIMIT) {
+              throw Object.assign(new UpstreamError(`${cur.tag} still reasoning after ${Math.round(THINK_LIMIT / 1000)}s`), { slow: true });
             }
             yield value;
           }
@@ -768,7 +783,7 @@ async function openStream(env, tierKey, req) {
         cur.ctrl.abort();
         skip.add(cur.tag);
         errors.push(why);
-        if (Date.now() - t0 > HANDOVER_WINDOW_MS) throw fail();
+        if (Date.now() - t0 > HANDOVER) throw fail();
         console.warn(`[cloak-api] handover tier=${tierKey}: ${why}`);
         cur = await open();
         if (!cur) throw fail();
@@ -815,10 +830,12 @@ async function handleNativeChat(env, request, ctx) {
   if (!body || !Array.isArray(body.messages)) return json({ error: "messages array required" }, 400);
 
   const tierKey = resolveTier(body.model);
+  const effort = parseEffort(body.effort);
   const req = {
     messages: sanitizeMessages(body.messages),
     system: body.system,
-    maxTokens: clampMaxTokens(body.max_tokens, tierKey),
+    effort,
+    maxTokens: clampMaxTokens(body.max_tokens, tierKey, effort),
     imageBase64: body.imageBase64,
     mimeType: body.mimeType,
     ctx,
@@ -842,7 +859,7 @@ async function handleNativeChat(env, request, ctx) {
             await send({ delta: d.content });
           }
         }
-        await send({ done: true, model: name, response: full, usage: stream.usage });
+        await send({ done: true, model: name, response: full, usage: stream.usage, effort: effort ?? DEFAULT_EFFORT });
       } catch (e) {
         console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e?.message || e}`);
         await send({ error: "The response was interrupted. Please try again.", partial: full });
@@ -852,7 +869,7 @@ async function handleNativeChat(env, request, ctx) {
 
   try {
     const choice = await completeOnce(env, tierKey, req);
-    return json({ model: name, response: choice.message.content || "", usage: choice.usage });
+    return json({ model: name, response: choice.message.content || "", usage: choice.usage, effort: effort ?? DEFAULT_EFFORT });
   } catch (e) {
     return json({ error: e.message }, 503);
   }
@@ -880,9 +897,12 @@ async function handleOpenAIChat(env, request) {
     return json({ error: { message: "messages array required", type: "invalid_request_error" } }, 400);
   }
   const tierKey = resolveTier(body.model || "pneuma");
+  // `effort` (0–100 or a level), or OpenAI's own `reasoning_effort` / `reasoning.effort`.
+  const effort = parseEffort(body.effort ?? body.reasoning_effort ?? body.reasoning?.effort);
   const req = {
     messages: sanitizeMessages(body.messages),
-    maxTokens: clampMaxTokens(body.max_tokens ?? body.max_completion_tokens, tierKey),
+    effort,
+    maxTokens: clampMaxTokens(body.max_tokens ?? body.max_completion_tokens, tierKey, effort),
     tools: body.tools,
     toolChoice: body.tool_choice,
   };
@@ -1029,10 +1049,15 @@ async function handleAnthropicMessages(env, request) {
     return json({ type: "error", error: { type: "invalid_request_error", message: "messages array required" } }, 400);
   }
   const tierKey = resolveTier(body.model || "pneuma");
+  // `effort`, `output_config.effort`, or a `thinking.budget_tokens` budget.
+  const effort =
+    parseEffort(body.effort ?? body.output_config?.effort) ??
+    (body.thinking?.type === "enabled" ? effortFromBudget(body.thinking.budget_tokens) : null);
   const req = {
     messages: sanitizeMessages(flattenAnthropicMessages(body.messages)),
     system: body.system,
-    maxTokens: clampMaxTokens(body.max_tokens, tierKey),
+    effort,
+    maxTokens: clampMaxTokens(body.max_tokens, tierKey, effort),
     tools: anthropicToolsToOpenAI(body.tools),
     toolChoice: anthropicToolChoiceToOpenAI(body.tool_choice),
   };
@@ -1513,6 +1538,12 @@ export default {
           models: VALID_MODELS,
           status: "operational",
           streaming: true,
+          effort: {
+            param: "effort",
+            range: "0-100 or minimal | low | medium | high | max",
+            default: "medium (50)",
+            also: "OpenAI reasoning_effort, Anthropic output_config.effort / thinking.budget_tokens",
+          },
           endpoints: {
             native: "POST /v1/chat",
             openai: "POST /v1/chat/completions",

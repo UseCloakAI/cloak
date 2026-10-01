@@ -56,6 +56,7 @@ Authorization: Bearer <SUPABASE_JWT_TOKEN>
 | `extended_thinking` | boolean | No | Enable extended thinking for deeper reasoning (default: false) |
 | `imageBase64` | string | No | Base64-encoded image data (PNG, JPEG, or WebP) |
 | `mimeType` | string | No | MIME type of the image (e.g., `"image/png"`) |
+| `effort` | number \| string | No | How hard the model works: `0`–`100` or `minimal`, `low`, `medium` (default), `high`, `max`. Scales reasoning level, reasoning/answer token budgets and time limits. |
 
 ## Response Format
 

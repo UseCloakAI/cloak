@@ -6,7 +6,7 @@ Cloudflare Worker behind `https://api.usecloak.org`. Deployed by Cloudflare Work
 
 | Route | Format | Streaming |
 |---|---|---|
-| `POST /v1/chat` | native `{model, messages, system?, max_tokens?, imageBase64?, mimeType?, stream?}` → `{model, response}` | `stream: true` → SSE `data: {"delta"}` … `{"done", "model", "response"}` or `{"error", "partial"}` |
+| `POST /v1/chat` | native `{model, messages, system?, max_tokens?, effort?, imageBase64?, mimeType?, stream?}` → `{model, response}` | `stream: true` → SSE `data: {"delta"}` … `{"done", "model", "response"}` or `{"error", "partial"}` |
 | `POST /v1/chat/completions` | OpenAI-compatible (needs API key) | OpenAI chunk format + `[DONE]` |
 | `POST /v1/messages` | Anthropic-compatible (needs API key) | Anthropic event format |
 | `POST /v1/search` | `{query, start?}` → `{items:[{title, link, snippet}]}` | — |
@@ -29,3 +29,23 @@ Configured in `MODEL_CONFIG` in `src/index.js`: each tier is an ordered `lineup`
 - Secrets: `ADMIN_TOKEN`; optional `API_KEY` (OpenAI/Anthropic endpoints), `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX`
 - Search order: Tavily → Google CSE → DuckDuckGo. Tavily keys are pooled from `PROVIDER_KEYS` KV under `tavily` (add each free key with `POST /admin/provider-keys {"provider":"tavily","key":"tvly-…"}`); a random key is used per call and it rolls to the next on 401/429/432/433.
 - `POST /v1/extract {url, format:"text"|"raw", maxChars}` — page text (Tavily extract → direct fetch) or the raw page body (HTML/JSON/CSV/text, 2 MB cap, public URLs only)
+
+## Effort
+
+Every chat endpoint takes an **effort** — how hard Cloak works on the request (`src/effort.js`).
+
+- Native `/v1/chat`: `effort` = `0`–`100` or `minimal | low | medium | high | max`. Default `medium` (50) = each tier's tuned settings, unchanged.
+- OpenAI `/v1/chat/completions`: `effort`, or OpenAI's `reasoning_effort` / `reasoning.effort`.
+- Anthropic `/v1/messages`: `effort`, `output_config.effort`, or `thinking: {type:"enabled", budget_tokens}` (mapped log-scale, 1K → minimal, 32K → max).
+
+What it changes, per model (smoothly across 0–100, `1×` at 50):
+
+| Knob | Minimal → Max |
+|---|---|
+| Reasoning level | Groq/NVIDIA `reasoning_effort` and Gemini `thinkingLevel` step down/up from the tier default; Qwen thinking turns on from High |
+| Reasoning reserve | ×0.5 → ×3 output tokens set aside for thinking |
+| Default answer budget | ×0.6 → ×1.6 (only when `max_tokens` isn't sent); ceiling doubles at Max |
+| Patience | first-token, stall, think-time and handover limits ×1 → ×2.5 |
+| Prompt | a short EFFORT section (brief at Minimal/Low, careful/verify at High/Max) |
+
+The native response's `done` event (and non-streaming JSON) echoes `effort`.
