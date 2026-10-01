@@ -1801,8 +1801,8 @@ html.kb-open .input-area{padding-bottom:14px;}
 
 /* ── CLOAK ORB — the interactive circle indicator next to the label ── */
 .bot-dot.cloak-orb {
-  width: 15px;
-  height: 15px;
+  width: 24px;
+  height: 24px;
   background: none;
   animation: none;
   position: relative;
@@ -1871,7 +1871,7 @@ html.kb-open .input-area{padding-bottom:14px;}
 }
 .orb-tail .cloak-orb { pointer-events: none; }
 .bot-body { position: relative; }
-.bot-content.has-tail { padding-bottom: 30px; }
+.bot-content.has-tail { padding-bottom: 40px; }
 /* Drop the "Cloak" label — only status text (thinking/searching) shows */
 .bot-label:not(.cs-thinking-label) { display: none; }
 .msg.orb-below .bot-meta,
@@ -1880,7 +1880,7 @@ html.kb-open .input-area{padding-bottom:14px;}
 .cloak-orb .orb-globe line,
 .cloak-orb .orb-globe path { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .cloak-orb .orb-globe-ring { fill: none; stroke: var(--ink); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
-.bot-end-orb { margin-top: 8px; height: 15px; display: flex; }
+.bot-end-orb { margin-top: 8px; height: 24px; display: flex; }
 .orb-fly {
   position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
   will-change: transform;
@@ -1952,7 +1952,7 @@ html.kb-open .input-area{padding-bottom:14px;}
 
 /* ── WELCOME ORB — sits left of the greeting (above it, centered, on mobile — see .welcome-row), idles in the day's mood ── */
 .welcome-orb {
-  --orb-size: clamp(26px, 3.6vw, 32px);
+  --orb-size: clamp(34px, 4.6vw, 44px);
   width: var(--orb-size); height: var(--orb-size);
   position: relative; display: inline-flex; flex-shrink: 0;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
