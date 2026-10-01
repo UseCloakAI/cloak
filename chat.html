@@ -11,16 +11,17 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="description" content="Cloak — A human resource, not a companion. Ethical AI that serves you.">
 <title>Cloak</title>
-<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20260929builds2">
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20260929builds2">
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20260929builds2">
-<link rel="manifest" href="/manifest.json?v=20260929builds2">
+<link rel="icon" type="image/svg+xml" href="/icons/orb.svg?v=20261001notg">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=20261001notg">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=20261001notg">
+<link rel="manifest" href="/manifest.json?v=20261001notg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20260929builds2">
-<link rel="stylesheet" href="search.css?v=20260929builds2">
-<link rel="stylesheet" href="brain.css?v=20260929builds2">
-<link rel="stylesheet" href="builds.css?v=20260929builds2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<link rel="stylesheet" href="cloak.css?v=20261001notg">
+<script src="version.js?v=1.0.207"></script>
+<link rel="stylesheet" href="search.css?v=20261001notg">
+<link rel="stylesheet" href="brain.css?v=20261001notg">
+<link rel="stylesheet" href="builds.css?v=20261001notg"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
   if(localStorage.getItem('cloak_dark')!=='0') document.documentElement.classList.add('dark');
@@ -101,6 +102,7 @@
     <div class="ld-mark"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="12"/></svg><span>Cloak</span></div>
     <div class="ld-bar"><i id="ld-fill"></i></div>
     <div class="ld-meta"><span id="ld-label">Loading interface</span><span id="ld-pct">0%</span></div>
+    <div class="ld-ver" data-cloak-version></div>
   </div>
 </div>
 <script>
@@ -272,8 +274,7 @@
     <!-- ── SIDEBAR ── -->
     <div class="sidebar" id="sidebar">
       <div class="sb-logo">
-        <div class="sb-mark" aria-hidden="true">C</div>
-        <span class="sb-logo-name">Cloak</span>
+        <span class="sb-word" role="img" aria-label="Cloak"><span class="sb-c">C</span><span>L</span><span>O</span><span>A</span><span>K</span></span>
       </div>
       <nav class="sb-nav" aria-label="Pages">
         <button class="sb-btn on" type="button" data-nav="chat" aria-current="page" onclick="goPage('chat')" title="Chat">
@@ -286,7 +287,7 @@
         </button>
       </nav>
       <button class="sb-btn sb-new" onclick="newChat()" title="New chat">
-        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         <span class="sbl">New chat</span>
       </button>
       <div class="sb-label">Recent</div>
@@ -301,7 +302,6 @@
       </div>
 
       <div class="sb-footer" id="sb-footer">
-        <div class="sb-label" style="margin-bottom:2px">Account</div>
         <button class="user-row" type="button" onclick="openSettings()" aria-label="Account settings" title="Account">
           <div class="user-av" id="sb-av">?</div>
           <div class="user-info">
@@ -310,8 +310,8 @@
           </div>
         </button>
         <div class="sb-actions">
-        <button class="sb-btn sb-util" type="button" data-nav="settings" onclick="openSettings()" title="Settings">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+          <button class="sb-btn sb-util" type="button" data-nav="settings" onclick="openSettings()" title="Settings">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
           <span class="sbl">Settings</span>
         </button>
         <button class="sb-btn sb-util" type="button" data-nav="values" onclick="goPage('values')" title="Our Values">
@@ -363,6 +363,9 @@
               </div>
             </div>
           </div>
+
+          <!-- Effort slider (effort.js) -->
+          <div class="effort-picker" id="effort-picker"></div>
         </div>
 
         <div class="topbar-right">
@@ -398,14 +401,6 @@
           <div class="input-area-wrap">
             <!-- Plus menu -->
             <div class="plus-menu" id="plus-menu">
-              <button class="plus-item" id="menu-think" onclick="toggleThinkMode()">
-                <span class="plus-item-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg></span>
-                <span class="plus-item-text">
-                  <span class="plus-item-label">Think mode</span>
-                  <span class="plus-item-desc">Deep reasoning and outlines</span>
-                </span>
-                <span class="plus-item-check"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span>
-              </button>
               <button class="plus-item" id="menu-homework" onclick="toggleHwMode()">
                 <span class="plus-item-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
                 <span class="plus-item-text">
@@ -425,10 +420,6 @@
 
             <!-- Mode labels -->
             <div style="display:flex;gap:6px;">
-              <div class="hw-label" id="think-label">
-                Think mode
-                <button class="hw-label-x" onclick="toggleThinkMode()">&times;</button>
-              </div>
               <div class="hw-label" id="hw-label">
                 Homework mode
                 <button class="hw-label-x" onclick="toggleHwMode()">&times;</button>
@@ -497,6 +488,7 @@
               <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg></span>
               Admin
             </button>
+            <div class="snav-ver" data-cloak-version="long" title="App version — changes with every update"></div>
           </nav>
           <div class="settings-body">
             <!-- Account -->
@@ -897,18 +889,19 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 </script>
 
 <!-- motion.js first: cloak.js calls CloakMotion for theme wipes, rolls and exits -->
-<script src="motion.js?v=20260929builds2" defer></script>
+<script src="motion.js?v=20261001notg" defer></script>
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20260929builds2"></script>
+<script src="search.js?v=20261001notg"></script>
 <!-- memory → context → brain: no deps on cloak.js at load time -->
 <script src="memory.js?v=20261001nopriv" defer></script>
-<script src="context.js?v=20260929builds2" defer></script>
-<script src="brain.js?v=20260929builds2" defer></script>
-<script src="thread.js?v=20260929builds2" defer></script>
-<script src="cloak.js?v=20260929builds2" defer></script>
+<script src="context.js?v=20261001notg" defer></script>
+<script src="brain.js?v=20261001notg" defer></script>
+<script src="thread.js?v=20261001notg" defer></script>
+<script src="cloak.js?v=20261001notg" defer></script>
 <!-- highlight.js + builds.js: code blocks, Builds panel, editor, file attachments (patches cloak.js) -->
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js" defer></script>
-<script src="builds.js?v=20260929builds2" defer></script>
+<script src="builds.js?v=20261001notg" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="search-patch.js?v=20260929builds2" defer></script></body>
+<script src="effort.js?v=20261001notg" defer></script>
+<script src="search-patch.js?v=20261001notg" defer></script></body>
 </html>

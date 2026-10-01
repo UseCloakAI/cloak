@@ -177,7 +177,7 @@
 
     let system = '';
     if (sums || gap) {
-      system = '## CONVERSATION SO FAR (compressed)\nYou and the user share one continuous conversation across web and Telegram. The messages shown are the most recent; these are compressed notes of what came before — treat them as things that were actually said.\n' +
+      system = '## CONVERSATION SO FAR (compressed)\nYou and the user share one continuous conversation. The messages shown are the most recent; these are compressed notes of what came before — treat them as things that were actually said.\n' +
         (sums ? '\n' + sums + '\n' : '') +
         (gap ? '\nMore recent earlier turns (abbreviated):\n' + gap + '\n' : '');
     }

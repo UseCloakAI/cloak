@@ -1,0 +1,3 @@
+#!/bin/sh
+# Every commit bumps the visible app version (see CLAUDE.md "Versioning").
+exec sh "$(git rev-parse --show-toplevel)/scripts/bump-version.sh"

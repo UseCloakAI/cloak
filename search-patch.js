@@ -187,7 +187,8 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal,
-    body: JSON.stringify({ ...bodyObj, stream: true }),
+    // Effort (0–100) rides on every chat call, including research rounds.
+    body: JSON.stringify({ ...bodyObj, ...(window.CloakEffort ? { effort: CloakEffort.value() } : {}), stream: true }),
   });
 
   const ctype = res.headers.get('content-type') || '';
@@ -579,7 +580,8 @@ window.send = async function () {
           }, botMsgEl, _fetchController.signal);
           _fetchController = null;
 
-          const verifyCalls = (!synth.aborted && round < 2 && CLOAK_SEARCH.hasToolCalls(synth.text))
+          const maxVerify = window.CloakEffort ? CloakEffort.verifyRounds() : 2;
+          const verifyCalls = (!synth.aborted && round < maxVerify && CLOAK_SEARCH.hasToolCalls(synth.text))
             ? CLOAK_SEARCH.parseToolCalls(synth.text).filter(c => c.type === 'search') : [];
           if (!verifyCalls.length) break;
 
@@ -597,7 +599,7 @@ window.send = async function () {
           synthesisMessages = [
             ...trimmedMessages,
             { role: 'assistant', content: firstResponse },
-            { role: 'user', content: `Here are the search results (including verification searches):\n\n${buildContext()}\n\n${VERIFY_ASK}${round >= 1 ? '\n\nThis is the last round: write the answer now, labelling anything still unconfirmed.' : ''}` }
+            { role: 'user', content: `Here are the search results (including verification searches):\n\n${buildContext()}\n\n${VERIFY_ASK}${round + 1 >= (window.CloakEffort ? CloakEffort.verifyRounds() : 2) ? '\n\nThis is the last round: write the answer now, labelling anything still unconfirmed.' : ''}` }
           ];
         }
 

@@ -112,9 +112,12 @@ const CLOAK_SEARCH = (() => {
     const {
       queries,         // string[]  — search queries to run
       followUrls,      // string[]  — specific URLs to read directly
-      maxSources = 5,  // how many search results to read per query
+      maxSources: askedSources,  // how many search results to read per query
       deepCrawl,       // string[]  — URLs to deep-crawl (follow within site)
     } = params;
+
+    // Effort sets research depth: 3 sources at Minimal … 8 at Max.
+    const maxSources = window.CloakEffort ? CloakEffort.maxSources() : (askedSources || 5);
 
     createSearchBlock(botMsgEl);
 

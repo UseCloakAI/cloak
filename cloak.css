@@ -55,7 +55,7 @@ html,body{height:100%;}
   --ease-out:cubic-bezier(.16,1,.3,1);--ease-in:cubic-bezier(.55,0,1,.45);--ease-io:cubic-bezier(.65,0,.35,1);
   --sp-snap:cubic-bezier(.3,1.35,.55,1);--sp-pop:var(--spring);--sp-soft:var(--ease-out);
   --tl:380ms;--tp:90ms;--lift:var(--tl) var(--sp-snap);
-  --sw:268px;--sw-c:76px;
+  --sw:268px;--sw-c:76px;--bar-h:52px;
   --fu:'Space Grotesk',system-ui,sans-serif;
   --fd:'Syne',system-ui,sans-serif;
 }
@@ -321,69 +321,128 @@ html.booting body>:not(#s-loading),html.booting body>:not(#s-loading) *{animatio
 #s-chat.active{display:flex;}
 .chat-shell{flex:1;display:flex;overflow:hidden;min-height:0;position:relative;flex-direction:row;}
 
-/* ── SIDEBAR ── */
-.sidebar{width:var(--sw);flex-shrink:0;background:var(--p2);border-right:var(--bd);display:flex;flex-direction:column;padding:0 8px 14px;gap:2px;overflow:hidden;transition:width .4s var(--ease-out),padding .4s var(--ease-out);}
-/* Collapsed = a narrow icon rail, not gone: brand mark + expand toggle stay,
-   every label hides (.sbl / .sb-label / conv list / account text), icons
-   center. Mobile overrides this below — there, collapsed slides fully
-   off-canvas instead (no room for a rail on a phone). */
-.sidebar.collapsed{width:var(--sw-c);padding:12px 6px;align-items:center;}
-/* contents cascade in whenever it opens (and on arrival); closing just
-   folds the whole panel away */
-.sidebar:not(.collapsed)>*{animation:sbIn .5s var(--ease-out) backwards;}
-.sidebar.collapsed .sbl,.sidebar.collapsed .sb-label,.sidebar.collapsed .conv-list,
-.sidebar.collapsed .guest-note,.sidebar.collapsed .user-info,.sidebar.collapsed .sb-logo-name{display:none!important;}
-.sidebar.collapsed #sb-ann-bar{display:none!important;}
-.sidebar.collapsed .sb-btn{justify-content:center;padding:9px;gap:0;width:44px;}
-.sidebar.collapsed .sb-nav,.sidebar.collapsed .sb-footer,.sidebar.collapsed .sb-actions{align-items:center;}
-.sidebar.collapsed .sb-actions{display:flex;flex-direction:column;gap:4px;}
-.sidebar.collapsed .user-row{justify-content:center;padding:0;width:44px;height:44px;}
-.sidebar:not(.collapsed)>:nth-child(2){animation-delay:.04s;}.sidebar:not(.collapsed)>:nth-child(3){animation-delay:.08s;}
-.sidebar:not(.collapsed)>:nth-child(4){animation-delay:.11s;}.sidebar:not(.collapsed)>:nth-child(n+5){animation-delay:.14s;}
-@keyframes sbIn{from{opacity:0;translate:-14px 0;}}
-.sb-logo{display:flex;align-items:center;gap:10px;padding:0 16px;white-space:nowrap;border-bottom:var(--bd);margin:0 -8px 14px -8px;height:52px;flex-shrink:0;}
-.sidebar.collapsed .sb-logo{justify-content:center;gap:6px;padding:0;margin:0 0 14px;height:auto;padding-bottom:12px;}
-/* Plain "C" — same face as the wordmark, no chip/box. Stands in for it only
-   in the collapsed rail, where there's no room to spell "Cloak" out. */
-.sb-mark{display:none;flex-shrink:0;font-family:var(--fd);font-weight:800;font-size:17px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink);}
-.sidebar.collapsed .sb-mark{display:block;}
+/* ── SIDEBAR ──
+   Built on one spine: a column of icons centered on the rail (x = --sb-axis)
+   that never moves. Collapsing to the rail (--sw-c) only narrows the panel
+   and folds the labels away; expanding slides it open and they unfold, top to
+   bottom. The header is exactly the topbar's height and the bottom band
+   exactly the composer's (--input-h, measured in cloak.js); both run
+   full-bleed on --surf, so their lines continue straight into the topbar's
+   and the composer's: the app reads as one top bar and one bottom bar. Below
+   640px it's an off-canvas drawer instead (see MOBILE). */
+.sidebar{
+  --sb-pad:16px;    /* side inset of every row */
+  --sb-axis:37px;   /* icon column center = the rail's visual center ((76 - 2px border) / 2) */
+  --sb-tx:59px;     /* where every label starts */
+  width:var(--sw);flex-shrink:0;position:relative;
+  background:var(--p2);border-right:var(--bd);
+  display:flex;flex-direction:column;padding:0 var(--sb-pad);overflow:hidden;
+  transition:width .56s var(--ease-out);
+}
+/* Folding away: labels go first (quick, all at once), then the panel closes. */
+.sidebar.collapsed{width:var(--sw-c);transition:width .44s var(--ease-io) .06s;}
 
-.sb-logo-name{font-family:var(--fd);font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--ink);}
+/* Everything that only exists in the open panel. Opening: each part unfolds
+   on its own beat (--sb-d) as the panel slides past it. Closing: all fold at
+   once, toward the spine. */
+.sb-word>span:not(.sb-c),.sbl,.sb-label,.user-info,.guest-note,#sb-ann-bar{
+  transition:opacity .36s var(--ease-out) var(--sb-d,.1s),translate .62s var(--sp-snap) var(--sb-d,.1s),filter .36s var(--ease-out) var(--sb-d,.1s);
+}
+.sidebar.collapsed :is(.sb-word>span:not(.sb-c),.sbl,.sb-label,.user-info,.guest-note,#sb-ann-bar){
+  opacity:0;translate:-10px 0;filter:blur(3px);visibility:hidden;
+  transition:opacity .14s ease,translate .22s var(--ease-in),filter .14s ease,visibility 0s .22s;
+}
+.sidebar.collapsed .conv-list{visibility:hidden;transition:visibility 0s .22s;}
+/* opening order: wordmark letters, then the column top to bottom */
+.sb-word>span:nth-child(2){--sb-d:.05s;}.sb-word>span:nth-child(3){--sb-d:.08s;}
+.sb-word>span:nth-child(4){--sb-d:.11s;}.sb-word>span:nth-child(5){--sb-d:.14s;}
+.sb-nav .sb-btn:nth-of-type(1) .sbl{--sb-d:.07s;}.sb-nav .sb-btn:nth-of-type(2) .sbl{--sb-d:.1s;}
+.sb-new .sbl{--sb-d:.13s;}.sb-label{--sb-d:.16s;}.guest-note,#sb-ann-bar{--sb-d:.22s;}
+.user-info{--sb-d:.1s;}.sb-actions .sb-btn:first-child .sbl{--sb-d:.13s;}.sb-actions .sb-btn:last-child .sbl{--sb-d:.16s;}
 
-.sb-btn{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1.5px solid transparent;background:transparent;color:var(--ink);font-family:var(--fu);font-size:13px;font-weight:600;cursor:pointer;width:100%;text-align:left;white-space:nowrap;min-height:36px;transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift);}
-.sb-btn svg{flex-shrink:0;transition:rotate .5s var(--sp-pop),scale var(--lift);}
-.sb-actions .sb-btn:first-child:hover svg{rotate:90deg;}
-.sb-actions .sb-btn:last-child:hover svg{scale:1.15;}
-.sb-btn:active{transform:translate(1px,1px);transition-duration:var(--tp);}
+/* Header: the topbar's height, so the line under the mark IS the topbar's line. */
+.sb-logo{
+  display:flex;align-items:center;flex-shrink:0;height:var(--bar-h);
+  margin:0 calc(-1 * var(--sb-pad)) 12px;padding:0 var(--sb-pad);
+  background:var(--surf);border-bottom:var(--bd);white-space:nowrap;
+}
+/* "CLOAK" whose C sits dead on the spine. In the rail the C stands alone;
+   opening, the rest of the word unfolds out of it letter by letter. */
+.sb-word{
+  --c-w:1.32em; /* the C's advance; cloak.js measures the real one */
+  display:flex;align-items:baseline;margin-left:calc(var(--sb-axis) - var(--sb-pad) - var(--c-w) / 2);
+  font-family:var(--fd);font-size:17px;font-weight:800;line-height:1;letter-spacing:.03em;text-transform:uppercase;color:var(--ink);
+}
+.sb-word>span{display:inline-block;}
+/* The C gives a small kick each time the panel opens or folds. */
+.sb-c{transform-origin:50% 60%;animation:sbC1 .62s var(--sp-pop);}
+.sidebar.collapsed .sb-c{animation-name:sbC2;}
+@keyframes sbC1{from{scale:.82;rotate:-10deg;}}
+@keyframes sbC2{from{scale:.82;rotate:10deg;}}
+
+/* Rows. Icon on the spine, label on --sb-tx, whatever the width. */
+.sb-btn{
+  position:relative;display:flex;align-items:center;flex-shrink:0;width:100%;height:38px;
+  gap:calc(var(--sb-tx) - var(--sb-axis) - 8px);
+  padding:0 10px 0 calc(var(--sb-axis) - var(--sb-pad) - 9.5px);
+  border:1.5px solid transparent;background:transparent;color:var(--ink);
+  font-family:var(--fu);font-size:13px;font-weight:600;text-align:left;white-space:nowrap;cursor:pointer;
+  transition:background var(--t),border-color var(--t),color .2s ease,box-shadow var(--lift),transform var(--lift);
+}
+.sb-btn svg{width:16px;height:16px;flex-shrink:0;transition:rotate .5s var(--sp-pop),scale var(--lift),translate var(--lift);}
+.sbl{flex:1;min-width:0;overflow:hidden;}
 .sb-btn:hover{background:var(--p3);border-color:var(--ink);}
+.sb-btn:hover svg{scale:1.08;}
+.sb-btn:active{transform:translate(1px,1px);transition-duration:var(--tp);}
+.sb-btn:focus-visible,.user-row:focus-visible{outline:2px solid var(--acc);outline-offset:2px;}
 a.sb-btn{text-decoration:none;}
 a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
-/* Page nav: the page you're on is inked in. Selecting wipes the ink in from
-   the left; the item you leave just lets go of it. */
-.sb-nav{display:flex;flex-direction:column;gap:2px;}
-.sb-nav .sb-btn{font-weight:700;}
-.sb-btn[data-nav]{position:relative;isolation:isolate;transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift),color .18s ease;}
-.sb-btn[data-nav]::before{content:"";position:absolute;inset:-1.5px;z-index:-1;background:var(--ink);opacity:0;clip-path:inset(0 100% 0 0);transition:opacity .2s ease,clip-path 0s .2s;}
-.sb-btn[data-nav].on{color:var(--paper);border-color:var(--ink);transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift),color .16s ease .06s;}
-.sb-btn[data-nav].on::before{opacity:1;clip-path:inset(0);transition:clip-path .38s var(--ease-out);}
+
+/* Page nav: one block of ink marks the page you're on and glides between
+   Chat and Brain on a spring, leading edge first (.sb-ink, cloak.js). On a
+   page outside the nav it lets go, wiping out to the left. */
+.sb-nav{position:relative;display:flex;flex-direction:column;gap:2px;}
+/* Label colors flip with the ink's edges, not after it: the page you open
+   turns light as the leading edge reaches it, the one you leave turns back
+   once the trailing edge has gone. */
+.sb-nav .sb-btn{font-weight:700;z-index:1;transition:background var(--t),border-color var(--t),color .12s ease .13s,box-shadow var(--lift),transform var(--lift);}
+.sb-nav .sb-btn.on{color:var(--paper);transition:background var(--t),border-color var(--t),color .1s ease .04s,box-shadow var(--lift),transform var(--lift);}
+/* the ink is the active row's only edge: no border of its own to show
+   through while the ink springs past and settles */
+.sb-nav .sb-btn.on,.sb-nav .sb-btn.on:hover{background:transparent;border-color:transparent;}
+.sb-ink{
+  position:absolute;left:0;right:0;top:var(--ink-t,0px);bottom:var(--ink-b,0px);z-index:0;pointer-events:none;
+  background:var(--ink);clip-path:inset(0 100% 0 0);
+  transition:top .56s var(--sp-snap),bottom .56s var(--sp-snap),clip-path .28s var(--ease-in);
+}
+.sb-ink.show{clip-path:inset(0);transition:top .56s var(--sp-snap),bottom .56s var(--sp-snap),clip-path .44s var(--ease-out);}
+.sb-ink.down{transition-delay:.07s,0s,0s;}  /* leading edge first, the trailing one catches up */
+.sb-ink.up{transition-delay:0s,.07s,0s;}
+.sb-ink.jump{transition:none;}
+/* Utility pages (Settings, Values): a soft tint, never the ink. */
+.sb-util[data-nav]{isolation:isolate;}
+.sb-util[data-nav]::before{content:"";position:absolute;inset:-1.5px;z-index:-1;background:var(--p3);opacity:0;clip-path:inset(0 100% 0 0);transition:opacity .2s ease,clip-path 0s .2s;}
+.sb-util[data-nav].on::before{opacity:1;clip-path:inset(0);transition:clip-path .38s var(--ease-out);}
 
 /* An action, not a destination — so unlike Chat/Brain it never carries a
-   filled "on" state. Plain at rest, like the utility row below it; the
-   accent-colored icon is its only standing mark. */
-.sb-new{margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;font-size:11px;}
+   filled "on" state. Plain at rest; the accent-colored icon is its only mark. */
+.sb-new{margin-top:6px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;font-size:11px;}
 .sb-new svg{color:var(--acc);}
-.sb-new:hover svg{rotate:90deg;}
+.sb-new:hover svg{rotate:90deg;scale:1;}
 
-.sb-label{font-size:9px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:.18em;padding:10px 10px 4px;opacity:.32;white-space:nowrap;}
-.conv-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1px;}
+.sb-label{flex-shrink:0;font-size:9px;font-weight:800;color:var(--ink);text-transform:uppercase;letter-spacing:.18em;padding:18px 0 6px calc(var(--sb-axis) - var(--sb-pad) - 8px);opacity:.36;white-space:nowrap;}
+.conv-list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:1px;}
 .conv-list::-webkit-scrollbar{width:3px;}
 .conv-list::-webkit-scrollbar-thumb{background:var(--ink);opacity:.25;}
-.conv-item{display:flex;align-items:center;border:1.5px solid transparent;transition:background var(--t),border-color var(--t);}
+.conv-item{display:flex;align-items:center;flex-shrink:0;border:1.5px solid transparent;transition:background var(--t),border-color var(--t),opacity .34s var(--ease-out) calc(.14s + var(--ci,0) * 24ms),translate .6s var(--sp-snap) calc(.14s + var(--ci,0) * 24ms);}
+.conv-item:nth-child(2){--ci:1;}.conv-item:nth-child(3){--ci:2;}.conv-item:nth-child(4){--ci:3;}.conv-item:nth-child(5){--ci:4;}
+.conv-item:nth-child(6){--ci:5;}.conv-item:nth-child(7){--ci:6;}.conv-item:nth-child(n+8){--ci:7;}
+.sidebar.collapsed .conv-item{opacity:0;translate:-10px 0;transition:background var(--t),border-color var(--t),opacity .14s ease,translate .22s var(--ease-in);}
 .conv-item.conv-in{animation:convIn .46s var(--ease-out) backwards;animation-delay:calc(var(--k,0) * 28ms);}
 @keyframes convIn{from{opacity:0;translate:-14px 0;}}
 .conv-item:hover{background:var(--p3);border-color:var(--ink);}
 .conv-item.active{background:var(--ink);border-color:var(--ink);}
-.conv-label{flex:1;padding:8px 10px;font-size:12px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;min-width:0;display:flex;align-items:center;gap:7px;}
+.conv-label{flex:1;min-width:0;display:flex;align-items:center;gap:calc(var(--sb-tx) - var(--sb-axis) - 5.5px);padding:9px 10px 9px calc(var(--sb-axis) - var(--sb-pad) - 7px);font-size:12px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
 .conv-icon{flex-shrink:0;opacity:.4;}
 .conv-label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
 .conv-item.active .conv-icon{opacity:.7;}
@@ -394,30 +453,60 @@ a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 .conv-item:hover .conv-del{opacity:.45;}
 .conv-del:hover{opacity:1!important;background:var(--acc);color:#fff;}
 
-.sb-footer{border-top:var(--bd);padding-top:4px;margin-top:4px;display:flex;flex-direction:column;gap:1px;}
-.sb-actions{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
-.sb-actions .sb-btn{min-width:0;}
-.sb-util{font-size:12px;opacity:.75;}
+/* Bottom band: the composer's height, so its line IS the composer's line.
+   Account, Settings, Values stacked on the spine — in the rail, three marks
+   sitting level with the message box. */
+.sb-footer{
+  flex-shrink:0;display:flex;flex-direction:column;justify-content:center;gap:2px;
+  height:var(--input-h,128px);margin:auto calc(-1 * var(--sb-pad)) 0;padding:0 var(--sb-pad);
+  background:var(--surf);border-top:var(--bd);
+}
+.sb-actions{display:flex;flex-direction:column;gap:2px;}
+.sb-util{height:34px;font-size:12px;opacity:.78;}
 .sb-util:hover,.sb-util.on{opacity:1;}
-.sb-util[data-nav]::before{background:var(--p3);}
 .sb-util[data-nav].on{color:var(--acc);border-color:var(--ink);}
-@media(min-width:641px){
-  .sidebar{padding-bottom:0;}
-  .sb-footer{min-height:var(--input-h,auto);padding-bottom:8px;margin-top:6px;}
-}
+.sb-actions .sb-btn:first-child:hover svg{rotate:90deg;}
+.sb-actions .sb-btn:last-child:hover svg{scale:1.15;}
 .user-row{
-  display:flex;align-items:center;gap:9px;padding:7px 10px;width:100%;
-  background:var(--surf);border:1.5px solid transparent;color:inherit;font:inherit;text-align:left;
-  cursor:pointer;box-shadow:none;transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift);
+  position:relative;display:flex;align-items:center;flex-shrink:0;width:100%;height:40px;
+  gap:calc(var(--sb-tx) - var(--sb-axis) - 14px);
+  padding:0 10px 0 calc(var(--sb-axis) - var(--sb-pad) - 15.5px);
+  background:transparent;border:1.5px solid transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;
+  transition:background var(--t),border-color var(--t),box-shadow var(--lift),transform var(--lift);
 }
-.user-row:hover{border-color:var(--ink);box-shadow:var(--shsm);transform:translate(-1px,-1px);}
+.user-row:hover{background:var(--p2);border-color:var(--ink);box-shadow:var(--shsm);transform:translate(-1px,-1px);}
 .user-row:active{box-shadow:none;transform:translate(1px,1px);transition-duration:var(--tp);}
-.user-av{width:30px;height:30px;background:var(--ink);color:var(--paper);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--fd);}
+.user-av{width:28px;height:28px;background:var(--ink);color:var(--paper);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--fd);transition:scale var(--lift),rotate .5s var(--sp-pop);}
+.user-row:hover .user-av{scale:1.06;rotate:-4deg;}
 .user-info{min-width:0;flex:1;}
 .user-name{font-size:12px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .user-email{font-size:10px;color:var(--ink);opacity:.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.guest-note{margin:4px 8px;padding:9px 11px;background:var(--yel);border:var(--bd);font-size:11px;font-weight:600;color:var(--ink);line-height:1.5;}
+.guest-note{flex-shrink:0;margin:6px 0 10px;padding:9px 11px;background:var(--yel);border:var(--bd);font-size:11px;font-weight:600;color:var(--ink);line-height:1.5;}
 .guest-note a{color:var(--acc);cursor:pointer;font-weight:700;}
+
+/* Arrival: the column rises into place with the shell, top to bottom. */
+#s-chat.shell-in .sidebar :is(.sb-word,.sb-nav>.sb-btn,.sb-new,.sb-label,.user-row,.sb-actions>.sb-btn){animation:sbIn .6s var(--ease-out) backwards;}
+#s-chat.shell-in .sidebar .sb-nav>.sb-btn:nth-of-type(1){animation-delay:.05s;}
+#s-chat.shell-in .sidebar .sb-nav>.sb-btn:nth-of-type(2){animation-delay:.09s;}
+#s-chat.shell-in .sidebar .sb-new{animation-delay:.13s;}
+#s-chat.shell-in .sidebar .sb-label{animation-delay:.17s;}
+#s-chat.shell-in .sidebar .user-row{animation-delay:.1s;}
+#s-chat.shell-in .sidebar .sb-actions>.sb-btn:first-child{animation-delay:.14s;}
+#s-chat.shell-in .sidebar .sb-actions>.sb-btn:last-child{animation-delay:.18s;}
+@keyframes sbIn{from{opacity:0;translate:-12px 0;}}
+
+/* Collapsed rail: hovering (or focusing) an item flies its name out beside
+   it; moving down the rail, the label glides along (cloak.js). */
+.sb-tip{
+  position:fixed;left:0;top:0;z-index:300;pointer-events:none;
+  padding:6px 10px;background:var(--ink);color:var(--paper);box-shadow:var(--shsm);
+  font-family:var(--fu);font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;
+  opacity:0;translate:-8px calc(var(--tip-y,0px) - 50%);
+  transition:opacity .14s ease,translate .26s var(--ease-in);
+}
+.sb-tip::before{content:"";position:absolute;right:100%;top:50%;margin-top:-5px;border:5px solid transparent;border-right-color:var(--ink);border-left:0;}
+.sb-tip.show{opacity:1;translate:0 calc(var(--tip-y,0px) - 50%);transition:opacity .16s ease,translate .5s var(--sp-snap);}
+.sb-tip.jump{transition:none;}
 
 /* ── TOPBAR ── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--paper);min-width:0;position:relative;}
@@ -453,7 +542,7 @@ a.sb-btn:hover{background:var(--p3);border-color:var(--ink);}
 #page-brain .brain-side>.brain-card{animation:rvRise .62s var(--sp-snap) calc(var(--pg-d) + 70ms + var(--k,0) * 55ms) backwards;--rise:4px;}
 #page-brain .brain-side>.brain-card:nth-child(2){--k:1;}
 #page-brain .brain-side>.brain-card:nth-child(3){--k:2;}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:52px;border-bottom:var(--bd);flex-shrink:0;background:var(--surf);}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:var(--bar-h);border-bottom:var(--bd);flex-shrink:0;background:var(--surf);}
 #s-chat.active .topbar-left>*,#s-chat.active .topbar-right{animation:navIn .5s var(--ease-out) var(--pg-d) backwards;}
 #s-chat.active .topbar-right{animation-delay:calc(var(--pg-d) + .06s);}
 /* The sidebar toggle sits in the same spot on every page, so it holds still
@@ -1069,9 +1158,23 @@ html.kb-open .input-area{padding-bottom:14px;}
 @media(max-width:768px){.input,.inp-field,.chat-input{font-size:16px!important;}}
 @media(max-width:640px){
   :root{--sw:min(78vw,264px);}
-  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:200;width:var(--sw)!important;min-width:var(--sw)!important;padding:12px 8px!important;opacity:1!important;transform:translateX(-100%);transition:transform .28s cubic-bezier(.16,1,.3,1);pointer-events:none;padding-top:max(12px,calc(env(safe-area-inset-top,0px) + 12px))!important;padding-left:max(8px,calc(env(safe-area-inset-left,0px) + 8px))!important;padding-bottom:max(8px,calc(env(safe-area-inset-bottom,0px) + 8px))!important;}
-  .sidebar:not(.collapsed){transform:translateX(0);pointer-events:auto;}
-  .sidebar.collapsed{transform:translateX(-100%);pointer-events:none;}
+  /* Drawer: same spine, header and bottom band as the desktop panel. The
+     header sits under the status bar exactly like the topbar does, so its
+     line lands on the topbar's line; the icons line up with the menu
+     button that opened it (--sb-axis = the toggle's center). */
+  .sidebar,.sidebar.collapsed{
+    --sb-axis:35px;--sb-tx:57px;
+    position:fixed;left:0;top:0;bottom:0;z-index:200;width:var(--sw)!important;min-width:var(--sw)!important;
+    padding:env(safe-area-inset-top,0px) var(--sb-pad) 0!important;opacity:1!important;
+    box-shadow:6px 0 0 rgba(10,10,10,.12);
+    transform:translateX(0);transition:transform .5s var(--ease-out),box-shadow .5s var(--ease-out);pointer-events:auto;
+  }
+  .sidebar.collapsed{transform:translateX(calc(-100% - 8px));box-shadow:none;transition:transform .34s var(--ease-io),box-shadow .2s ease;pointer-events:none;}
+  /* Bottom band level with the composer here too; no rail to keep a spine
+     for, so Settings and Values share a row to fit above the home indicator. */
+  .sb-footer{height:max(var(--input-h,0px),calc(80px + env(safe-area-inset-bottom,0px)));padding:0 var(--sb-pad) env(safe-area-inset-bottom,0px);}
+  .sb-actions{flex-direction:row;}
+  .sb-actions .sb-btn{flex:1;min-width:0;}
   .sb-overlay{position:fixed;inset:0;background:rgba(10,10,10,.48);z-index:199;display:block;visibility:hidden;opacity:0;transition:opacity .28s ease,visibility 0s .28s;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}
   .sb-overlay.show{visibility:visible;opacity:1;transition:opacity .28s ease,visibility 0s;}
   .auth-card{padding:28px 22px;box-shadow:none;border-left:none;border-right:none;max-width:100%;}
@@ -1233,10 +1336,6 @@ html.kb-open .input-area{padding-bottom:14px;}
 
 /* ── MOBILE QA POLISH ── */
 @media(max-width:640px){
-  /* Sidebar slide-in from left with safe area */
-  .sidebar{
-    padding-bottom:max(20px,calc(env(safe-area-inset-bottom,0px) + 12px))!important;
-  }
   /* Input area — taller minimum for thumb reach */
   .input-box{
     min-height:52px;
@@ -1783,26 +1882,14 @@ html.kb-open .input-area{padding-bottom:14px;}
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* "Cloak is thinking…" — grayed-out italic, overrides the bot-label style */
-.bot-label.cs-thinking-label {
-  font-family: var(--fu);
-  font-weight: 500;
-  font-style: italic;
-  text-transform: none;
-  letter-spacing: .01em;
-  font-size: 11px;
-  color: var(--ink);
-  opacity: .42;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .cs-dot-glyph { animation: none; }
 }
 
 /* ── CLOAK ORB — the interactive circle indicator next to the label ── */
 .bot-dot.cloak-orb {
-  width: 15px;
-  height: 15px;
+  width: 24px;
+  height: 24px;
   background: none;
   animation: none;
   position: relative;
@@ -1871,7 +1958,7 @@ html.kb-open .input-area{padding-bottom:14px;}
 }
 .orb-tail .cloak-orb { pointer-events: none; }
 .bot-body { position: relative; }
-.bot-content.has-tail { padding-bottom: 30px; }
+.bot-content.has-tail { padding-bottom: 40px; }
 /* Drop the "Cloak" label — only status text (thinking/searching) shows */
 .bot-label:not(.cs-thinking-label) { display: none; }
 .msg.orb-below .bot-meta,
@@ -1880,29 +1967,50 @@ html.kb-open .input-area{padding-bottom:14px;}
 .cloak-orb .orb-globe line,
 .cloak-orb .orb-globe path { fill: none; stroke: var(--ink); stroke-width: 1.2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .cloak-orb .orb-globe-ring { fill: none; stroke: var(--ink); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
-.bot-end-orb { margin-top: 8px; height: 15px; display: flex; }
+.bot-end-orb { margin-top: 8px; height: 24px; display: flex; }
 .orb-fly {
   position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
-  transition: transform .5s cubic-bezier(.65,0,.35,1);
+  will-change: transform;
 }
-/* Status log — thinking + research as single lines */
+/* Status log — "Thinking ▾" toggle; the thoughts sit in a scrollable box
+   that only exists while it's open. */
 .status-log { margin: 0 0 10px; }
 .status-head {
-  display: inline-flex; align-items: center; max-width: 100%; gap: 6px; background: none; border: none; padding: 2px 0;
-  font-family: var(--fu); font-size: 11px; font-weight: 500; font-style: italic; letter-spacing: .01em;
-  color: var(--ink); opacity: .42; cursor: pointer; transition: opacity var(--t);
+  display: none; align-items: center; gap: 8px; background: none; border: none; padding: 2px 0;
+  font-family: var(--fu); font-size: 15px; font-weight: 600; letter-spacing: .005em;
+  color: var(--ink); opacity: .55; cursor: pointer; transition: opacity var(--t);
 }
-.status-head:hover { opacity: .7; }
-.status-head:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.status-head svg { transition: transform .2s ease; }
-.status-head-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.status-head svg { flex-shrink: 0; }
-.status-head-label.pop { animation: statusPop .42s cubic-bezier(.2,.75,.25,1) both; }
-/* Live preview beside the orb: whole-line pop + a lighter band sweeping
-   left → right (one gradient tile per loop, so it wraps seamlessly). */
+.status-head:hover { opacity: .85; }
+.status-head:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.status-head svg { flex-shrink: 0; transition: transform .2s ease; }
+.status-log.done .status-head { display: inline-flex; }
+.status-log.open .status-head svg { transform: rotate(180deg); }
+.status-lines { display: none; }
+.status-log.open .status-lines {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 8px; max-height: 220px; overflow-y: auto;
+  padding: 12px 14px; background: var(--surf); border: var(--bdt); border-radius: 0;
+  animation: statusPop .3s cubic-bezier(.2,.75,.25,1) both;
+}
+.status-line {
+  font-family: var(--fu); font-size: 13.5px; font-weight: 400; line-height: 1.6;
+  color: var(--ink); opacity: .6; overflow-wrap: anywhere;
+  animation: statusPop .38s cubic-bezier(.2,.75,.25,1) both;
+}
+.status-line.live { opacity: .85; }
+/* Orb-side label: "Thinking ▾" — sized to sit beside the 24px orb. */
 .bot-label.cs-thinking-label {
-  display: inline-block; max-width: min(560px, 70vw);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--fu); font-size: 15px; font-weight: 600; font-style: normal;
+  text-transform: none; letter-spacing: .005em; color: var(--ink); opacity: .7;
+  transition: opacity var(--t);
+}
+.bot-label.cs-thinking-label:hover { opacity: 1; }
+.bot-label.cs-thinking-label:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.bot-label.cs-thinking-label .bl-chev { flex-shrink: 0; transition: transform .2s ease; }
+.bot-label.cs-thinking-label[aria-expanded="true"] .bl-chev { transform: rotate(180deg); }
+/* Lighter band sweeping left → right across the label text, looping cleanly */
+.bot-label.cs-thinking-label .bl-text {
   background: linear-gradient(90deg,
     var(--ink) 0%, var(--ink) 35%,
     color-mix(in srgb, var(--ink) 35%, transparent) 50%,
@@ -1911,23 +2019,7 @@ html.kb-open .input-area{padding-bottom:14px;}
   -webkit-text-fill-color: transparent;
   animation: statusShimmer 2.2s linear infinite;
 }
-.bot-label.cs-thinking-label.pop {
-  animation: statusPop .42s cubic-bezier(.2,.75,.25,1) both, statusShimmer 2.2s linear infinite;
-}
-/* Status log is only a "Show thinking" toggle, after the thinking is done */
-.status-log:not(.done) { display: none; }
 @keyframes statusShimmer { from { background-position: 200% 0; } to { background-position: 0 0; } }
-.status-log.open .status-head svg { transform: rotate(180deg); }
-.status-lines { display: none; flex-direction: column; gap: 3px; }
-.status-log.open .status-lines { display: flex; }
-.status-log .status-lines { margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--p3); }
-.status-line {
-  font-family: var(--fu); font-size: 11px; font-weight: 500; font-style: italic; letter-spacing: .01em;
-  line-height: 1.6; color: var(--ink); opacity: .42;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-  animation: statusPop .38s cubic-bezier(.2,.75,.25,1) both;
-}
-.status-line.live { opacity: .62; }
 @keyframes statusPop {
   from { opacity: 0; transform: translateY(.5em); filter: blur(4px); }
 }
@@ -1952,7 +2044,7 @@ html.kb-open .input-area{padding-bottom:14px;}
 
 /* ── WELCOME ORB — sits left of the greeting (above it, centered, on mobile — see .welcome-row), idles in the day's mood ── */
 .welcome-orb {
-  --orb-size: clamp(26px, 3.6vw, 32px);
+  --orb-size: clamp(34px, 4.6vw, 44px);
   width: var(--orb-size); height: var(--orb-size);
   position: relative; display: inline-flex; flex-shrink: 0;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
@@ -2060,3 +2152,96 @@ html.kb-open .input-area{padding-bottom:14px;}
   /* Browser chrome is gone; soften the footer disclaimer a touch. */
   .input-disc{opacity:.34;}
 }
+
+/* ═══════════════════════════════════════════════════════════
+   EFFORT — topbar chip + slider popover (effort.js)
+   ═══════════════════════════════════════════════════════════ */
+.effort-picker{position:relative;display:inline-block;margin-left:8px;}
+/* Matches the model picker exactly: same button, chevron, and the dropdown
+   that unfolds out of the button while its sections step in. */
+.eff-btn{
+  display:flex;align-items:center;gap:10px;padding:7px 14px;
+  background:var(--surf);border:var(--bd);box-shadow:var(--shsm);
+  cursor:pointer;font-family:var(--fd);text-transform:uppercase;font-weight:800;
+  font-size:11px;letter-spacing:.1em;color:var(--ink);white-space:nowrap;
+  transition:box-shadow var(--lift),transform var(--lift),background var(--t),color var(--t);
+}
+.eff-btn:hover{box-shadow:var(--sh);transform:translate(-2px,-2px)}
+.eff-btn.open{background:var(--ink);color:var(--paper);box-shadow:none;transform:translate(2px,2px)}
+.eff-btn:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+.eff-btn .mdl-chevron{display:flex;transition:transform .5s var(--sp-pop)}
+.eff-btn.open .mdl-chevron{transform:rotate(180deg)}
+.eff-bars rect{fill:currentColor;opacity:.22;transition:opacity .25s var(--ease-out);}
+.eff-bars rect.on{opacity:1;fill:var(--acc);}
+
+.eff-pop{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:600;width:340px;max-width:calc(100vw - 24px);
+  background:var(--surf);border:var(--bd);box-shadow:var(--shlg);padding:16px 18px 14px;
+  display:block;visibility:hidden;opacity:0;translate:0 -6px;clip-path:inset(0 -10px 100% 0);pointer-events:none;
+  transition:clip-path .2s var(--ease-in),translate .2s var(--ease-in),opacity .12s ease .08s,visibility 0s .2s;
+}
+.eff-pop.open{
+  visibility:visible;opacity:1;translate:0 0;clip-path:inset(0 -10px -10px 0);pointer-events:auto;
+  transition:clip-path .42s var(--ease-out),translate .5s var(--sp-snap),opacity .1s ease,visibility 0s;
+}
+.eff-pop>*{opacity:0;translate:0 -8px;transition:opacity .12s ease,translate .12s ease;}
+.eff-pop.open>*{opacity:1;translate:0 0;transition:opacity .3s ease var(--od,0s),translate .5s var(--sp-snap) var(--od,0s);}
+.eff-pop.open>:nth-child(2){--od:.05s}
+.eff-pop.open>:nth-child(3){--od:.1s}
+.eff-pop.open>:nth-child(4){--od:.15s}
+.eff-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;}
+.eff-kicker{font-size:9px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);opacity:.45;}
+.eff-name{font-family:var(--fd);font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:-.2px;color:var(--ink);line-height:1.1;margin-top:2px;}
+.eff-name.eff-bump{animation:effName .32s var(--sp-snap);}
+@keyframes effName{from{opacity:0;translate:0 6px;filter:blur(3px);}}
+.eff-readout{font-family:var(--fd);font-size:28px;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;line-height:1;}
+.eff-desc{font-size:12.5px;color:var(--ink);opacity:.62;margin:6px 0 16px;min-height:1.4em;}
+
+.eff-slider{padding:4px 10px 0;}
+.eff-track{position:relative;height:28px;cursor:pointer;touch-action:none;}
+.eff-track::before{content:'';position:absolute;left:0;right:0;top:50%;height:10px;translate:0 -50%;background:var(--p2);border:var(--bd);}
+.eff-fill{position:absolute;left:0;top:50%;height:10px;translate:0 -50%;width:50%;
+  background:repeating-linear-gradient(-45deg,var(--acc) 0 6px,var(--acc2) 6px 9px);border:var(--bd);border-right:none;
+  transition:width .22s var(--sp-snap);}
+.eff-tick{position:absolute;top:50%;width:2px;height:4px;translate:-1px 9px;background:var(--ink);opacity:.25;pointer-events:none;}
+.eff-tick.major{height:8px;opacity:.45;}
+.eff-tick.on{opacity:.7;}
+.eff-thumb{position:absolute;top:50%;left:50%;width:22px;height:22px;translate:-50% -50%;
+  background:var(--surf);border:var(--bd);box-shadow:var(--shsm);cursor:grab;
+  transition:left .22s var(--sp-snap),box-shadow var(--lift),scale var(--lift);}
+.eff-thumb::after{content:'';position:absolute;inset:5px;background:var(--acc);}
+.eff-thumb:hover{box-shadow:var(--sh);}
+.eff-thumb:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
+.eff-pop.dragging .eff-thumb,.eff-pop.dragging .eff-fill{transition:none;}
+.eff-pop.dragging .eff-thumb{cursor:grabbing;box-shadow:none;scale:1.08;}
+.eff-stops{position:relative;height:30px;margin-top:6px;}
+.eff-stop{position:absolute;top:0;translate:-50% 0;background:none;border:none;padding:4px 2px;cursor:pointer;
+  font-family:var(--fu);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink);opacity:.45;
+  transition:opacity var(--t),color var(--t);}
+.eff-stop:first-child{translate:-10px 0;}
+.eff-stop:last-child{translate:calc(-100% + 10px) 0;}
+.eff-stop:hover{opacity:.85;}
+.eff-stop.on{opacity:1;color:var(--acc);}
+.eff-stop:focus-visible{outline:2px solid var(--acc);outline-offset:1px;}
+
+.eff-stats{display:grid;gap:7px;margin-top:10px;padding-top:12px;border-top:var(--bdt);}
+.eff-stat{display:grid;grid-template-columns:118px 1fr 40px;align-items:center;gap:10px;font-size:11.5px;color:var(--ink);}
+.eff-stat-k{opacity:.6;}
+.eff-stat-bar{height:6px;background:var(--p2);border:1.5px solid var(--ink);position:relative;overflow:hidden;}
+.eff-stat-bar i{position:absolute;inset:0 auto 0 0;background:var(--ink);transition:width .3s var(--sp-snap);}
+.eff-stat-v{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
+
+@media(max-width:640px){
+  .eff-btn-label{display:none;}
+  .eff-btn{padding:7px 9px;}
+  .eff-pop{position:fixed;top:60px;left:12px;right:12px;width:auto;}
+}
+@media(prefers-reduced-motion:reduce){
+  .eff-pop,.eff-pop>*,.eff-fill,.eff-thumb,.eff-stat-bar i{transition:none;}
+  .eff-name.eff-bump{animation:none;}
+}
+
+/* ── APP VERSION (version.js) ── */
+.ld-ver{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);opacity:.35;font-variant-numeric:tabular-nums;margin-top:-10px;}
+.snav-ver{margin-top:auto;padding:14px 10px 4px;font-size:10px;font-weight:600;letter-spacing:.06em;line-height:1.5;color:var(--ink);opacity:.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+@media(max-width:640px){.snav-ver{margin-top:0;padding:0 10px;align-self:center;white-space:nowrap;}}

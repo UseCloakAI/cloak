@@ -3,12 +3,10 @@
    Each chat is a row in `chats` (title, its own compressed context — see
    context.js); its messages are rows in `thread_messages` tagged with
    `chat_id`. `profiles.active_chat_id` points at whichever chat is
-   "active" — set here on every switch — and is what a linked Telegram
-   chat continues (so Telegram follows whichever chat you have open on
-   web, or the last one it touched itself). Switching chats swaps which
-   one is loaded and which Realtime channel is live; two tabs/devices open
-   on the same chat get new messages the instant they land, whichever
-   platform sent them.
+   "active" — set here on every switch, so the last-open chat reopens on
+   any device. Switching chats swaps which one is loaded and which Realtime
+   channel is live; two tabs/devices open on the same chat get new messages
+   the instant they land.
    Within one chat, the "moved on" boundary and time dividers work exactly
    as they did for the old single thread.
    Guests: in-memory only, one ephemeral chat, nothing is saved.
@@ -17,7 +15,6 @@
   'use strict';
 
   const LOAD_LIMIT = 300;
-  const FN_URL = 'https://kdawsqrrmwirilyhcolk.supabase.co/functions/v1/telegram-bot';
 
   let owner = { sb: null, uid: '', guest: true };
   let channel = null;       // thread_messages realtime — the open chat only
@@ -71,7 +68,7 @@
     if (entry.source && entry.source !== 'web') {
       const tag = document.createElement('div');
       tag.className = 'msg-src';
-      tag.textContent = 'via ' + (entry.source === 'telegram' ? 'Telegram' : entry.source);
+      tag.textContent = 'via ' + entry.source;
       const bubble = el.querySelector('.bubble');
       if (bubble) bubble.insertAdjacentElement('afterend', tag);
       else (el.querySelector('.bot-body') || el).appendChild(tag);
@@ -216,7 +213,6 @@
       renderConvs();
       renderAll();
     }
-    refreshTelegram();
   }
 
   async function loadList() {
@@ -235,7 +231,7 @@
     return c;
   }
 
-  // profiles.active_chat_id is what a linked Telegram chat continues.
+  // profiles.active_chat_id: the chat to reopen on next load, on any device.
   function setActiveChatId(id) {
     owner.sb.from('profiles').update({ active_chat_id: id }).eq('id', owner.uid)
       .then(({ error }) => { if (error) log('err', 'active chat save failed: ' + error.message); });
@@ -468,82 +464,6 @@
     _convSeen = new Set();
   }
 
-  /* ── Telegram link (Settings → Account) ── */
-  function telegramRow() {
-    let row = document.getElementById('tg-row');
-    if (row) return row;
-    const pane = document.getElementById('spane-general');
-    if (!pane) return null;
-    row = document.createElement('div');
-    row.className = 'srow';
-    row.id = 'tg-row';
-    row.innerHTML =
-      '<div class="srow-name">Telegram</div>' +
-      '<div class="srow-desc" id="tg-desc"></div>' +
-      '<div class="tg-actions"><span class="tg-status" id="tg-status">Checking…</span>' +
-      '<button class="cta" type="button" id="tg-link">Link Telegram</button>' +
-      '<button class="danger" type="button" id="tg-unlink" hidden>Unlink</button></div>' +
-      '<div class="err-msg" id="tg-err"></div>';
-    const anchor = pane.children[2] || null; // after Account + Display name
-    pane.insertBefore(row, anchor);
-    row.querySelector('#tg-link').addEventListener('click', linkTelegram);
-    row.querySelector('#tg-unlink').addEventListener('click', unlinkTelegram);
-    return row;
-  }
-
-  async function refreshTelegram() {
-    const row = telegramRow();
-    if (!row) return;
-    const who = (typeof name === 'string' && name.trim() ? name.trim().split(/\s+/)[0] : 'You');
-    row.querySelector('#tg-desc').textContent = 'Telegram continues whichever chat you have open here — switch chats and it follows. What you send here appears there as “' + who + ' said: …”, and what you send there appears here.';
-    const status = row.querySelector('#tg-status');
-    const linkBtn = row.querySelector('#tg-link');
-    const unlinkBtn = row.querySelector('#tg-unlink');
-    if (!persisted()) {
-      status.textContent = 'Sign in to link Telegram.';
-      linkBtn.hidden = true;
-      unlinkBtn.hidden = true;
-      return;
-    }
-    const { data, error } = await owner.sb.from('telegram_links').select('chat_id,linked_at').eq('user_id', owner.uid).maybeSingle();
-    if (error) { status.textContent = 'Telegram status unavailable.'; return; }
-    status.textContent = data ? 'Linked — Telegram follows whichever chat is open here.' : 'Not linked.';
-    linkBtn.hidden = !!data;
-    unlinkBtn.hidden = !data;
-  }
-
-  async function linkTelegram() {
-    const err = document.getElementById('tg-err');
-    if (err) { err.textContent = ''; err.classList.remove('show'); }
-    try {
-      const { data: { session } } = await owner.sb.auth.getSession();
-      if (!session) throw new Error('Sign in again to link Telegram.');
-      const res = await fetch(FN_URL + '?action=link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token, apikey: SB_KEY },
-        body: '{}',
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok || !d.url) throw new Error(d.error || 'Could not start linking (' + res.status + ')');
-      window.open(d.url, '_blank', 'noopener');
-      const status = document.getElementById('tg-status');
-      if (status) status.textContent = 'Tap Start in Telegram to finish linking…';
-      // Pick up the link once the user comes back.
-      const again = () => { if (!document.hidden) { refreshTelegram(); document.removeEventListener('visibilitychange', again); } };
-      document.addEventListener('visibilitychange', again);
-      setTimeout(refreshTelegram, 15000);
-    } catch (e) {
-      if (err) { err.textContent = e.message; err.classList.add('show'); }
-    }
-  }
-
-  async function unlinkTelegram() {
-    if (!confirm('Unlink Telegram? It will stop continuing your chats.')) return;
-    const { error } = await owner.sb.from('telegram_links').delete().eq('user_id', owner.uid);
-    if (error) log('err', 'unlink failed: ' + error.message);
-    refreshTelegram();
-  }
-
   if (window.CloakContext) {
     CloakContext.on('change', (d) => {
       if (!d || !/^(compress|merge|truncate)$/.test(d.source)) return;
@@ -555,7 +475,7 @@
   window.CloakThread = {
     init, reset, push, drain, saveContext, truncateAt, clearAll,
     newChat, switchTo, removeChat, list: () => convs.slice(),
-    jumpToLatest, refreshTelegram, placeMovedOn,
+    jumpToLatest, placeMovedOn,
     receive: onRow,
   };
 })();
