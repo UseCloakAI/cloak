@@ -419,10 +419,29 @@ function initWhisperVoice() {
     if (!br) { document.getElementById('voice-transcript').textContent = 'Voice unavailable right now.'; return; }
     recognition = br;
     document.getElementById('voice-transcript').textContent = 'Listening...';
+    ensureVizMic();
     try { br.start(); } catch (e) {}
   }
 
+  let lvlBuf = null;
+  function micRms() {
+    if (!analyser) return 0;
+    if (!lvlBuf || lvlBuf.length !== analyser.fftSize) lvlBuf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(lvlBuf);
+    let sum = 0;
+    for (let i = 0; i < lvlBuf.length; i++) sum += lvlBuf[i] * lvlBuf[i];
+    return Math.sqrt(sum / lvlBuf.length);
+  }
+
   const api = {
+    level: micRms,
+    // Hear the room (Cloak's voice from the speakers) only while speaking.
+    // Restored before listening starts again so echo cancel stays on for STT.
+    async setMonitor(on) {
+      const track = stream && stream.getAudioTracks()[0];
+      if (!track || !track.applyConstraints) return;
+      try { await track.applyConstraints({ echoCancellation: !on, noiseSuppression: !on }); } catch (e) {}
+    },
     async start() {
       if (active) return;
       active = true;
@@ -462,6 +481,7 @@ function startVoiceMode() {
   document.getElementById('voice-overlay').classList.add('active');
   document.getElementById('voice-transcript').textContent = 'Listening...';
   startAsciiAnim();
+  ensureVizMic();
   try { recognition.start(); } catch(e){}
 }
 
@@ -469,42 +489,118 @@ function stopVoiceMode() {
   voiceMode = false;
   document.getElementById('voice-overlay').classList.remove('active');
   stopAsciiAnim();
+  stopVizMic();
   if(recognition) { if(recognition.release) recognition.release(); else recognition.stop(); }
   synth.cancel();
 }
 
-// The visualiser blocks animate in CSS per data-state (.voice-viz in
-// cloak.css); this just follows voiceState and rolls the status label.
-function startAsciiAnim() {
-  if(asciiInterval) clearInterval(asciiInterval);
-  const viz = document.getElementById('voice-ascii'), st = document.getElementById('voice-status');
-  const labels = {listening:'Listening', thinking:'Thinking', speaking:'Speaking'};
-  const tick = () => {
-    const state = labels[voiceState] ? voiceState : 'idle';
-    if(viz.dataset.state !== state){ viz.dataset.state = state; mRoll(st, labels[state] || 'Idle'); }
-  };
-  tick();
-  asciiInterval = setInterval(tick, 150);
+// Orb motion. Quiet → the agent-orbit heartbeat squish (spring + a nudge
+// every 1.1s). Signal → that rests, and the disk scales with the mic RMS.
+// speechSynthesis has no sample tap, so while Cloak talks we loosen echo
+// cancel on the already-open mic and read the room. Headphones (no bleed)
+// stay on the heartbeat, which is the no-signal motion.
+let voiceOrbRaf = 0;
+let voiceW = 0, voiceWv = 0, voicePulse = 0, voiceEnv = 0, voiceFloor = 0.012;
+
+// Browser-recognition fallback has no analyser. A viz-only mic (not recorded,
+// not sent) feeds the orb. Echo cancel stays off so speaker playback can
+// move it; this stream never reaches transcription.
+let vizAn = null, vizBuf = null, vizStream = null, vizAc = null;
+async function ensureVizMic() {
+  if (recognition && typeof recognition.level === 'function') return;
+  if (vizAn || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  try {
+    vizStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    vizAc = new Ctx();
+    if (vizAc.state === 'suspended') await vizAc.resume();
+    const src = vizAc.createMediaStreamSource(vizStream);
+    vizAn = vizAc.createAnalyser();
+    vizAn.fftSize = 1024;
+    src.connect(vizAn);
+    vizBuf = new Float32Array(vizAn.fftSize);
+  } catch (e) {}
+}
+function stopVizMic() {
+  if (vizStream) vizStream.getTracks().forEach(tr => tr.stop());
+  if (vizAc) { try { vizAc.close(); } catch (e) {} }
+  vizAn = vizBuf = vizStream = vizAc = null;
+}
+function voiceRawLevel() {
+  if (recognition && typeof recognition.level === 'function') return recognition.level() || 0;
+  if (!vizAn || !vizBuf) return 0;
+  vizAn.getFloatTimeDomainData(vizBuf);
+  let sum = 0;
+  for (let i = 0; i < vizBuf.length; i++) sum += vizBuf[i] * vizBuf[i];
+  return Math.sqrt(sum / vizBuf.length);
 }
 
-function stopAsciiAnim() { clearInterval(asciiInterval); }
+function startAsciiAnim() {
+  if (asciiInterval) clearInterval(asciiInterval);
+  cancelAnimationFrame(voiceOrbRaf);
+  const viz = document.getElementById('voice-orb'), st = document.getElementById('voice-status');
+  const svg = viz && viz.querySelector('svg');
+  const labels = { listening:'Listening', thinking:'Thinking', speaking:'Speaking' };
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  voiceW = 0; voiceWv = 0; voicePulse = 0; voiceEnv = 0; voiceFloor = 0.012;
+  const tickLabel = () => {
+    const state = labels[voiceState] ? voiceState : 'idle';
+    if (viz && viz.dataset.state !== state) { viz.dataset.state = state; mRoll(st, labels[state] || 'Idle'); }
+  };
+  tickLabel();
+  asciiInterval = setInterval(tickLabel, 150);
+  if (reduce || !svg) return;
+  let last = performance.now();
+  const frame = (now) => {
+    if (!voiceMode) return;
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const rms = voiceRawLevel();
+    const toward = rms < voiceFloor ? 4 : 0.15;
+    voiceFloor += (rms - voiceFloor) * (1 - Math.exp(-dt * toward));
+    const thr = Math.max(0.008, voiceFloor * 1.85);
+    const raw = rms <= thr ? 0 : Math.min(1, (rms - thr) / 0.11);
+    voiceEnv += (raw - voiceEnv) * (1 - Math.exp(-dt * (raw > voiceEnv ? 16 : 7)));
+    const quiet = voiceEnv < 0.04;
+    if (quiet && (voicePulse += dt) > 1.1) { voicePulse = 0; voiceWv -= 2.2; }
+    if (!quiet) voicePulse = 0.35;
+    voiceWv += (-180 * voiceW - 11 * voiceWv) * dt;
+    voiceW += voiceWv * dt;
+    const amp = 1 + voiceEnv * 0.12;
+    const sx = amp * (1 + (quiet ? voiceW * 0.9 : 0));
+    const sy = amp * (1 - (quiet ? voiceW * 0.9 : 0));
+    svg.style.transform = 'scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
+    voiceOrbRaf = requestAnimationFrame(frame);
+  };
+  voiceOrbRaf = requestAnimationFrame(frame);
+}
+
+function stopAsciiAnim() {
+  clearInterval(asciiInterval); asciiInterval = null;
+  cancelAnimationFrame(voiceOrbRaf); voiceOrbRaf = 0;
+  const svg = document.querySelector('#voice-orb svg');
+  if (svg) svg.style.transform = '';
+}
 function stripMD(text) { return text.replace(/[#*`_~]/g, '').replace(/\[.*?\]\(.*?\)/g, '').trim(); }
 
 function playVoice(text) {
   if(recognition) recognition.stop();
+  if(recognition && recognition.setMonitor) recognition.setMonitor(true);
   voiceState = 'speaking';
   const u = new SpeechSynthesisUtterance(stripMD(text));
-  u.onend = () => {
+  let resumed = false;
+  const resume = async () => {
+    if(resumed) return;
+    resumed = true;
+    if(!voiceMode) return;
+    if(recognition && recognition.setMonitor) await recognition.setMonitor(false);
     if(!voiceMode) return;
     voiceState = 'idle';
-    document.getElementById('voice-transcript').textContent = 'Listening...';
+    const tr = document.getElementById('voice-transcript');
+    if (tr) tr.textContent = 'Listening...';
     try { recognition.start(); } catch(e){}
   };
-  u.onerror = () => {
-    if(!voiceMode) return;
-    voiceState = 'idle';
-    try { recognition.start(); } catch(e){}
-  };
+  u.onend = () => { resume(); };
+  u.onerror = () => { resume(); };
   synth.speak(u);
 }
 
