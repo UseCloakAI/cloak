@@ -22,6 +22,7 @@ const LIMITS = {
   "groq:openai/gpt-oss-20b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
   "groq:qwen/qwen3.8-27b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
   "groq:qwen/qwen3.6-27b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
+  "groq:whisper-large-v3-turbo": { rpm: 20, rpd: 2000, tpm: 0, ctx: 0 },
   "groq:*": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 32768 },
   "nvidia:z-ai/glm-5.3-flash": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:poolside/laguna-xs-2.1": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },

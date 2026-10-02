@@ -1,6 +1,6 @@
 // CloakAPI — Cloudflare Worker serving https://api.usecloak.org
 // Routes: native /v1/chat, OpenAI /v1/chat/completions, Anthropic /v1/messages,
-// /v1/search, /v1/extract, /v1/memory/extract, /v1/context/compress, /v1/usage,
+// /v1/search, /v1/extract, /v1/transcribe, /v1/memory/extract, /v1/context/compress, /v1/usage,
 // /admin/provider-keys. All chat routes support live token streaming.
 // Every upstream call goes through the free-tier governor (./governor.js).
 
@@ -1445,6 +1445,49 @@ async function handleUtility(env, request, ctx, handler) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Speech-to-text: POST /v1/transcribe (raw audio body → { text }) via Groq Whisper
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WHISPER_MODEL = "whisper-large-v3-turbo";
+const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
+const AUDIO_EXT = { webm: "webm", ogg: "ogg", mp4: "mp4", mpeg: "mp3", mp3: "mp3", wav: "wav", "x-m4a": "m4a", m4a: "m4a" };
+
+async function handleTranscribe(env, request, ctx) {
+  const type = (request.headers.get("Content-Type") || "audio/webm").split(";")[0].trim().toLowerCase();
+  const ext = AUDIO_EXT[type.replace(/^(audio|video)\//, "")] || "webm";
+  const audio = await request.arrayBuffer();
+  if (!audio.byteLength) return json({ error: "audio required" }, 400);
+  if (audio.byteLength > MAX_AUDIO_BYTES) return json({ error: "audio too large" }, 413);
+
+  const lang = new URL(request.url).searchParams.get("lang");
+  const keys = await getKeys(env, "groq");
+  const { healthy, cold } = gov.orderCandidates([{ provider: "groq", model: WHISPER_MODEL, keys }]);
+  let lastErr = "no groq keys available";
+  for (const c of [...healthy, ...cold].slice(0, 3)) {
+    const form = new FormData();
+    form.append("file", new Blob([audio], { type }), `speech.${ext}`);
+    form.append("model", WHISPER_MODEL);
+    form.append("response_format", "json");
+    form.append("temperature", "0");
+    if (lang && /^[a-z]{2,3}$/i.test(lang)) form.append("language", lang.toLowerCase());
+    gov.noteCall(c.slot);
+    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${c.key}` },
+      body: form,
+    });
+    gov.observe({ provider: "groq", model: WHISPER_MODEL, key: c.key, res, ctx });
+    if (res.ok) {
+      const data = await res.json();
+      return json({ text: (data.text || "").trim() });
+    }
+    lastErr = `groq ${res.status}`;
+    if (res.status !== 429 && res.status < 500) break;
+  }
+  return json({ error: lastErr }, 503);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Admin: provider key management (X-Admin-Token)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1519,6 +1562,7 @@ export default {
             anthropic: "POST /v1/messages",
             search: "POST /v1/search",
             extract: "POST /v1/extract",
+            transcribe: "POST /v1/transcribe",
             memory: "POST /v1/memory/extract",
             compress: "POST /v1/context/compress",
             usage: "GET /v1/usage",
@@ -1544,6 +1588,7 @@ export default {
         if (path === "/v1/messages") return handleAnthropicMessages(env, request);
         if (path === "/v1/search") return handleSearch(env, request);
         if (path === "/v1/extract") return handleExtract(env, request);
+        if (path === "/v1/transcribe") return handleTranscribe(env, request, ctx);
         if (path === "/v1/memory/extract") return handleUtility(env, request, ctx, handleMemoryExtract);
         if (path === "/v1/context/compress") return handleUtility(env, request, ctx, handleContextCompress);
       }
