@@ -296,16 +296,16 @@ function showE(el,msg){el.textContent=msg;el.classList.add('show');}
 function clearE(id){const el=document.getElementById(id);if(el){el.textContent='';el.classList.remove('show');}}
 
 /* ── VOICE MODE ── */
-function initVoice() {
+function initBrowserVoice() {
   const SpRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpRec) return false;
-  recognition = new SpRec();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.onstart = () => {
+  if (!SpRec) return null;
+  const r = new SpRec();
+  r.continuous = true;
+  r.interimResults = true;
+  r.onstart = () => {
     if(voiceMode && voiceState !== 'thinking' && voiceState !== 'speaking') voiceState = 'listening';
   };
-  recognition.onresult = (e) => {
+  r.onresult = (e) => {
     let interim = ''; let final = '';
     for(let i=e.resultIndex; i<e.results.length; ++i) {
       if(e.results[i].isFinal) final += e.results[i][0].transcript;
@@ -314,10 +314,143 @@ function initVoice() {
     document.getElementById('voice-transcript').textContent = final || interim;
     if(final) { document.getElementById('chat-input').value = final; send(); }
   };
-  recognition.onend = () => {
-    if(voiceMode && voiceState === 'idle') { try { recognition.start(); } catch(e){} }
+  r.onend = () => {
+    if(voiceMode && voiceState === 'idle') { try { r.start(); } catch(e){} }
   };
-  return true;
+  return r;
+}
+
+
+/* Whisper STT (Groq via cloak-api /v1/transcribe). Same start()/stop() surface as
+   SpeechRecognition so the rest of voice mode doesn't care which one is active.
+   Records until the user pauses (energy VAD), uploads once, then send()s. */
+function initWhisperVoice() {
+  if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return null;
+  const MIN_SPEECH_MS = 350, END_SILENCE_MS = 1000, MAX_UTTERANCE_MS = 30000, IDLE_RESET_MS = 12000;
+  let stream = null, ac = null, analyser = null, rec = null, chunks = [], raf = 0;
+  let active = false, token = 0, fails = 0;
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+  async function ensureStream() {
+    if (stream && stream.getTracks().some(t => t.readyState === 'live')) return;
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ac.createMediaStreamSource(stream);
+    analyser = ac.createAnalyser();
+    analyser.fftSize = 1024;
+    src.connect(analyser);
+  }
+
+  function level() {
+    const buf = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    return Math.sqrt(sum / buf.length);
+  }
+
+  function beginTake(myToken) {
+    chunks = [];
+    rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const started = performance.now();
+    let noise = 0.01, calib = 0, voicedMs = 0, speaking = false, lastVoice = 0, last = started;
+    const done = { blob: null };
+    rec.onstop = () => {
+      const blob = new Blob(chunks, { type: rec.mimeType || mime || 'audio/webm' });
+      chunks = [];
+      done.blob = blob;
+      if (myToken !== token) return;
+      if (done.send) upload(blob, myToken);
+      else if (active) beginTake(myToken); // idle reset: drop the silent take, keep listening
+    };
+    rec.start(250);
+    const tick = (now) => {
+      if (myToken !== token || !active) return;
+      const dt = now - last; last = now;
+      const lv = level();
+      if (now - started < 400) { noise = Math.max(noise, lv); }
+      else {
+        const thr = Math.max(0.02, noise * 2.5);
+        if (lv > thr) { voicedMs += dt; lastVoice = now; if (voicedMs >= 120) speaking = true; }
+        const spoke = voicedMs >= MIN_SPEECH_MS;
+        if (spoke && now - lastVoice > END_SILENCE_MS || now - started > MAX_UTTERANCE_MS) {
+          done.send = spoke; rec.stop(); return;
+        }
+        if (!speaking && now - started > IDLE_RESET_MS) { done.send = false; rec.stop(); return; }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }
+
+  async function upload(blob, myToken) {
+    if (!active || myToken !== token) return;
+    document.getElementById('voice-transcript').textContent = 'Transcribing...';
+    try {
+      const lang = (navigator.language || 'en').slice(0, 2);
+      const res = await fetch(CLOAK_API + '/v1/transcribe?lang=' + encodeURIComponent(lang), {
+        method: 'POST', headers: { 'Content-Type': blob.type || 'audio/webm' }, body: blob
+      });
+      if (!res.ok) throw new Error('transcribe ' + res.status);
+      const text = ((await res.json()).text || '').trim();
+      if (myToken !== token || !active) return;
+      fails = 0;
+      // Whisper invents sign-offs on near-silence; ignore those.
+      if (!text || /^(thanks? for watching|thank you)[.!]?$/i.test(text)) {
+        document.getElementById('voice-transcript').textContent = 'Listening...';
+        return beginTake(myToken);
+      }
+      document.getElementById('voice-transcript').textContent = text;
+      document.getElementById('chat-input').value = text;
+      send();
+    } catch (e) {
+      if (myToken !== token || !active) return;
+      if (++fails >= 2) return fallBack();
+      document.getElementById('voice-transcript').textContent = 'Listening...';
+      beginTake(myToken);
+    }
+  }
+
+  // Whisper unreachable: hand over to the browser recognizer for this session.
+  function fallBack() {
+    api.stop();
+    const br = initBrowserVoice();
+    if (!br) { document.getElementById('voice-transcript').textContent = 'Voice unavailable right now.'; return; }
+    recognition = br;
+    document.getElementById('voice-transcript').textContent = 'Listening...';
+    try { br.start(); } catch (e) {}
+  }
+
+  const api = {
+    async start() {
+      if (active) return;
+      active = true;
+      const myToken = ++token;
+      try { await ensureStream(); if (ac.state === 'suspended') await ac.resume(); }
+      catch (e) { if (myToken === token) { active = false; fallBack(); } return; }
+      if (myToken !== token) return;
+      if (voiceMode && voiceState !== 'thinking' && voiceState !== 'speaking') voiceState = 'listening';
+      beginTake(myToken);
+    },
+    stop() {
+      active = false; token++;
+      cancelAnimationFrame(raf);
+      if (rec && rec.state !== 'inactive') { try { rec.stop(); } catch (e) {} }
+    },
+    release() {
+      api.stop();
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (ac) { try { ac.close(); } catch (e) {} }
+      stream = ac = analyser = null;
+    }
+  };
+  return api;
+}
+
+function initVoice() {
+  recognition = initWhisperVoice() || initBrowserVoice();
+  return !!recognition;
 }
 
 function startVoiceMode() {
@@ -336,7 +469,7 @@ function stopVoiceMode() {
   voiceMode = false;
   document.getElementById('voice-overlay').classList.remove('active');
   stopAsciiAnim();
-  if(recognition) recognition.stop();
+  if(recognition) { if(recognition.release) recognition.release(); else recognition.stop(); }
   synth.cancel();
 }
 

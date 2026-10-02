@@ -10,6 +10,7 @@ Cloudflare Worker behind `https://api.usecloak.org`. Deployed by Cloudflare Work
 | `POST /v1/chat/completions` | OpenAI-compatible (needs API key) | OpenAI chunk format + `[DONE]` |
 | `POST /v1/messages` | Anthropic-compatible (needs API key) | Anthropic event format |
 | `POST /v1/search` | `{query, start?}` → `{items:[{title, link, snippet}]}` | — |
+| `POST /v1/transcribe` | raw audio body (`audio/webm`, `audio/mp4`, …, 8 MB cap), optional `?lang=en` → `{text}` (Groq `whisper-large-v3-turbo`, uses the pooled Groq keys) | — |
 | `POST /v1/memory/extract` | `{turns:[{user, assistant}], existing:[{path,title,type,tags,body}], today?}` → `{ops:[…]}` | — |
 | `POST /v1/context/compress` | `{mode:"chunk", messages, words?}` or `{mode:"merge", summaries, words?}` → `{summary}` | — |
 | `GET /v1/usage` | this isolate's key cooldowns + learned limits (hashed ids) | — |
