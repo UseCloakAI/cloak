@@ -282,7 +282,3 @@
 .msg-src{margin-top:4px;font:600 10px var(--fu);letter-spacing:.06em;text-transform:uppercase;color:var(--ink);opacity:.45;}
 .msg.user .msg-src{text-align:right;}
 
-/* Settings → Telegram */
-.tg-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:8px;}
-.tg-status{font-size:12px;font-weight:600;color:var(--ink);opacity:.7;margin-right:auto;}
-.tg-actions [hidden]{display:none;}

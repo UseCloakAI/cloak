@@ -16,7 +16,7 @@ let guest=false,guestN=0;
 let verifyEmail='';
 let chatId=null,hist=[],logs=[],logF='all',stats={req:0,res:0,err:0,lat:[]},atab='general';
 let annId=null;
-let hwMode=false, thinkModeActive=false, attachedImgs=[];
+let hwMode=false, attachedImgs=[];
 let onboardingDone=false;
 let _fetchController=null;
 let _thinkTimer=null, _thinkPhaseIdx=0;
@@ -24,7 +24,7 @@ let _thinkTimer=null, _thinkPhaseIdx=0;
 
 /** Should thoughts run for this model/mode? */
 function _shouldThink(model) {
-  return model === 'logos' || model === 'kairos' || model === 'linus' || thinkModeActive;
+  return model === 'logos' || model === 'kairos' || model === 'linus';
 }
 /* Voice Mode Variables */
 let voiceMode = false;
@@ -674,7 +674,7 @@ function _csShape(kind, N){
    thinking → squish · searching → scan · streaming → hop · done → settle ·
    error → shake · listening → perk. null = rest. */
 const ORB_STATES=['thinking','searching','streaming','done','error','listening'];
-const BOT_STATE_LABELS={thinking:'Cloak is thinking…',searching:'Cloak is searching…'};
+const BOT_STATE_LABELS={thinking:'Thinking',searching:'Searching for sources'};
 
 function setOrbState(orb, state){
   if(!orb) return;
@@ -751,9 +751,20 @@ function setBotState(botMsgEl, state){
   setOrbState(botMsgEl.querySelector('.cloak-orb'), state);
   const label=botMsgEl.querySelector('.bot-label');
   if(!label) return;
-  const t=BOT_STATE_LABELS[state]?(botMsgEl._preview||BOT_STATE_LABELS[state]):null;
-  label.textContent=t||'Cloak';
+  const t=BOT_STATE_LABELS[state]||null;
+  const was=label.classList.contains('cs-thinking-label');
   label.classList.toggle('cs-thinking-label',!!t);
+  if(t){
+    // Static label + chevron: opens the thinking box. Never changes with the thoughts.
+    if(label.dataset.text!==t||!was){
+      label.dataset.text=t;
+      label.innerHTML='<span class="bl-text">'+t+'</span>'+'<svg class="bl-chev" width="12" height="8" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    }
+    label.setAttribute('role','button');label.setAttribute('tabindex','0');
+    const log=botMsgEl._log;label.setAttribute('aria-expanded',log&&log.classList.contains('open')?'true':'false');
+  }else{
+    label.textContent='Cloak';label.removeAttribute('role');label.removeAttribute('tabindex');label.removeAttribute('aria-expanded');delete label.dataset.text;
+  }
 }
 
 /* ── STREAMING TAIL ORB ──
@@ -831,20 +842,29 @@ function restOrbBelow(botMsgEl, state){
 }
 
 // Fly the resting orb from the previous reply into the new bubble's header.
-function travelOrb(fromRect, botMsgEl){
+// Both ends are re-measured every frame, so the flight tracks the chat as it
+// (smooth-)scrolls instead of landing where the target *used* to be.
+function travelOrb(from, botMsgEl){
   const meta=botMsgEl&&botMsgEl.querySelector('.bot-meta .cloak-orb');
-  if(!meta||!fromRect) return;
-  const to=meta.getBoundingClientRect();
+  if(!meta||!from) return;
+  const ca=document.getElementById('chat-area');
+  const st0=ca?ca.scrollTop:0;              // start point is pinned to the content, not the viewport
   const fly=document.createElement('span');
   fly.className='orb-fly'; fly.setAttribute('aria-hidden','true');
   fly.innerHTML=CLOAK_ORB_HTML;
-  fly.style.transform='translate('+fromRect.left+'px,'+fromRect.top+'px)';
   document.body.appendChild(fly);
   meta.style.opacity='0';
-  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-    fly.style.transform='translate('+to.left+'px,'+to.top+'px)';
-  }));
-  setTimeout(()=>{ fly.remove(); meta.style.opacity=''; }, 520);
+  const DUR=520, t0=performance.now();
+  const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+  (function step(now){
+    const p=Math.min(1,(now-t0)/DUR), k=ease(p);
+    const dy=ca?ca.scrollTop-st0:0;
+    const sx=from.left, sy=from.top-dy;
+    const to=meta.getBoundingClientRect();
+    fly.style.transform='translate('+(sx+(to.left-sx)*k)+'px,'+(sy+(to.top-sy)*k)+'px)';
+    if(p<1&&fly.isConnected) requestAnimationFrame(step);
+    else { fly.remove(); meta.style.opacity=''; }
+  })(t0);
 }
 function _takeRestingOrb(){
   const end=document.querySelector('#messages .bot-end-orb');
@@ -858,6 +878,24 @@ function _takeRestingOrb(){
    Thinking + research steps as single lines that pop in (styled like
    "Cloak is thinking…"). When the answer starts, the log collapses to a
    one-line summary you can click to reopen. */
+function toggleStatusLog(botMsgEl){
+  const log=botMsgEl&&botMsgEl._log;if(!log)return;
+  const o=log.classList.toggle('open');
+  log.querySelector('.status-head').setAttribute('aria-expanded',o);
+  const lbl=botMsgEl.querySelector('.bot-label.cs-thinking-label');
+  if(lbl)lbl.setAttribute('aria-expanded',o);
+  if(o){const l=log.querySelector('.status-lines');l.scrollTop=l.scrollHeight;}
+}
+// The orb-side label ("Thinking ▾") is a toggle too.
+document.addEventListener('click',e=>{
+  const lbl=e.target.closest&&e.target.closest('.bot-label.cs-thinking-label');if(!lbl)return;
+  toggleStatusLog(lbl.closest('.msg'));
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const lbl=e.target.closest&&e.target.closest('.bot-label.cs-thinking-label');if(!lbl)return;
+  e.preventDefault();toggleStatusLog(lbl.closest('.msg'));
+});
 function statusLog(botMsgEl){
   if(!botMsgEl) return null;
   if(botMsgEl._log) return botMsgEl._log;
@@ -865,12 +903,9 @@ function statusLog(botMsgEl){
   if(!body||!bc) return null;
   const log=document.createElement('div');
   log.className='status-log';
-  log.innerHTML='<button class="status-head" type="button" aria-expanded="false"><span class="status-head-label"></span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
+  log.innerHTML='<button class="status-head" type="button" aria-expanded="false"><span class="status-head-label">Thinking</span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div>';
   const head=log.querySelector('.status-head');
-  head.addEventListener('click',()=>{
-    const o=log.classList.toggle('open');head.setAttribute('aria-expanded',o);
-    log.querySelector('.status-head-label').textContent=o?'Hide thinking':'Show thinking';
-  });
+  head.addEventListener('click',()=>toggleStatusLog(botMsgEl));
   log._t0=Date.now();
   body.insertBefore(log,bc);
   botMsgEl._log=log;
@@ -883,28 +918,19 @@ function addStatus(botMsgEl,text,noPreview){
   const el=document.createElement('div');
   el.className='status-line live';el.textContent=text;
   lines.appendChild(el);
-  if(!noPreview)setStatusPreview(botMsgEl,text,true);
-  scrollBottom();
+  if(log.classList.contains('open'))lines.scrollTop=lines.scrollHeight;
   return el;
 }
 // Collapsed view = one line: a live preview of the latest status/thought,
 // updated the instant it arrives (no artificial pacing — real reasoning
 // tokens are already paced by the model, not by us).
-function setStatusPreview(botMsgEl,text,isNew){
-  const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
-  botMsgEl._preview=text;
-  const lbl=botMsgEl.querySelector('.bot-label');
-  if(!lbl||!lbl.classList.contains('cs-thinking-label'))return;
-  lbl.textContent=text;
-  if(isNew){lbl.classList.remove('pop');void lbl.offsetWidth;lbl.classList.add('pop');}
-}
+function setStatusPreview(){ /* label stays a static "Thinking" — thoughts live in the dropdown */ }
 function finishStatus(botMsgEl){
   const log=botMsgEl&&botMsgEl._log;if(!log||log._done)return;
   log._done=true;
   botMsgEl._preview=null;
   log.querySelectorAll('.status-line.live').forEach(l=>l.classList.remove('live'));
   if(!log.querySelector('.status-line')){log.remove();botMsgEl._log=null;return;}
-  log.querySelector('.status-head-label').textContent='Show thinking';
   log.classList.add('done');
 }
 
@@ -927,17 +953,10 @@ function toggleHwMode(){
   hwMode=!hwMode;
   const hm=document.getElementById('menu-homework');if(hm)hm.classList.toggle('active-mode',hwMode);
   const hl=document.getElementById('hw-label');if(hl)hl.classList.toggle('show',hwMode);
-  const pb=document.getElementById('plus-btn');if(pb)pb.classList.toggle('has-mode',hwMode||thinkModeActive||attachedImgs.length>0);
+  const pb=document.getElementById('plus-btn');if(pb)pb.classList.toggle('has-mode',hwMode||attachedImgs.length>0);
   const pm=document.getElementById('plus-menu');if(pm)pm.classList.remove('open');
 }
 
-function toggleThinkMode() {
-  thinkModeActive=!thinkModeActive;
-  const mt=document.getElementById('menu-think');if(mt)mt.classList.toggle('active-mode',thinkModeActive);
-  const tl=document.getElementById('think-label');if(tl)tl.classList.toggle('show',thinkModeActive);
-  const pb=document.getElementById('plus-btn');if(pb)pb.classList.toggle('has-mode',hwMode||thinkModeActive||attachedImgs.length>0);
-  const pm=document.getElementById('plus-menu');if(pm)pm.classList.remove('open');
-}
 
 function onImgPick(inp){Array.from(inp.files).forEach(f=>{const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:f.name,data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});inp.value='';}
 function onPaste(e){const items=Array.from(e.clipboardData?.items||[]);const imageItems=items.filter(i=>i.type.startsWith('image/'));if(!imageItems.length)return;e.preventDefault();imageItems.forEach(item=>{const f=item.getAsFile();if(!f)return;const r=new FileReader();r.onload=ev=>{attachedImgs.push({name:'pasted.png',data:ev.target.result});renderImgStrip();};r.readAsDataURL(f);});}
@@ -952,7 +971,7 @@ function renderImgStrip(){
     });
   } else strip.classList.remove('show');
   const pb=document.getElementById('plus-btn');
-  if(pb)pb.classList.toggle('has-mode',hwMode||thinkModeActive||attachedImgs.length>0);
+  if(pb)pb.classList.toggle('has-mode',hwMode||attachedImgs.length>0);
 }
 function removeImg(i){attachedImgs.splice(i,1);renderImgStrip();}
 
@@ -1193,7 +1212,7 @@ function closeSettings(){ goPage('chat'); }
 function prepSettings(){
   document.getElementById('s-name-inp').value=name;
   document.getElementById('mode-label').textContent=dark?'dark':'light';
-  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();if(window.CloakThread)CloakThread.refreshTelegram();
+  initThemeUI();if(admin)loadAdminAnns();updateStats();renderLogs();
 }
 function closeModal(id){const el=document.getElementById(id);if(!el)return;el.classList.add('hiding');setTimeout(()=>{el.style.display='none';el.classList.remove('hiding');},120);}
 function overlayClick(e,id){if(e.target===document.getElementById(id))closeModal(id);}
@@ -1257,7 +1276,7 @@ async function send(){
   hist.push({role:'USER',message:userMsg});
 
   stats.req++;
-  log('req',`"${(txt||'[image]').slice(0,60)}" model=${model} guest=${guest} hwMode=${hwMode} thinkMode=${thinkModeActive} imgs=${imgs.length} thoughts=${useThoughts}`);
+  log('req',`"${(txt||'[image]').slice(0,60)}" model=${model} guest=${guest} hwMode=${hwMode} imgs=${imgs.length} thoughts=${useThoughts}`);
 
   // Create bot bubble + Cloak status hero animation
   showMessages();
@@ -1367,10 +1386,70 @@ async function send(){
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(sync);
   sync();
 })();
+/* ── SIDEBAR MOTION ──
+   The C of the wordmark is centered on the icon spine by its real width.
+   The page ink glides between Chat and Brain, leading edge first (.down/.up
+   pick which edge lags), and lets go when a page outside the nav opens. On the
+   collapsed rail, hovering or focusing an item flies its name out beside it;
+   moving down the rail, the label glides along. Native titles move to
+   data-tip (and aria-label) so they don't double up with it. */
+(function(){
+  const sb=document.getElementById('sidebar');if(!sb)return;
+  const c=sb.querySelector('.sb-c');
+  const fitC=()=>{if(c&&c.offsetWidth)sb.querySelector('.sb-word').style.setProperty('--c-w',c.offsetWidth+'px');};
+  fitC();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitC);
+  sb.querySelectorAll('.sb-btn[title],.user-row[title]').forEach(b=>{
+    const l=b.querySelector('.sbl'),t=b.getAttribute('title');
+    b.dataset.tip=l?l.textContent.trim():t;
+    if(!b.getAttribute('aria-label'))b.setAttribute('aria-label',b.dataset.tip);
+    b.removeAttribute('title');
+  });
+  const nav=sb.querySelector('.sb-nav');
+  if(nav){
+    const ink=document.createElement('i');ink.className='sb-ink';ink.setAttribute('aria-hidden','true');nav.prepend(ink);
+    let at=null;
+    const place=()=>{
+      if(!nav.offsetHeight)return; // screen not shown yet: placed once it lays out
+      const on=nav.querySelector('.sb-btn.on');
+      if(!on){ink.classList.remove('show');at=null;return;}
+      const t=on.offsetTop,b=nav.clientHeight-t-on.offsetHeight;
+      if(at===null){ink.classList.add('jump');ink.classList.remove('up','down');}
+      else ink.classList.toggle('down',t>at),ink.classList.toggle('up',t<at);
+      ink.style.setProperty('--ink-t',t+'px');ink.style.setProperty('--ink-b',b+'px');
+      if(at===null){void ink.offsetWidth;ink.classList.remove('jump');}
+      ink.classList.add('show');at=t;
+    };
+    const mo=new MutationObserver(place);
+    nav.querySelectorAll('.sb-btn').forEach(b=>mo.observe(b,{attributes:true,attributeFilter:['class']}));
+    if('ResizeObserver' in window)new ResizeObserver(()=>{fitC();place();}).observe(nav);
+    place();
+  }
+  const tip=document.createElement('div');tip.className='sb-tip';tip.setAttribute('aria-hidden','true');document.body.appendChild(tip);
+  let shown=false,hideT=0;
+  const rail=()=>sb.classList.contains('collapsed')&&window.innerWidth>640;
+  const item=e=>{const el=e.target.closest&&e.target.closest('[data-tip]');return el&&sb.contains(el)?el:null;};
+  const show=el=>{
+    if(!rail())return;
+    clearTimeout(hideT);
+    const r=el.getBoundingClientRect();
+    tip.textContent=el.classList.contains('user-row')?((document.getElementById('sb-name')||{}).textContent||'').trim()||el.dataset.tip:el.dataset.tip;
+    tip.style.left=(sb.getBoundingClientRect().right+10)+'px';
+    tip.style.setProperty('--tip-y',(r.top+r.height/2)+'px');
+    if(!shown){tip.classList.add('jump');void tip.offsetWidth;tip.classList.remove('jump');}
+    tip.classList.add('show');shown=true;
+  };
+  const hide=(now)=>{clearTimeout(hideT);const go=()=>{tip.classList.remove('show');shown=false;};if(now===true)go();else hideT=setTimeout(go,80);};
+  sb.addEventListener('pointerover',e=>{const el=item(e);if(el)show(el);});
+  sb.addEventListener('pointerout',e=>{const el=item(e);if(el&&!el.contains(e.relatedTarget))hide();});
+  sb.addEventListener('focusin',e=>{const el=item(e);if(el&&el.matches(':focus-visible'))show(el);});
+  sb.addEventListener('focusout',hide);
+  sb.addEventListener('click',()=>hide(true));
+  new MutationObserver(()=>hide(true)).observe(sb,{attributes:true,attributeFilter:['class']});
+})();
 whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20260929builds2').catch(e=>console.warn('SW registration failed',e));  });
+    navigator.serviceWorker.register('/sw.js?v=20261001rail').catch(e=>console.warn('SW registration failed',e));  });
 }

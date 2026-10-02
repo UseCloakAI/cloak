@@ -219,9 +219,46 @@
 .dark .ds-hatch::before{background-image:repeating-linear-gradient(45deg,transparent 0,transparent 24px,rgba(237,232,223,.07) 24px,rgba(237,232,223,.07) 26px);}
 @keyframes dsHatch{to{transform:translateX(36.77px);}}
 .ds-gridbg{height:150px;border:var(--bd);background-color:var(--p2);background-image:linear-gradient(var(--bdt) 1px,transparent 1px),linear-gradient(90deg,var(--bdt) 1px,transparent 1px);background-size:48px 48px;}
-.ds-orbpulse{height:150px;border:var(--bd);display:flex;align-items:center;justify-content:center;background:var(--paper);}
-.ds-orbpulse svg{animation:dsSquish 1.4s var(--spring) infinite;}
-@keyframes dsSquish{0%,100%{transform:scale(1,1)}30%{transform:scale(1.12,.88)}55%{transform:scale(.94,1.06)}}
+/* orb — every live state, using the real cloak.css classes */
+.ds-orbs{grid-template-columns:repeat(4,1fr);}
+.ds-orbs > div{padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0;}
+.ds-orbstage{height:120px;border:var(--bd);position:relative;display:flex;align-items:center;justify-content:center;background:var(--paper);}
+.ds-orbstage .bot-dot.cloak-orb{width:40px;height:40px;}
+.ds-orbstage .welcome-orb{--orb-size:40px;}
+.ds-orbstage .ds-orb-shape{width:40px;height:40px;display:block;overflow:visible;}
+.ds-orbstage .ds-orb-shape path{fill:var(--acc);stroke:var(--ink);stroke-width:2.5;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
+.ds-orbstage .cs-dot-glyph{width:40px;height:40px;}
+.ds-fly-a,.ds-fly-b{position:absolute;top:50%;width:14px;height:14px;margin-top:-7px;border:1.5px dashed var(--ink);opacity:.25;border-radius:50%;}
+.ds-fly-a{left:22%;}.ds-fly-b{right:22%;}
+.ds-fly{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;}
+.ds-fly .orb-fly{position:absolute;}
+.ds-fly .bot-dot.cloak-orb{width:14px;height:14px;}
+/* agent orbit (featured) */
+.ds-orbit{display:grid;grid-template-columns:1.3fr 1fr;}
+.ds-orbit-stage{min-height:340px;position:relative;overflow:hidden;border-right:var(--bd);background-color:var(--p2);background-image:radial-gradient(color-mix(in srgb,var(--ink) 14%,transparent) 1px,transparent 1.4px);background-size:16px 16px;display:flex;align-items:center;justify-content:center;}
+.ds-orbit-stage svg{width:min(300px,80vw);height:min(300px,80vw);overflow:visible;}
+.ds-orbit-hud{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;}
+.ds-orbit-tag{background:var(--surf);border:var(--bd);box-shadow:var(--shsm);padding:5px 8px;display:inline-flex;align-items:center;gap:6px;}
+.ds-orbit-tag i{width:8px;height:8px;background:var(--acc);border:1.5px solid var(--ink);}
+.ds-orbit-tag.mv{font-family:var(--fd);font-size:13px;letter-spacing:.02em;text-transform:none;}
+.ds-orbit-prog{position:absolute;left:0;bottom:0;height:4px;background:var(--acc);border-top:2px solid var(--ink);width:0;}
+.ds-orbit-ctl{padding:22px;display:flex;flex-direction:column;gap:12px;min-width:0;}
+.ds-orbit-ctl p{font-size:13px;line-height:1.6;opacity:.65;}
+.ds-orbit-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.ds-orbit-chips button{height:28px;padding:0 10px;border:1.5px solid var(--ink);background:var(--surf);color:var(--ink);font-family:var(--fu);font-size:11px;font-weight:700;cursor:pointer;box-shadow:var(--shsm);transition:transform var(--lift),box-shadow var(--lift);}
+.ds-orbit-chips button:hover{transform:translate(-2px,-2px);box-shadow:var(--sh);}
+.ds-orbit-chips button:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--tp);}
+.ds-orbit-chips button[aria-pressed="true"]{background:var(--ink);color:var(--surf);}
+.ds-orbit-range input{width:100%;accent-color:var(--acc);margin:0;}
+.ds-orbit-range div{display:flex;justify-content:space-between;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-top:6px;}
+.ds-orbit-live{font-size:12px!important;font-style:italic;}
+/* live chat reply demo — same markup/classes as chat.html */
+.ds-live{position:relative;min-height:190px;}
+.ds-live .msg{animation:none;padding:4px 0 0;}
+.ds-live .bot-content{font-size:14px;line-height:1.75;}
+.ds-live .ds-caret::after{content:'';display:inline-block;width:6px;height:1em;background:var(--acc);vertical-align:-2px;margin-left:2px;animation:pdot 1s steps(1) infinite;}
+.ds-live-step{position:absolute;right:0;top:-30px;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.45;}
+@media (prefers-reduced-motion:reduce){.ds-orbstage *{animation:none!important;}}
 .ds-ease{padding:0 20px 20px;}
 .ds-ease table,.ds-voice table{width:100%;border-collapse:collapse;font-size:13px;}
 .ds-ease td,.ds-voice td{padding:10px 0;border-bottom:var(--bdt);vertical-align:top;}
@@ -256,6 +293,8 @@
   .ds-sec-head{grid-template-columns:1fr;gap:12px;}
   .ds-sw{grid-template-columns:repeat(3,1fr);}
   .ds-elev,.ds-layout{grid-template-columns:repeat(2,1fr);}
+  .ds-orbs{grid-template-columns:1fr 1fr;}
+  .ds-orbit{grid-template-columns:1fr;}.ds-orbit-stage{border-right:none;border-bottom:var(--bd);}
   .ds-states,.ds-motion,.ds-themes,.ds-fams,.ds-tiers{grid-template-columns:1fr;}
   .ds-comp,.ds-brand,.ds-voice{grid-template-columns:1fr;}
   .ds-icons{grid-template-columns:repeat(4,1fr);}
@@ -454,14 +493,16 @@
         </div>
 
         <div class="ds-box ds-comp-card" data-rv="rise">
-          <span class="ds-label" style="opacity:.5">Chat</span>
-          <div class="ds-msg">
-            <svg class="ds-orb" width="22" height="22" viewBox="0 0 32 32" aria-hidden="true" style="margin-top:3px"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg>
-            <div><div class="ds-msg-who">Cloak <span class="ds-badge ds-badge--acc" style="height:18px">Pneuma</span></div><div class="ds-msg-body">Short answer: yes. Here's the one thing to check first.</div></div>
-          </div>
-          <div class="ds-msg">
-            <svg class="ds-orb" width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg>
-            <div class="ds-dots" aria-label="Cloak is typing"><i></i><i></i><i></i></div>
+          <span class="ds-label" style="opacity:.5">Chat · live reply</span>
+          <div class="ds-live" id="ds-live">
+            <span class="ds-live-step" id="ds-live-step" aria-hidden="true"></span>
+            <div class="msg bot" id="ds-live-msg">
+              <div class="bot-body">
+                <div class="bot-meta"><span class="bot-dot cloak-orb" role="button" tabindex="0" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span><span class="bot-label">Cloak</span></div>
+                <div class="status-log"><button class="status-head" type="button" aria-expanded="false"><span class="status-head-label">Thinking</span><svg width="9" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><div class="status-lines"></div></div>
+                <div class="bot-content"></div>
+              </div>
+            </div>
           </div>
           <div class="ds-composer">
             <button class="plus-btn" aria-label="Modes">+</button>
@@ -490,7 +531,45 @@
         <div><span class="ds-label">Press · every control</span><div class="ds-demo"><button class="ds-btn ds-btn--acc" type="button">Press me</button></div><span class="ds-mono">lift = shadow gained · press = shadow size</span></div>
         <div><span class="ds-label">45° hatch · auth</span><div class="ds-hatch"></div><span class="ds-mono">7% ink · 1.6s / stripe · linear</span></div>
         <div><span class="ds-label">48px grid · heroes</span><div class="ds-gridbg"></div><span class="ds-mono">1px ink @ .12</span></div>
-        <div><span class="ds-label">Orb · thinking</span><div class="ds-orbpulse"><svg class="ds-orb" width="56" height="56" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" stroke-width="2.5"/></svg></div><span class="ds-mono">squish-bounce · spring</span></div>
+      </div>
+
+      <div class="ds-sec-head" style="margin-top:56px">
+        <div><div class="ds-idx" data-rv>07b — The orb, moving</div><h2 data-rv="lines"><span class="ln"><span>It acts it out.</span></span></h2></div>
+        <p data-rv data-rv-d="120">The orb is Cloak's only character. Every state it can be in, live — same classes as the app. Tap any orb to say hi.</p>
+      </div>
+      <div class="ds-box ds-orbit" data-rv="rise">
+        <div class="ds-orbit-stage">
+          <div class="ds-orbit-hud"><span class="ds-orbit-tag"><i></i><span id="duoState">Looping</span></span><span class="ds-orbit-tag mv" id="duoMv">Planning</span></div>
+          <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="ds-goo" filterUnits="userSpaceOnUse" x="-80" y="-80" width="160" height="160"><feGaussianBlur stdDeviation="3.2"/><feColorMatrix values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -10"/></filter></defs></svg>
+          <svg id="duo" viewBox="-70 -70 140 140" aria-hidden="true"></svg>
+          <div class="ds-orbit-prog" id="duoProg"></div>
+        </div>
+        <div class="ds-orbit-ctl">
+          <span class="ds-label">Agent orbit</span>
+          <p>Starting: one orb warms up with a heartbeat. Looping: splits into agents that act out the work, necking together when they meet. Completed: they spiral home, merge, squish and settle.</p>
+          <div class="ds-orbit-range"><input id="duoS" type="range" min="0" max="2" step="1" value="1" aria-label="Agent state" aria-valuetext="Looping"><div><span>Starting</span><span>Looping</span><span>Completed</span></div></div>
+          <p id="duoL" class="ds-orbit-live" aria-live="polite">2 agents working…</p>
+          <span class="ds-label">Motion</span>
+          <div class="ds-orbit-chips" id="duoChips"></div>
+          <p>Auto follows the work — planning → orbit, researching → research, cross-checking → ping-pong, reasoning → spiral, collaborating → team, delegating → moon, building → corners.</p>
+          <span class="ds-mono">agent-orbit.js · CloakAgentOrbit</span>
+        </div>
+      </div>
+      <div class="ds-grid ds-orbs" data-rv="rise" style="margin-top:24px">
+        <div><span class="ds-label">Tap · bounce + hi</span><div class="ds-orbstage"><span class="bot-dot cloak-orb" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div><span class="ds-mono">orbBounce .5s spring · bubble 3.4s</span></div>
+        <div><span class="ds-label">Thinking</span><div class="ds-orbstage"><span class="bot-dot cloak-orb" data-ds-state="thinking" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div><span class="ds-mono">orbSquish 1.05s · squash + stretch</span></div>
+        <div><span class="ds-label">Searching · globe</span><div class="ds-orbstage"><span class="bot-dot cloak-orb" data-ds-state="searching" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div><span class="ds-mono">meridians spin in · orbGlobe()</span></div>
+        <div><span class="ds-label">Streaming · hop</span><div class="ds-orbstage"><span class="bot-dot cloak-orb" data-ds-state="streaming" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div><span class="ds-mono">orbHop .52s · one hop per beat</span></div>
+        <div><span class="ds-label">Done · settle</span><div class="ds-orbstage"><span class="bot-dot cloak-orb" data-ds-state="done" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span><button class="ds-replay" type="button" data-orb-replay="done">Replay</button></div><span class="ds-mono">orbSettle .6s spring · one-shot</span></div>
+        <div><span class="ds-label">Error · shake</span><div class="ds-orbstage"><span class="bot-dot cloak-orb" data-ds-state="error" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span><button class="ds-replay" type="button" data-orb-replay="error">Replay</button></div><span class="ds-mono">orbShake .45s · one-shot</span></div>
+        <div><span class="ds-label">Listening · perk</span><div class="ds-orbstage"><span class="bot-dot cloak-orb" data-ds-state="listening" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div><span class="ds-mono">orbPerk .9s · while you type</span></div>
+        <div><span class="ds-label">Travel · next reply</span><div class="ds-orbstage"><span class="ds-fly-a"></span><span class="ds-fly-b"></span><div class="ds-fly" id="ds-fly"></div><button class="ds-replay" type="button" data-orb-replay="fly">Replay</button></div><span class="ds-mono">orb-fly .5s --ease-io · reply → reply</span></div>
+        <div><span class="ds-label">Mood · morning</span><div class="ds-orbstage"><div data-mood="morning"><span class="welcome-orb cloak-orb" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div></div><span class="ds-mono">double-bounce 2.2s</span></div>
+        <div><span class="ds-label">Mood · afternoon</span><div class="ds-orbstage"><div data-mood="afternoon"><span class="welcome-orb cloak-orb" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div></div><span class="ds-mono">float 3.4s</span></div>
+        <div><span class="ds-label">Mood · evening</span><div class="ds-orbstage"><div data-mood="evening"><span class="welcome-orb cloak-orb" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div></div><span class="ds-mono">sway 4.2s</span></div>
+        <div><span class="ds-label">Mood · night</span><div class="ds-orbstage"><div data-mood="night"><span class="welcome-orb cloak-orb" tabindex="0" role="button" aria-label="Say hi to Cloak"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span></div></div><span class="ds-mono">sleepy breath 5s</span></div>
+        <div><span class="ds-label">Glyph in</span><div class="ds-orbstage"><span class="cs-dot-glyph" id="ds-glyph"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" r="46"></circle></svg></span><button class="ds-replay" type="button" data-orb-replay="glyph">Replay</button></div><span class="ds-mono">csGlyphIn .28s · .4 → 1</span></div>
+        <div><span class="ds-label">Shape morph</span><div class="ds-orbstage"><svg class="ds-orb-shape" viewBox="-52 -52 104 104" aria-hidden="true"><path id="ds-morph"/></svg></div><span class="ds-mono">triangle → circle → square · 1.1s</span></div>
       </div>
       <div class="ds-box ds-ease" data-rv="rise" style="margin-top:24px">
         <table>
@@ -504,6 +583,8 @@
           <tr><td class="ds-mono">--ease-in (.55,0,1,.45)</td><td>Exits: sink back into the page</td></tr>
           <tr><td class="ds-mono">Stagger · 80ms</td><td>Things that arrive together, in reading order</td></tr>
           <tr><td class="ds-mono">msgIn · 6px fade-up</td><td>Chat turns</td></tr>
+          <tr><td class="ds-mono">statusPop .42s · blur-up</td><td>Each new thought line; the thinking box opening</td></tr>
+          <tr><td class="ds-mono">statusShimmer 2.2s linear</td><td>The band sweeping across "Thinking ▾" / "Searching for sources ▾"</td></tr>
         </table>
       </div>
     </section>
@@ -655,6 +736,314 @@
   });
 
   refresh();
+})();
+</script>
+<script>
+/* ════ Orb demos — mirrors the orb code in cloak.js (cloak.js isn't loaded here) ════ */
+(function(){
+  var RED=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var ORB='<span class="bot-dot cloak-orb" aria-hidden="true"><svg viewBox="-52 -52 104 104" aria-hidden="true"><circle class="cs-shape" cx="0" cy="0" r="46"></circle></svg></span>';
+  var STATES=['thinking','searching','streaming','done','error','listening'];
+
+  // tap → bounce + speech bubble (cloak.js · _orbActivate)
+  function bounce(o){o.classList.remove('orb-bounce');void o.offsetWidth;o.classList.add('orb-bounce');}
+  function speak(o){
+    var ex=o.querySelector('.orb-bubble');
+    if(ex){ex.classList.remove('show');clearTimeout(o._bt);setTimeout(function(){ex.remove();},280);return;}
+    var b=document.createElement('div');b.className='orb-bubble';b.textContent="Hey! I'm Cloak, how can I help?";
+    o.appendChild(b);requestAnimationFrame(function(){b.classList.add('show');});
+    o._bt=setTimeout(function(){b.classList.remove('show');setTimeout(function(){b.remove();},300);},3400);
+  }
+  function activate(o){
+    if(o.dataset.state){ // a state demo: let the bounce play, then resume the state
+      var st=o.dataset.state;setState(o,null);bounce(o);speak(o);
+      setTimeout(function(){o.classList.remove('orb-bounce');setState(o,st);},520);return;
+    }
+    bounce(o);speak(o);
+  }
+  document.addEventListener('click',function(e){var o=e.target.closest&&e.target.closest('.cloak-orb[role="button"]');if(o)activate(o);});
+  document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var o=e.target.closest&&e.target.closest('.cloak-orb[role="button"]');if(o){e.preventDefault();activate(o);}});
+
+  // state machine (cloak.js · setOrbState)
+  function setState(orb,state){
+    if(!orb)return;
+    clearTimeout(orb._st);
+    globe(orb,state==='searching');
+    STATES.forEach(function(k){orb.classList.remove('orb-'+k);});
+    if(!state){delete orb.dataset.state;return;}
+    void orb.offsetWidth;orb.classList.add('orb-'+state);orb.dataset.state=state;
+  }
+  window.dsSetOrbState=setState;
+
+  function globe(orb, on){
+  let g=orb._globe;
+  if(!g){
+    if(!on) return;
+    const svg=orb.querySelector('svg'); if(!svg) return;
+    const NS='http://www.w3.org/2000/svg', R=46, N=4, TAU=Math.PI*2;
+    const mk=(t,p,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;};
+    const id='og'+Math.random().toString(36).slice(2,8);
+    mk('circle',mk('clipPath',mk('defs',svg,{}),{id}),{r:R-1});
+    const grp=mk('g',svg,{class:'orb-globe','clip-path':'url(#'+id+')'});
+    mk('circle',svg,{r:R,class:'orb-globe-ring'});    // ink outline redrawn over the lines
+    g=orb._globe={on:false,th:0,spin:0,raf:0,last:0,fill:'empty',lead:-1,drain:false,
+      eq:mk('line',grp,{y1:0,y2:0}),mer:Array.from({length:N},()=>mk('path',grp,{}))};
+    const ang=i=>g.th+i*TAU/N, front=i=>Math.cos(ang(i))>0;
+    g.alive=g.mer.map(()=>false); g.was=g.mer.map((_,i)=>front(i));
+    const vis=()=>g.mer.map((_,i)=>i).filter(i=>g.alive[i]&&front(i));
+    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    g.render=()=>{
+      const v=vis(), sn=i=>Math.sin(ang(i));
+      g.mer.forEach((p,i)=>{ if(!v.includes(i)){p.setAttribute('d','');return;} const s=sn(i);
+        p.setAttribute('d','M0 '+(-R)+'A'+Math.abs(R*s)+' '+R+' 0 0 '+(s>0?1:0)+' 0 '+R); });
+      const hi=g.fill==='full'?1:g.fill==='lead'?sn(g.lead):-1, lo=g.drain?(v.length?Math.min(...v.map(sn)):1):-1;
+      g.eq.setAttribute('x1',hi-lo<.01?0:lo*R); g.eq.setAttribute('x2',hi-lo<.01?0:hi*R);
+      g.eq.style.opacity=hi-lo<.01?0:1;
+    };
+    g.frame=now=>{
+      const dt=Math.min(.05,(now-g.last)/1000); g.last=now;
+      const busy=g.on||vis().length>0;
+      g.spin+=((busy?(g.on?3.2:4):0)-g.spin)*(1-Math.exp(-dt*4)); g.th+=g.spin*dt;
+      g.mer.forEach((_,i)=>{ const f=front(i);
+        if(f&&!g.was[i]){ g.alive[i]=g.on; if(g.alive[i]&&g.fill==='await'){g.fill='lead';g.lead=i;} }  // spun in over the left edge
+        if(!f&&g.was[i]){ g.alive[i]=false; if(g.fill==='lead'&&i===g.lead) g.fill='full'; }          // left over the right edge
+        g.was[i]=f; });
+      if(g.drain&&!vis().length){ g.drain=false; g.fill='empty'; }
+      g.render();
+      g.raf=(g.on||g.fill!=='empty')&&orb.isConnected?requestAnimationFrame(g.frame):0;
+    };
+    g.set=on=>{
+      if(on===g.on) return; g.on=on;
+      if(reduce){ g.fill=on?'full':'empty'; g.drain=false; g.th=.4; g.mer.forEach((_,i)=>{g.alive[i]=on;g.was[i]=front(i);}); g.render(); return; }
+      if(on){ g.drain=false; if(g.fill==='empty') g.fill='await'; }
+      else if(g.fill==='await') g.fill='empty'; else if(g.fill!=='empty') g.drain=true;
+      if(!g.raf){ g.last=performance.now(); g.raf=requestAnimationFrame(g.frame); }
+    };
+  }
+  g.set(on);
+}
+
+  document.querySelectorAll('[data-ds-state]').forEach(function(o){
+    var st=o.getAttribute('data-ds-state');
+    if(st==='done'||st==='error'){ // one-shots: loop them so the tile isn't dead
+      var go=function(){setState(o,null);requestAnimationFrame(function(){setState(o,st);});};
+      go();o._loop=setInterval(go,1800);
+    } else setState(o,st);
+  });
+
+  // travel: the resting orb flies from the last reply into the next one (cloak.js · travelOrb)
+  var flyBox=document.getElementById('ds-fly'),flyDir=0;
+  function fly(){
+    if(!flyBox)return;
+    var w=flyBox.clientWidth,h=flyBox.clientHeight,a=[w*.22-7+7,h/2-7],b=[w*.78-7-7,h/2-7];
+    if(flyDir){var t=a;a=b;b=t;} flyDir^=1;
+    flyBox.innerHTML='';var f=document.createElement('span');f.className='orb-fly';f.innerHTML=ORB;
+    f.style.transform='translate('+a[0]+'px,'+a[1]+'px)';flyBox.appendChild(f);
+    if(RED){f.style.transform='translate('+b[0]+'px,'+b[1]+'px)';return;}
+    requestAnimationFrame(function(){requestAnimationFrame(function(){f.style.transform='translate('+b[0]+'px,'+b[1]+'px)';});});
+    setTimeout(function(){var o=f.querySelector('.cloak-orb');setState(o,'done');},500);
+  }
+  fly();setInterval(fly,2200);
+
+  // replay buttons for one-shots
+  document.querySelectorAll('[data-orb-replay]').forEach(function(btn){
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      var k=btn.getAttribute('data-orb-replay'),stage=btn.parentNode;
+      if(k==='fly')return fly();
+      if(k==='glyph'){var g=document.getElementById('ds-glyph');g.style.animation='none';void g.offsetWidth;g.style.animation='';return;}
+      var o=stage.querySelector('.cloak-orb');setState(o,null);requestAnimationFrame(function(){setState(o,k);});
+    });
+  });
+
+  // shape morph (cloak.js · _csShape / _csResample)
+  function rs(l,N){var s=[],t=0,i;for(i=0;i<l.length-1;i++){var d=Math.hypot(l[i+1][0]-l[i][0],l[i+1][1]-l[i][1]);s.push(d);t+=d}var o=[],st=t/N,g=0,si=0,a=0;for(i=0;i<N;i++){while(si<s.length-1&&a+s[si]<g){a+=s[si];si++}var f=(g-a)/(s[si]||1e-6),p=l[si],q=l[si+1];o.push([p[0]+(q[0]-p[0])*f,p[1]+(q[1]-p[1])*f]);g+=st}return o}
+  function sh(k,N){if(k==='circle'){var p=[];for(var i=0;i<N;i++){var a=-Math.PI/2+2*Math.PI*i/N;p.push([Math.cos(a),Math.sin(a)])}return p}
+    if(k==='square')return rs([[0,-.94],[.94,-.94],[.94,.94],[-.94,.94],[-.94,-.94],[0,-.94]],N);return rs([[0,-1.12],[.99,.64],[-.99,.64],[0,-1.12]],N)}
+  var ease=function(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2},N=96,SH=['triangle','circle','square'].map(function(k){return sh(k,N)}),MP=document.getElementById('ds-morph');
+  function draw(t){var seg=1100,cyc=1600,i=Math.floor(t/cyc)%3,f=RED?0:Math.min(1,(t%cyc)/seg),e=ease(f),A=SH[i],B=SH[(i+1)%3];
+    MP.setAttribute('d','M'+A.map(function(p,j){return [(p[0]+(B[j][0]-p[0])*e)*44,(p[1]+(B[j][1]-p[1])*e)*44].map(function(v){return v.toFixed(2)}).join(',')}).join('L')+'Z');
+    if(!RED)requestAnimationFrame(draw);}
+  if(MP)requestAnimationFrame(draw);
+
+  /* ── live chat reply: thinking → searching → streaming → done (same flow as cloak.js) ── */
+  var msg=document.getElementById('ds-live-msg');
+  if(msg){
+    var meta=msg.querySelector('.bot-meta .cloak-orb'),label=msg.querySelector('.bot-label'),body=msg.querySelector('.bot-body'),
+        bc=msg.querySelector('.bot-content'),log=msg.querySelector('.status-log'),lines=log.querySelector('.status-lines'),
+        head=log.querySelector('.status-head'),step=document.getElementById('ds-live-step'),timers=[];
+    // "Thinking ▾" beside the orb and the post-answer head both open the box (cloak.js · toggleStatusLog)
+    function toggle(force){var o=log.classList.toggle('open',force===undefined?!log.classList.contains('open'):force);
+      head.setAttribute('aria-expanded',o);if(label.classList.contains('cs-thinking-label'))label.setAttribute('aria-expanded',o);
+      if(o)lines.scrollTop=lines.scrollHeight;}
+    head.addEventListener('click',function(){toggle();});
+    label.addEventListener('click',function(){if(label.classList.contains('cs-thinking-label'))toggle();});
+    label.addEventListener('keydown',function(e){if((e.key==='Enter'||e.key===' ')&&label.classList.contains('cs-thinking-label')){e.preventDefault();toggle();}});
+    var THOUGHTS=['Reading the question','Checking what changed since last time','Searching sources','Weighing the two options'];
+    var ANSWER='Short answer: yes. The one thing to check first is whether your **cache key** includes the version — if it doesn’t, old users keep the stale file.';
+    function at(ms,fn){timers.push(setTimeout(fn,ms));}
+    // static label + chevron — never changes with the thoughts (cloak.js · setBotState)
+    function setLabel(t){label.classList.toggle('cs-thinking-label',!!t);
+      if(t){label.innerHTML='<span class="bl-text">'+t+'</span><svg class="bl-chev" width="12" height="8" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+        label.setAttribute('role','button');label.setAttribute('tabindex','0');label.setAttribute('aria-expanded',log.classList.contains('open'));}
+      else{label.textContent='Cloak';label.removeAttribute('role');label.removeAttribute('tabindex');label.removeAttribute('aria-expanded');}}
+    function addLine(t){var p=lines.lastElementChild;if(p)p.classList.remove('live');var el=document.createElement('div');el.className='status-line live';el.textContent=t;lines.appendChild(el);
+      if(log.classList.contains('open'))lines.scrollTop=lines.scrollHeight;}
+    function tail(){var t=document.createElement('span');t.className='orb-tail';t.setAttribute('aria-hidden','true');t.innerHTML=ORB;
+      var b=body.getBoundingClientRect(),r=meta.getBoundingClientRect();t.style.transform='translate('+(r.left-b.left)+'px,'+(r.top-b.top)+'px)';
+      body.appendChild(t);meta.style.visibility='hidden';msg.classList.add('orb-streaming');setState(t.querySelector('.cloak-orb'),'streaming');return t;}
+    function placeTail(t){bc.classList.add('has-tail');var b=body.getBoundingClientRect(),c=bc.getBoundingClientRect(),l=(bc.lastElementChild||bc).getBoundingClientRect();
+      t.style.transform='translate('+Math.round(c.left-b.left)+'px,'+Math.round(l.bottom-b.top+8)+'px)';}
+    function md(x){return x.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');}
+    function reset(){
+      timers.forEach(clearTimeout);timers=[];
+      msg.classList.remove('orb-streaming','orb-below');meta.style.visibility='';
+      var t=body.querySelector('.orb-tail');if(t)t.remove();var e=msg.querySelector('.bot-end-orb');if(e)e.remove();
+      bc.innerHTML='';bc.classList.remove('has-tail');lines.innerHTML='';log.classList.remove('done','open');head.setAttribute('aria-expanded','false');
+      setState(meta,null);setLabel(null);
+    }
+    function finish(){
+      var t=body.querySelector('.orb-tail');if(t)t.remove();bc.classList.remove('has-tail');msg.classList.remove('orb-streaming');
+      lines.querySelectorAll('.live').forEach(function(l){l.classList.remove('live')});log.classList.add('done');
+      msg.classList.add('orb-below');var end=document.createElement('div');end.className='bot-end-orb';end.innerHTML=ORB.replace('aria-hidden="true"><svg','role="button" tabindex="0" aria-label="Say hi to Cloak"><svg');
+      bc.insertAdjacentElement('afterend',end);setState(end.querySelector('.cloak-orb'),'done');step.textContent='done · tap the orb';
+    }
+    function run(){
+      reset();
+      if(RED){THOUGHTS.forEach(addLine);bc.innerHTML='<p>'+md(ANSWER)+'</p>';finish();return;}
+      step.textContent='thinking';setState(meta,'thinking');setLabel('Thinking');
+      at(900,function(){addLine(THOUGHTS[0]);});
+      at(1700,function(){toggle(true);});            // peek inside the box, as if tapped
+      at(2400,function(){addLine(THOUGHTS[1]);});
+      at(3600,function(){step.textContent='searching';setState(meta,'searching');addLine(THOUGHTS[2]);setLabel('Searching for sources');});
+      at(5200,function(){toggle(false);});
+      at(6000,function(){step.textContent='thinking';setState(meta,'thinking');addLine(THOUGHTS[3]);setLabel('Thinking');});
+      at(7400,function(){
+        step.textContent='streaming';setState(meta,null);setLabel(null);var t=tail(),words=ANSWER.split(' '),i=0,p=document.createElement('p');bc.appendChild(p);
+        (function tick(){i++;p.innerHTML=md(words.slice(0,i).join(' '));placeTail(t);
+          if(i<words.length)timers.push(setTimeout(tick,60+Math.random()*70));else at(300,finish);})();
+      });
+    }
+    run();
+    if(!RED)setInterval(function(){if(log.classList.contains('done')&&!log.classList.contains('open'))run();},16000);
+  }
+
+  /* ════ Agent orbit v2 — 0 starting · 1 looping · 2 completed ════ */
+  (()=>{
+  const red=RED,NS='http://www.w3.org/2000/svg',svg=document.getElementById('duo'),Sl=document.getElementById('duoS'),L=document.getElementById('duoL');
+  const stTag=document.getElementById('duoState'),mvTag=document.getElementById('duoMv'),prog=document.getElementById('duoProg'),chips=document.getElementById('duoChips');
+  const mk=(t,p,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e};
+  const TAU=Math.PI*2,R=11,RM=15,D=22,BLEND=.75;
+  const lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const io=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+  const back=x=>{const c=1.9;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+  const rot=(x,y,a)=>[x*Math.cos(a)-y*Math.sin(a),x*Math.sin(a)+y*Math.cos(a)];
+  const mirror=([x,y,r])=>[[x,y,r],[-x,-y,r]];
+  
+  /* Each motion: period P (s), run length n periods, f(t) → [[ax,ay,ar],[bx,by,br]] */
+  // easings: anticipation+overshoot in/out, plus a periodic time-warp so speed is never constant
+  const iob=(x,k=1.7)=>{const c=k*1.525;return x<.5?(Math.pow(2*x,2)*((c+1)*2*x-c))/2:(Math.pow(2*x-2,2)*((c+1)*(2*x-2)+c)+2)/2};
+  const warp=(p,k)=>p+k*Math.sin(TAU*p)/TAU;           // monotone for k<1, periodic in p
+  const sgnp=(v,e)=>Math.sign(v)*Math.pow(Math.abs(v),e);
+  const MOTIONS=[
+   // Orbit: eccentric — whips round the close side, drifts wide on the far side, axis precesses
+   {id:'orbit',name:'Orbit',P:1.6,n:3,f:t=>{const p=t/1.6,a=TAU*p+.9*Math.sin(TAU*p)+.25*Math.sin(TAU*p/3.1),
+     rho=D*(1+.3*Math.cos(a-.6));return mirror([Math.cos(a)*rho,Math.sin(a)*rho,R*(1+.05*Math.cos(a))])}},
+   // Ping-pong: wind up, slam through each other, overshoot, settle — axis lurches around between hits
+   {id:'pong',name:'Ping-pong',P:1.5,n:3,f:t=>{const q=t/1.5,h=Math.floor(q*2),u=q*2-h,e=iob(u),X=D*1.2,x=lerp(h%2?X:-X,h%2?-X:X,e),
+     ax=.5*t+.5*Math.sin(TAU*q/2),[px,py]=rot(x,0,ax);return mirror([px,py,R*(1+.1*Math.sin(Math.PI*u))])}},
+   // Spiral: dives in fast, flings out slow; spin rate surges and stalls
+   {id:'spiral',name:'Spiral',P:3.8,n:1,f:t=>{const p=t/3.8,s=TAU*warp(p,.55),rho=D*(.25+.9*Math.pow(.5+.5*Math.cos(s),1.6)),
+     a=3.2*s-1.6*Math.sin(s)+.6*Math.sin(2*s);return mirror([Math.cos(a)*rho,Math.sin(a)*rho,R*(1+.12*Math.sin(s))])}},
+   // Moon: moon rushes through perigee, lingers at apogee; the planet gets tugged back and forth
+   {id:'moon',name:'Moon',P:2.6,n:2,f:t=>{const p=t/2.6,m=TAU*p+1.15*Math.sin(TAU*p),rho=22+11*Math.pow(.5+.5*Math.cos(m-.8),1.4),
+     ax=Math.cos(-m)*5,ay=Math.sin(-m)*5;return [[ax,ay,14+.8*Math.sin(m)],[ax+Math.cos(2*m)*rho,ay+Math.sin(2*m)*rho,6.5]]}},
+   // Research: darts out fast, drifts, then eases home slowly; heading only turns while home
+   {id:'research',name:'Research',P:4.8,n:1,f:t=>{const p=t/1.2,u=p%1,
+     out=Math.pow(Math.sin(Math.PI*Math.pow(u,.7)),1.6),
+     A=2.4*(p+Math.sin(TAU*p)/TAU)-.5,dd=34*out,sx=Math.cos(A)*dd,sy=Math.sin(A)*dd;
+     return [[-sx*.14,-sy*.14,13.5],[sx,sy,8+1.2*(1-out)]]}},
+   // Team: ring surges and coasts, a ripple runs round it, huddle snaps in with a spring and bursts back out
+   {id:'team',name:'Team',agents:5,P:4.2,n:1,f:t=>{const p=t/4.2,s=TAU*p,hp=Math.max(0,Math.sin(s)),h=Math.pow(hp,3)*(1+.18*Math.sin(s*4)),
+     rho=D*1.25*(1-.82*Math.min(1,h)),spin=2.2*warp(p,.7)*TAU/2.2*.9+1.4*h;
+     return Array.from({length:5},(_,i)=>{const a=spin+i*TAU/5+.35*Math.sin(s*2+i*1.3)*(1-h),rr=rho+3.2*Math.sin(t*3.4-i*1.26)*(1-h);return [Math.cos(a)*rr,Math.sin(a)*rr,R*.78+2*h]})}},
+   // Corners: swing round a rounded square, second agent trails a beat behind, uneven dwell at each stop
+   {id:'snap',name:'Corners',P:3,n:2,f:t=>{const h=.75,sq=(th)=>[sgnp(Math.cos(th),.8)*20,sgnp(Math.sin(th),.8)*20],
+     pos=(tt)=>{const i=Math.floor(tt/h),u=(tt/h)-i,e=iob(Math.min(1,u/.82),.7);return sq(-3*Math.PI/4+(i+e)*Math.PI/2)};
+     const A=pos(t),B=pos(t-.16+h*4*8);return [[A[0],A[1],R*.9],[-B[0],-B[1],R*.9]]}},
+  ];
+  
+  /* ── scene: same look as before — ink outline + accent fill through the goo filter ── */
+  const T=mk('g',svg,{});
+  const NMAX=5;
+  const layers=[['var(--ink)',2.8],['var(--acc)',0]].map(([fill,pad])=>{
+    const g=mk('g',T,{filter:'url(#ds-goo)',style:'fill:'+fill});
+    return [Array.from({length:NMAX},()=>mk('circle',g,{})),pad]});
+  
+  /* ── state ── */
+  const ACTS=[
+   {act:'Planning',txt:'Planning the approach',m:'orbit',dur:3.4},
+   {act:'Researching',txt:'Searching sources',m:'research',dur:5.4},
+   {act:'Comparing',txt:'Cross-checking findings',m:'pong',dur:3.9},
+   {act:'Reasoning',txt:'Thinking it through',m:'spiral',dur:3.6},
+   {act:'Collaborating',txt:'Splitting the work across the team',m:'team',dur:6},
+   {act:'Delegating',txt:'Sub-agent drafting a section',m:'moon',dur:4.8},
+   {act:'Building',txt:'Assembling the answer',m:'snap',dur:5.2}];
+  const midx=id=>MOTIONS.findIndex(m=>m.id===id);
+  let ai=0,aT=0;
+  let mode=1,auto=true,mi=0,prevMi=0,mt=0,pmt=0,bl=1,runT=0;
+  let sp=1,spv=0,w=0,wv=0,pulseT=0,merged=false,last=performance.now();
+  function setMotion(i,instant){if(i===mi&&!instant)return;prevMi=mi;pmt=mt;mi=i;mt=0;runT=0;bl=instant?1:0;label();
+    [...chips.children].forEach((c,j)=>c.setAttribute('aria-pressed',auto?(j===0):(j===i+1)))}
+  
+  // chips
+  const mkChip=(txt,on)=>{const b=document.createElement('button');b.type='button';b.textContent=txt;b.onclick=on;chips.appendChild(b);return b};
+  mkChip('Auto',()=>{auto=true;if(mode!==1){Sl.value=1;Sl.oninput()}goAct(ai);[...chips.children].forEach((c,j)=>c.setAttribute('aria-pressed',j===0))});
+  MOTIONS.forEach((m,i)=>mkChip(m.name,()=>{auto=false;if(mode!==1){Sl.value=1;Sl.oninput()}setMotion(i);[...chips.children].forEach((c,j)=>c.setAttribute('aria-pressed',j===i+1))}));
+  
+  function label(){const a=ACTS[ai],n=MOTIONS[mi].agents||2;mvTag.textContent=auto?a.act:MOTIONS[mi].name;if(mode===1)L.textContent=auto?`${n} agents · ${a.txt}…`:`${n} agents working · ${MOTIONS[mi].name}`}
+  function goAct(i,instant){ai=i;aT=0;setMotion(midx(ACTS[i].m),instant);label()}
+  const NAMES=['Starting','Looping','Completed'],LBL=['Agent starting…','2 agents working…','Done'];
+  Sl.oninput=()=>{const m=+Sl.value;if(m===mode)return;
+    if(m===1)wv+=3.4;
+    mode=m;Sl.setAttribute('aria-valuetext',NAMES[m]);stTag.textContent=NAMES[m];
+    if(m===1)label();else L.textContent=LBL[m];if(red)frame(performance.now())};
+  
+  const fill=a=>{while(a.length<NMAX)a.push(a[0].slice());return a};
+  function poses(dt){
+    const m=MOTIONS[mi];mt+=dt;pmt+=dt;runT+=dt;
+    if(bl<1)bl=Math.min(1,bl+dt/BLEND);
+    if(auto&&mode===1&&(aT+=dt)>ACTS[ai].dur)goAct((ai+1)%ACTS.length);
+    const cur=fill(MOTIONS[mi].f(mt));if(bl>=1)return cur;
+    const pv=fill(MOTIONS[prevMi].f(pmt)),e=io(bl);
+    return cur.map((c,k)=>c.map((v,j)=>lerp(pv[k][j],v,e)))}
+  
+  function frame(now){
+    const dt=red?0:Math.min(.05,(now-last)/1000);last=now;
+    let pose=poses(dt);
+    // spread: 1 = two agents apart, 0 = merged into one
+    const tgt=mode===1?1:0;
+    if(red)sp=tgt;else{spv+=((tgt-sp)*(mode===1?55:70)-spv*(mode===1?9:13))*dt;sp+=spv*dt;}
+    const s=clamp(sp,-.15,1.2);
+    // completed: spiral home by twisting the pose as it collapses
+    const tw=mode===2?(1-clamp(sp,0,1))*2.2:0;
+    const P=pose.map(([x,y,r])=>{const [rx,ry]=rot(x*s,y*s,tw);return [rx,ry,lerp(RM,r,clamp(s,0,1))]});
+    if(sp<.04&&!merged&&mode!==1){merged=true;wv-=4.8}
+    if(sp>.2)merged=false;
+    if(mode===0&&(pulseT+=dt)>1.05){pulseT=0;wv-=2.4;}
+    wv+=(-190*w-11*wv)*dt;w+=wv*dt;
+    T.setAttribute('transform',`scale(${1+w*.85},${1-w*.85})`);
+  
+    layers.forEach(([els,pad])=>els.forEach((el,k)=>{const [x,y,r]=P[k];
+      el.setAttribute('cx',x.toFixed(2));el.setAttribute('cy',y.toFixed(2));el.setAttribute('r',(r+pad).toFixed(2))}));
+  
+    // progress bar for auto cycle
+    prog.style.width=mode===1&&auto?(clamp(aT/ACTS[ai].dur,0,1)*100).toFixed(1)+'%':'0';
+    if(!red)requestAnimationFrame(frame)}
+  
+  goAct(0,true);
+  requestAnimationFrame(frame);
+  })();
 })();
 </script>
 </body>

@@ -14,14 +14,13 @@ Long-term memory, a live "Brain" view of it, and budgeted context compression �
 
 ## Multiple chats, each managed in conversation chunks
 
-Each user can have several chats (`chats`, sidebar "Recent" list); their messages live in one append-only table (`thread_messages`, tagged with `chat_id`, shared by web and Telegram). Within a chat:
+Each user can have several chats (`chats`, sidebar "Recent" list); their messages live in one append-only table (`thread_messages`, tagged with `chat_id`). Within a chat:
 
 - A **conversation chunk** ends at a real pause (≥ 3 h between messages) or at ~2.4k tokens. As soon as a new conversation starts, the previous one is condensed (and its memories extracted, in the same `/v1/context/compress` call). Within a conversation, condensing starts once it outgrows the budget.
 - Chunk summaries fold into that chat's **digest** as they pile up. The digest's last message id is the chat's **moved-on boundary**: the web loads only messages after it, and above them shows *"Cloak has moved on from these chats. Important memories have been saved."* with **Return to most recent chat** (and a link to the Brain).
 - Time dividers mark conversation boundaries in the view.
-- **Live sync**: opening the same chat in another tab or device subscribes to the same Realtime channel (`thread_messages` filtered by `chat_id`), so new messages — from either tab, or from Telegram — land in both at once.
-- `profiles.active_chat_id` points at whichever chat is active. The web sets it on every chat switch (`thread.js`). **Telegram**: Settings → Telegram → *Link Telegram* opens `t.me/<bot>?start=link_<code>` (one-time code, 15 min). A linked Telegram chat continues the active chat with the same context and memories — switch chats on web and Telegram follows; if you've never opened the web, the bot picks your most recently active chat (or makes one) and sets `active_chat_id` itself. Web messages from the active chat are mirrored into it by an `AFTER INSERT` trigger (pg_net → `telegram-bot?relay=<id>`) as *"Weston said: …"*, followed by Cloak's reply; Telegram messages appear on the web live (Realtime) tagged *via Telegram*. `/unlink` in Telegram or *Unlink* on the web stops it.
-- The bot compresses the active chat on its side too (same rules), so a Telegram-only user's thread stays bounded.
+- **Live sync**: opening the same chat in another tab or device subscribes to the same Realtime channel (`thread_messages` filtered by `chat_id`), so new messages — from either tab — land in both at once.
+- `profiles.active_chat_id` points at whichever chat is active. The web sets it on every chat switch (`thread.js`).
 - Deleting a chat (sidebar) removes its messages with it; memories are kept. Settings → *Clear all chats* wipes every chat and starts a fresh one.
 
 ## Memories are markdown files
@@ -125,5 +124,4 @@ Default limits (updated live from headers where available):
 
 ## Follow-ups
 
-- Telegram bot (`messaging_sessions.history`) could use `/v1/context/compress` instead of its fixed history cap.
 - Semantic recall (embeddings) if lexical recall proves too literal — would cost one embedding call per message.
