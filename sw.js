@@ -9,22 +9,23 @@
    Bump CACHE_VERSION in lockstep with the ?v= asset query strings
    in chat.html on every deploy so old shells are purged.
    ════════════════════════════════════════════════════════ */
-const CACHE_VERSION = 'cloak-v20261002voiceorb';
+const CACHE_VERSION = 'cloak-v20261008unc';
 
 const SHELL = [
   '/chat.html',
-  '/version.js?v=1.1.217',
-  '/cloak.css?v=20261002voiceorb',
+  '/version.js?v=1.1.218',
+  '/cloak.css?v=20261008unc',
   '/cloak.js?v=20261002voiceorb',
   '/search.js?v=20261001rollfix2',
   '/effort.js?v=20261001rollfix2',
-  '/search-patch.js?v=20261001rollfix2',
+  '/uncensored.js?v=20261008unc',
+  '/search-patch.js?v=20261008unc',
   '/search.css?v=20261001rollfix2',
   '/brain.css?v=20261001rollfix2',
   '/memory.js?v=20261001nopriv',
   '/context.js?v=20261001rollfix2',
   '/brain.js?v=20261001rollfix2',
-  '/thread.js?v=20261001rollfix2',
+  '/thread.js?v=20261008unc',
   '/builds.js?v=20261001rollfix2',
   '/builds.css?v=20261001rollfix2',
   '/motion.js?v=20261001rollfix2',

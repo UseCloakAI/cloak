@@ -28,6 +28,9 @@ const LIMITS = {
   "nvidia:poolside/laguna-xs-2.1": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:nvidia/nemotron-3-super-120b-a12b": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:*": { rpm: 40, rpd: 0, tpm: 0, ctx: 65536 },
+  // OpenRouter free models: 20 RPM, 50 requests/day (1,000/day once the account
+  // has bought $10 of credits). Context varies per model; 32K is the safe floor.
+  "openrouter:*": { rpm: 20, rpd: 50, tpm: 0, ctx: 32768 },
   "gemini:gemini-3.8-flash": { rpm: 5, rpd: 20, tpm: 250000, ctx: 1000000 },
   "gemini:gemini-3.5-flash": { rpm: 5, rpd: 20, tpm: 250000, ctx: 1000000 },
   "gemini:gemini-3.5-flash-lite": { rpm: 15, rpd: 500, tpm: 250000, ctx: 1000000 },

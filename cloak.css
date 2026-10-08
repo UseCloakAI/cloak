@@ -2237,3 +2237,9 @@ html.kb-open .input-area{padding-bottom:14px;}
 .ld-ver{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);opacity:.35;font-variant-numeric:tabular-nums;margin-top:-10px;}
 .snav-ver{margin-top:auto;padding:14px 10px 4px;font-size:10px;font-weight:600;letter-spacing:.06em;line-height:1.5;color:var(--ink);opacity:.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
 @media(max-width:640px){.snav-ver{margin-top:0;padding:0 10px;align-self:center;white-space:nowrap;}}
+
+/* ── UNCENSORED MODE (uncensored.js) ── */
+.unc-pill{display:inline-flex;align-items:center;height:22px;padding:0 8px;margin-left:8px;background:var(--acc);border:var(--bd);color:#fff;font-family:var(--fu);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;white-space:nowrap;}
+.unc-pill[hidden]{display:none;}
+.unc-check{display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:12px;line-height:1.5;cursor:pointer;}
+.unc-check input{margin-top:2px;accent-color:var(--acc);}

@@ -4,8 +4,9 @@
 // /admin/provider-keys. All chat routes support live token streaming.
 // Every upstream call goes through the free-tier governor (./governor.js).
 
-import { CLOAK, CODE_PLAYBOOK } from "./prompts.js";
+import { CLOAK, CODE_PLAYBOOK, UNFILTERED } from "./prompts.js";
 import * as gov from "./governor.js";
+import { unlockEnabled, codeMatches, issueToken, verifyToken } from "./unlock.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
 import {
   EFFORT_LEVELS, DEFAULT_EFFORT, parseEffort, effortFromBudget, effortName,
@@ -166,6 +167,19 @@ const LOOK_MAX_B64 = 8_000_000;
 // The look tool runs the vision lineup on its own: a question about one image,
 // no chat history, no Cloak persona. Only reachable through /v1/look.
 TIERS.look = { name: "Look", systemPrompt: LOOK_PROMPT, temperature: 0.2, lineup: VISION_LINEUP };
+
+// Unlocked mode: OpenRouter's uncensored models with the prompt that leaves out
+// the safety laws. Not in MODEL_CONFIG, so clients can't pick it with `model`;
+// handleNativeChat switches to it only for a valid unlock token. Set the
+// UNCENSORED_MODELS var (comma-separated OpenRouter ids) to change the lineup
+// without a deploy. There is deliberately no fallback to the guarded models.
+const UNFILTERED_MODELS = ["cognitivecomputations/dolphin-mistral-24b-venice-edition:free"];
+TIERS.unfiltered = { name: "Cloak", systemPrompt: UNFILTERED, temperature: 0.8, lineup: [] };
+
+function unfilteredLineup(env) {
+  const ids = String(env.UNCENSORED_MODELS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  return (ids.length ? ids : UNFILTERED_MODELS).map((model) => ({ provider: "openrouter", model }));
+}
 
 const UNAVAILABLE = "Cloak AI is currently unavailable. Please try again later.";
 const DEFAULT_MAX_TOKENS = 2048;
@@ -376,6 +390,7 @@ async function* sseData(body) {
 const OPENAI_COMPAT = {
   groq: "https://api.groq.com/openai/v1/chat/completions",
   nvidia: "https://integrate.api.nvidia.com/v1/chat/completions",
+  openrouter: "https://openrouter.ai/api/v1/chat/completions",
 };
 
 function openAIBody({ model, messages, temperature, maxTokens, tools, toolChoice, stream, json: wantJson, extra }, provider) {
@@ -457,6 +472,7 @@ async function sendUpstream(provider, apiKey, spec, stream, signal, ctx) {
   } else {
     url = OPENAI_COMPAT[provider];
     headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+    if (provider === "openrouter") Object.assign(headers, { "HTTP-Referer": "https://usecloak.org", "X-Title": "Cloak" });
     body = openAIBody({ ...spec, stream }, provider);
   }
 
@@ -536,8 +552,8 @@ async function* upstreamDeltas(provider, res) {
 
 // The ordered attempts for a request: the tier's lineup, or the vision lineup
 // when an image is attached.
-function planAttempts(config, { hasImage, hasTools }) {
-  const lineup = hasImage ? VISION_LINEUP : config.lineup;
+function planAttempts(config, { hasImage, hasTools, lineup: forced }) {
+  const lineup = forced || (hasImage ? VISION_LINEUP : config.lineup);
   return lineup.filter((a) => !(a.provider === "gemini" && hasTools)); // Gemini adapter has no tool support
 }
 
@@ -572,11 +588,11 @@ function prepare(tierKey, req) {
   return {
     config,
     hasTools,
-    attempts: planAttempts(config, { hasImage, hasTools }),
+    attempts: planAttempts(config, { hasImage, hasTools, lineup: req.lineup }),
     visionMessages: hasImage ? [system, ...withImage(req.messages, req.imageBase64, req.mimeType)] : null,
     textMessages: base,
     // If every vision provider fails, answer text-only on the normal providers.
-    textFallback: hasImage ? planAttempts(config, { hasImage: false, hasTools }) : [],
+    textFallback: hasImage && !req.lineup ? planAttempts(config, { hasImage: false, hasTools }) : [],
   };
 }
 
@@ -839,18 +855,30 @@ async function handleNativeChat(env, request, ctx) {
   const body = await readJson(request);
   if (!body || !Array.isArray(body.messages)) return json({ error: "messages array required" }, 400);
 
-  const tierKey = resolveTier(body.model);
+  let tierKey = resolveTier(body.model);
+  // A valid unlock token switches to the unfiltered tier whatever `model` says.
+  // A token that no longer verifies is refused rather than quietly downgraded,
+  // so the app can lock the toggle and ask for the code again.
+  const unlocked = body.unlock != null && body.unlock !== "";
+  if (unlocked) {
+    if (!(await verifyToken(env, body.unlock))) {
+      return json({ error: "Uncensored access has expired. Unlock it again in Settings.", code: "unlock_expired" }, 403);
+    }
+    tierKey = "unfiltered";
+  }
   const effort = parseEffort(body.effort);
   const req = {
     messages: sanitizeMessages(body.messages),
     system: body.system,
     effort,
     maxTokens: clampMaxTokens(body.max_tokens, tierKey, effort),
-    imageBase64: body.imageBase64,
+    // Unlocked chats go to text-only models: images reach them through /v1/look.
+    imageBase64: unlocked ? undefined : body.imageBase64,
     mimeType: body.mimeType,
+    lineup: unlocked ? unfilteredLineup(env) : undefined,
     ctx,
   };
-  const name = MODEL_CONFIG[tierKey].name;
+  const name = TIERS[tierKey].name;
 
   if (body.stream === true) {
     let stream;
@@ -883,6 +911,24 @@ async function handleNativeChat(env, request, ctx) {
   } catch (e) {
     return json({ error: e.message }, 503);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Uncensored-mode unlock: POST /v1/unlock
+// Request:  { code }
+// Response: { token, expires }   (send `unlock: token` on /v1/chat)
+// The code lives only in the UNCENSORED_CODE secret. Rotating it revokes every
+// token. A wrong guess costs the caller a delay, which slows brute-forcing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleUnlock(env, request) {
+  if (!unlockEnabled(env)) return json({ error: "Not available." }, 503);
+  const body = await readJson(request);
+  if (!(await codeMatches(env, body?.code))) {
+    await new Promise((r) => setTimeout(r, 800));
+    return json({ error: "That code isn't right." }, 401);
+  }
+  return json(await issueToken(env));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1561,7 +1607,7 @@ function adminAuth(env, request) {
 
 async function loadKeys(env) {
   const raw = await env.PROVIDER_KEYS.get("keys");
-  if (!raw) return { groq: [], nvidia: [], gemini: [], tavily: [] };
+  if (!raw) return { groq: [], nvidia: [], gemini: [], openrouter: [], tavily: [] };
   return JSON.parse(raw);
 }
 
@@ -1631,6 +1677,7 @@ export default {
             anthropic: "POST /v1/messages",
             search: "POST /v1/search",
             look: "POST /v1/look",
+            unlock: "POST /v1/unlock",
             extract: "POST /v1/extract",
             transcribe: "POST /v1/transcribe",
             memory: "POST /v1/memory/extract",
@@ -1656,6 +1703,7 @@ export default {
         if (path === "/v1/chat") return handleNativeChat(env, request, ctx);
         if (path === "/v1/chat/completions") return handleOpenAIChat(env, request);
         if (path === "/v1/look") return handleLook(env, request, ctx);
+        if (path === "/v1/unlock") return handleUnlock(env, request);
         if (path === "/v1/messages") return handleAnthropicMessages(env, request);
         if (path === "/v1/search") return handleSearch(env, request);
         if (path === "/v1/extract") return handleExtract(env, request);

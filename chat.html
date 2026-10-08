@@ -17,8 +17,8 @@
 <link rel="manifest" href="/manifest.json?v=20261001rollfix2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20261002voiceorb">
-<script src="version.js?v=1.1.217"></script>
+<link rel="stylesheet" href="cloak.css?v=20261008unc">
+<script src="version.js?v=1.1.218"></script>
 <link rel="stylesheet" href="search.css?v=20261001rollfix2">
 <link rel="stylesheet" href="brain.css?v=20261001rollfix2">
 <link rel="stylesheet" href="builds.css?v=20261001rollfix2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -366,6 +366,7 @@
 
           <!-- Effort slider (effort.js) -->
           <div class="effort-picker" id="effort-picker"></div>
+          <span class="unc-pill" id="unc-pill" hidden title="Uncensored mode is on — Settings to turn it off">Uncensored</span>
         </div>
 
         <div class="topbar-right">
@@ -506,6 +507,25 @@
                 <div style="display:flex;gap:8px;margin-top:8px">
                   <input class="inp-field" id="s-name-inp" placeholder="Your name" style="flex:1">
                   <button class="cta" onclick="saveName()">Save</button>
+                </div>
+              </div>
+              <div class="srow" id="unc-row">
+                <div class="srow-head"><div class="srow-name">Uncensored mode &middot; <span id="unc-state">Locked</span></div></div>
+                <div class="srow-desc">Sends chats to models with little to no guardrails and removes the safety rules from Cloak's instructions. Answers can be wrong, offensive or unsafe. Adults only, and it needs an access code.</div>
+                <div id="unc-locked">
+                  <button class="cta" type="button" onclick="CloakUncensored.reveal()">Unlock</button>
+                  <div id="unc-form" style="display:none;margin-top:12px">
+                    <input class="inp-field" id="unc-code" type="password" autocomplete="off" placeholder="Access code" aria-label="Access code" onkeydown="if(event.key==='Enter')CloakUncensored.submit()">
+                    <label class="unc-check"><input type="checkbox" id="unc-age"> <span>I'm 18 or older and I understand these models can produce harmful or inaccurate content.</span></label>
+                    <button class="cta" type="button" id="unc-go" onclick="CloakUncensored.submit()">Unlock</button>
+                    <div class="err-msg" id="unc-err" style="margin-top:8px"></div>
+                  </div>
+                </div>
+                <div id="unc-unlocked" style="display:none">
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="cta" type="button" id="unc-toggle" onclick="CloakUncensored.toggle()">Turn on</button>
+                    <button class="danger" type="button" onclick="CloakUncensored.lock()">Lock again</button>
+                  </div>
                 </div>
               </div>
               <div class="srow">
@@ -896,12 +916,13 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 <script src="memory.js?v=20261001nopriv" defer></script>
 <script src="context.js?v=20261001rollfix2" defer></script>
 <script src="brain.js?v=20261001rollfix2" defer></script>
-<script src="thread.js?v=20261001rollfix2" defer></script>
+<script src="thread.js?v=20261008unc" defer></script>
 <script src="cloak.js?v=20261002voiceorb" defer></script>
 <!-- highlight.js + builds.js: code blocks, Builds panel, editor, file attachments (patches cloak.js) -->
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js" defer></script>
 <script src="builds.js?v=20261001rollfix2" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
 <script src="effort.js?v=20261001rollfix2" defer></script>
-<script src="search-patch.js?v=20261001rollfix2" defer></script></body>
+<script src="uncensored.js?v=20261008unc" defer></script>
+<script src="search-patch.js?v=20261008unc" defer></script></body>
 </html>

@@ -26,8 +26,9 @@ Configured in `MODEL_CONFIG` in `src/index.js`: each tier is an ordered `lineup`
 
 ## Config
 
-- `PROVIDER_KEYS` KV, key `keys`: `{"groq":[…], "nvidia":[…], "gemini":[…]}`
-- Secrets: `ADMIN_TOKEN`; optional `API_KEY` (OpenAI/Anthropic endpoints), `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX`
+- `PROVIDER_KEYS` KV, key `keys`: `{"groq":[…], "nvidia":[…], "gemini":[…], "openrouter":[…]}`
+- Secrets: `ADMIN_TOKEN`; optional `API_KEY` (OpenAI/Anthropic endpoints), `GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX`, `UNCENSORED_CODE` (see below)
+- **Uncensored mode** (Settings toggle in the app). Off unless the `UNCENSORED_CODE` secret is set (use a long random code; `POST /v1/unlock` has an 800 ms delay on wrong guesses but no other rate limit). `POST /v1/unlock {code}` → `{token, expires}` (30 days, HMAC keyed by the code, so **rotating the code locks every device**). `/v1/chat` with `unlock: token` switches to the `unfiltered` tier: OpenRouter models + the `UNFILTERED` prompt (`src/prompts.js`, no safety laws or harm-reduction lines). It never falls back to the guarded models; a stale token gets `403 {code:"unlock_expired"}`. Add an OpenRouter key under `openrouter` in the keyring. Models: `UNFILTERED_MODELS` in `src/index.js`, or set the `UNCENSORED_MODELS` var (comma-separated OpenRouter ids) to change them without a deploy. OpenRouter's free models are limited (about 50 requests/day per account) and the free uncensored listings come and go, so check the id on openrouter.ai.
 - Search order: Tavily → Google CSE → DuckDuckGo. Tavily keys are pooled from `PROVIDER_KEYS` KV under `tavily` (add each free key with `POST /admin/provider-keys {"provider":"tavily","key":"tvly-…"}`); a random key is used per call and it rolls to the next on 401/429/432/433.
 - `POST /v1/extract {url, format:"text"|"raw", maxChars}` — page text (Tavily extract → direct fetch) or the raw page body (HTML/JSON/CSV/text, 2 MB cap, public URLs only)
 

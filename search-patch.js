@@ -248,13 +248,20 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
     headers: { 'Content-Type': 'application/json' },
     signal,
     // Effort (0–100) rides on every chat call, including research rounds.
-    body: JSON.stringify({ ...bodyObj, ...(window.CloakEffort ? { effort: CloakEffort.value() } : {}), stream: true }),
+    body: JSON.stringify({
+      ...bodyObj,
+      ...(window.CloakEffort ? { effort: CloakEffort.value() } : {}),
+      // Uncensored mode: the Worker checks this token and picks the unfiltered models.
+      ...(window.CloakUncensored && CloakUncensored.token() ? { unlock: CloakUncensored.token() } : {}),
+      stream: true,
+    }),
   });
 
   const ctype = res.headers.get('content-type') || '';
   if (!ctype.includes('text/event-stream') || !res.body) {
     let d;
     try { d = await res.json(); } catch (_) { throw new Error('Unreadable response.'); }
+    if (d && d.code === 'unlock_expired' && window.CloakUncensored) CloakUncensored.expired();
     if (!res.ok || d.error) throw new Error(d.error || 'HTTP ' + res.status);
     return { text: d.response || d.text || '', streamed: false };
   }
