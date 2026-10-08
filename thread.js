@@ -63,7 +63,12 @@
     if (!b) return null;
     const div = dividerFor(prev && prev.at, entry.at);
     if (div) b.appendChild(div);
-    const el = addMsg(entry.role === 'CHATBOT' ? 'bot' : 'user', entry.message, true);
+    // The model-facing "[Image id]" markers and "(no question)" are not for people.
+    let shown = entry.message;
+    if (entry.role !== 'CHATBOT' && /^\[Image [A-Za-z0-9_-]+\]/.test(shown)) {
+      shown = shown.replace(/^(?:\[Image [A-Za-z0-9_-]+\]\s*)+/, '').replace(/^\(no question\)$/, '') || '[Image]';
+    }
+    const el = addMsg(entry.role === 'CHATBOT' ? 'bot' : 'user', shown, true);
     bind(entry, el);
     if (entry.source && entry.source !== 'web') {
       const tag = document.createElement('div');

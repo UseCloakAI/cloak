@@ -156,6 +156,16 @@ const VISION_LINEUP = [
   { provider: "gemini", model: GEMINI_LITE, temperature: 1.0, extra: { thinkingConfig: { thinkingLevel: "low" } }, reserve: 1024 },
   { provider: "nvidia", model: NVIDIA_VISION_MODEL },
 ];
+// Image tool: a text tier calls this through /v1/look to ask one question about
+// one image. Not a chat tier (not selectable), and never Cloak's persona.
+const LOOK_PROMPT = `You look at one image and answer the question about it.
+Be concise and factual: 1–4 sentences unless the question asks for detail.
+Say plainly what you can't make out. Don't guess beyond what the image shows.`;
+// Largest image accepted by /v1/look (base64 characters, ~6 MB of image).
+const LOOK_MAX_B64 = 8_000_000;
+// The look tool runs the vision lineup on its own: a question about one image,
+// no chat history, no Cloak persona. Only reachable through /v1/look.
+TIERS.look = { name: "Look", systemPrompt: LOOK_PROMPT, temperature: 0.2, lineup: VISION_LINEUP };
 
 const UNAVAILABLE = "Cloak AI is currently unavailable. Please try again later.";
 const DEFAULT_MAX_TOKENS = 2048;
@@ -870,6 +880,34 @@ async function handleNativeChat(env, request, ctx) {
   try {
     const choice = await completeOnce(env, tierKey, req);
     return json({ model: name, response: choice.message.content || "", usage: choice.usage, effort: effort ?? DEFAULT_EFFORT });
+  } catch (e) {
+    return json({ error: e.message }, 503);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Image tool: POST /v1/look
+// Request:  { imageBase64, mimeType?, question }
+// Response: { answer }
+// The text model never gets the image; it only gets this short answer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleLook(env, request, ctx) {
+  const body = await readJson(request);
+  if (!body || typeof body.imageBase64 !== "string" || !body.imageBase64.trim()) {
+    return json({ error: "imageBase64 required" }, 400);
+  }
+  if (body.imageBase64.length > LOOK_MAX_B64) return json({ error: "Image too large" }, 413);
+  const question = String(body.question || "").trim().slice(0, 500) || "Describe this image.";
+  try {
+    const choice = await completeOnce(env, "look", {
+      messages: [{ role: "user", content: question }],
+      imageBase64: body.imageBase64,
+      mimeType: body.mimeType,
+      maxTokens: 400,
+      ctx,
+    });
+    return json({ answer: (choice.message.content || "").trim() });
   } catch (e) {
     return json({ error: e.message }, 503);
   }
@@ -1592,6 +1630,7 @@ export default {
             openai: "POST /v1/chat/completions",
             anthropic: "POST /v1/messages",
             search: "POST /v1/search",
+            look: "POST /v1/look",
             extract: "POST /v1/extract",
             transcribe: "POST /v1/transcribe",
             memory: "POST /v1/memory/extract",
@@ -1616,6 +1655,7 @@ export default {
       if (request.method === "POST") {
         if (path === "/v1/chat") return handleNativeChat(env, request, ctx);
         if (path === "/v1/chat/completions") return handleOpenAIChat(env, request);
+        if (path === "/v1/look") return handleLook(env, request, ctx);
         if (path === "/v1/messages") return handleAnthropicMessages(env, request);
         if (path === "/v1/search") return handleSearch(env, request);
         if (path === "/v1/extract") return handleExtract(env, request);
