@@ -96,11 +96,60 @@ function renderCitationStrip(botMsgEl, sources) {
   botBody.appendChild(strip);
 }
 
+/* ── IMAGE TOOL (look) ──
+   Images stay in this tab's memory only. The text model never receives the
+   bytes: it names an image by id and asks one question with
+   <look id="…" q="…"/>. The client sends that image + question to /v1/look and
+   the short answer goes back into the conversation. The chat history keeps
+   only "[Image id]" markers, so a reload loses the bytes but not the trail. */
+const _imageRam = new Map();          // id → { mime, b64 }, newest last
+const _IMAGE_RAM_MAX = 8;
+const LOOK_MAX_CALLS = 3;             // looks answered per round
+const LOOK_MAX_ROUNDS = 3;            // rounds per turn
+
+function _newImageId() { return Math.random().toString(36).slice(2, 8); }
+
+function _rememberImage(id, mime, b64) {
+  _imageRam.set(id, { mime, b64 });
+  while (_imageRam.size > _IMAGE_RAM_MAX) _imageRam.delete(_imageRam.keys().next().value);
+}
+
+function _imageNote() {
+  if (!_imageRam.size) return '';
+  return `\n\n## IMAGES\nYou cannot see images directly. Images you can look at: ${[..._imageRam.keys()].join(', ')}.\nTo look at one, reply with only <look id="ID" q="one specific question"/> and wait for the answer. Look only when the question needs the picture. Use the answer as your own knowledge, and never mention the tool to the user.`;
+}
+
+function _parseLooks(text) {
+  const re = /<look\s+id="([A-Za-z0-9_-]+)"\s+q="([^"]*)"\s*\/?>(?:\s*<\/look>)?/gi;
+  const out = [];
+  let m;
+  while ((m = re.exec(text)) !== null) out.push({ id: m[1], q: m[2] });
+  return out;
+}
+
+const _LOOK_STRIP_RE = /<look\b[^>]*>(?:\s*<\/look>)?/gi;
+
+async function _lookAt(id, question) {
+  const img = _imageRam.get(id);
+  if (!img) return 'That image is no longer loaded in this session.';
+  try {
+    const res = await fetch(CLOAK_API + '/v1/look', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: img.b64, mimeType: img.mime, question }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.answer ? data.answer : 'The image could not be read right now.';
+  } catch {
+    return 'The image could not be read right now.';
+  }
+}
+
 /* ── LIVE TOKEN STREAMING ── */
 // Requests /v1/chat with stream:true and paints tokens into the bubble as they
 // arrive. Falls back transparently when the server answers with plain JSON.
-// Search tool markup (<search>, <fetch>, <done/>) is never painted.
-const _LIVE_TOOL_TAGS = ['<search', '<fetch', '<done'];
+// Search and look tool markup (<search>, <fetch>, <done/>, <look/>) is never painted.
+const _LIVE_TOOL_TAGS = ['<search', '<fetch', '<done', '<look'];
 
 function _liveVisible(text) {
   let cut = text.length;
@@ -407,17 +456,26 @@ window.send = async function () {
   const _userEl = addMsg('user', txt, false, imgs);
 
   const t0 = Date.now();
-  const hasImages = imgs.length > 0;
   const model = window.cloakModel || 'pneuma';
   const useThoughts = _shouldThink(model);
 
+  // Images go to RAM under short ids; the text model only ever sees the ids.
+  const imgIds = [];
+  for (const im of imgs) {
+    const m = im.data.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) continue;
+    const id = _newImageId();
+    _rememberImage(id, m[1], m[2]);
+    imgIds.push(id);
+  }
+
   let userMsg = txt;
   if (hwMode && txt) userMsg = '[HOMEWORK MODE]\n\n' + txt;
-  if (!userMsg && hasImages) userMsg = '[Image]';
+  if (imgIds.length) userMsg = imgIds.map(id => `[Image ${id}]`).join(' ') + '\n' + (userMsg || '(no question)');
   if (window.CloakThread) CloakThread.push('USER', userMsg, _userEl); else hist.push({ role: 'USER', message: userMsg });
 
   stats.req++;
-  log('req', `"${(txt || '[image]').slice(0, 60)}" model=${model} search=enabled`);
+  log('req', `"${(txt || '[image]').slice(0, 60)}" model=${model} search=enabled looks=${imgIds.length}`);
 
   showMessages();
 
@@ -436,22 +494,15 @@ window.send = async function () {
   const _cx = _prepareContext(txt, userMsg, model);
   if (_cx.recall && window.CloakBrain) CloakBrain.attachRecall(botMsgEl, _cx.recall);
 
-  let imageBase64 = null, mimeType = null;
-  if (hasImages && imgs[0]) {
-    const match = imgs[0].data.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) { mimeType = match[1]; imageBase64 = match[2]; }
-  }
-
   const trimmedMessages = _cx.messages;
   // Stable prefix first (search prompt → memory → summaries), clock last:
   // keeps the cacheable part of the prompt identical between requests.
-  const _system = () => SEARCH_SYSTEM_PROMPT + _cx.system + cloakClock();
+  // The image note sits before the clock so the prefix stays cacheable.
+  const _system = () => SEARCH_SYSTEM_PROMPT + _cx.system + _imageNote() + cloakClock();
   const bodyObj = {
     model,
     messages: trimmedMessages,
     system: _system(),
-    imageBase64: imageBase64 || undefined,
-    mimeType: mimeType || undefined,
   };
 
   /* ── THINK-TIME RECALL ──
@@ -510,6 +561,38 @@ window.send = async function () {
       throw new Error('Empty response.');
     }
 
+    /* ── Look at images (image tool) ──
+       The model asks about an image by id; /v1/look answers; the answers go
+       back into the conversation and the model writes again. Only the short
+       answers are kept in context, never the image itself. */
+    let convo = trimmedMessages;
+    for (let hop = 0; hop < LOOK_MAX_ROUNDS && !round1.aborted; hop++) {
+      const looks = _parseLooks(firstResponse);
+      if (!looks.length) break;
+      dropTailOrb(botMsgEl);
+      const lbc = botMsgEl.querySelector('.bot-content');
+      if (lbc) { lbc.innerHTML = ''; lbc._tk = null; }
+      setBotState(botMsgEl, 'searching');
+      addStatus(botMsgEl, 'Looking at the image…');
+      const answers = [];
+      for (const l of looks.slice(0, LOOK_MAX_CALLS)) {
+        answers.push(`${l.id} (${l.q}): ${await _lookAt(l.id, l.q)}`);
+      }
+      convo = [
+        ...convo,
+        { role: 'assistant', content: firstResponse.replace(_LOOK_STRIP_RE, '').trim() || '(looked at an image)' },
+        { role: 'user', content: `[Image results]\n${answers.join('\n')}\n\nAnswer the user now. Look again only if you still need the picture.` },
+      ];
+      setBotState(botMsgEl, 'thinking');
+      _fetchController = new AbortController();
+      round1 = await streamChat({ model, messages: convo, system: _system() }, botMsgEl, _fetchController.signal);
+      _fetchController = null;
+      firstResponse = round1.aborted ? _liveVisible(round1.text) : round1.text;
+      if (!firstResponse) throw new Error('Empty response.');
+    }
+    firstResponse = firstResponse.replace(_LOOK_STRIP_RE, '').trim();
+    if (!firstResponse) throw new Error('Empty response.');
+
     /* ── Check for search tool calls ── */
     if (!round1.aborted && CLOAK_SEARCH.hasToolCalls(firstResponse)) {
       const toolCalls = CLOAK_SEARCH.parseToolCalls(firstResponse);
@@ -561,7 +644,7 @@ window.send = async function () {
           .join('\n\n---\n\n');
 
         let synthesisMessages = [
-          ...trimmedMessages,
+          ...convo,
           { role: 'assistant', content: firstResponse },
           { role: 'user', content: `Here are the search results:\n\n${buildContext()}\n\n${VERIFY_ASK}` }
         ];
@@ -597,7 +680,7 @@ window.send = async function () {
           addStatus(botMsgEl, 'Writing the answer…');
           setBotState(botMsgEl, 'thinking');
           synthesisMessages = [
-            ...trimmedMessages,
+            ...convo,
             { role: 'assistant', content: firstResponse },
             { role: 'user', content: `Here are the search results (including verification searches):\n\n${buildContext()}\n\n${VERIFY_ASK}${round + 1 >= (window.CloakEffort ? CloakEffort.verifyRounds() : 2) ? '\n\nThis is the last round: write the answer now, labelling anything still unconfirmed.' : ''}` }
           ];
