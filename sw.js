@@ -13,7 +13,7 @@ const CACHE_VERSION = 'cloak-v20261002voiceorb';
 
 const SHELL = [
   '/chat.html',
-  '/version.js?v=1.1.215',
+  '/version.js?v=1.1.216',
   '/cloak.css?v=20261002voiceorb',
   '/cloak.js?v=20261002voiceorb',
   '/search.js?v=20261001rollfix2',
