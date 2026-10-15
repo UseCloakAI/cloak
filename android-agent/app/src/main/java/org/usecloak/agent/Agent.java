@@ -88,29 +88,35 @@ final class Agent {
         String now = new SimpleDateFormat("EEE MMM d yyyy, h:mm a", Locale.US).format(new Date());
         StringBuilder s = new StringBuilder();
 
+        boolean console = "you".equals(who);
         if (sms) {
             s.append("You're Cloak Agent, replying over SMS from an Android phone. Write like a text: plain text, ")
              .append("no markdown, usually one to three short sentences, never over 600 characters.\n");
-        } else {
+        } else if (console) {
             s.append("You're Cloak Agent, running on ").append(ownerName).append("'s Android phone, talking in its console.\n");
+        } else {
+            s.append("You're Cloak Agent, running on ").append(ownerName).append("'s Android phone, chatting with ")
+             .append("someone through the Cloak app. Keep replies short and plain.\n");
         }
         s.append("Now: ").append(now).append(".\n");
 
         if (owner) {
-            s.append("You're talking with ").append(ownerName).append(", the phone's owner")
-             .append(sms ? ", texting in from their own number" : "").append(". You can operate this phone.\n")
+            s.append("You're talking with ")
+             .append(console ? ownerName + ", the phone's owner" : sms ? ownerName + ", the phone's owner, texting in from their own number" : who + ", a Cloak admin")
+             .append(". You can operate this phone.\n")
              .append(TOOLS);
         } else {
-            if ("me".equals(Prefs.str(c, Prefs.PERSONA, "cloak"))) {
+            if (sms && "me".equals(Prefs.str(c, Prefs.PERSONA, "cloak"))) {
                 s.append("You're answering texts for ").append(ownerName).append(" while they're away. ")
                  .append("Say you're Cloak, ").append(ownerName).append("'s AI assistant, early in a conversation — ")
                  .append("never pretend to be ").append(ownerName).append(". Don't agree to plans, money or anything ")
                  .append("binding for them; say you'll pass it on. Never share their location, schedule, contacts ")
                  .append("or other private details.\n");
             } else {
-                s.append("People text this number to talk to Cloak directly. You are Cloak.\n");
+                s.append(sms ? "People text this number to talk to Cloak directly. You are Cloak.\n" : "You are Cloak.\n");
             }
-            s.append("You're texting with ").append(who).append(". You can't operate this phone for them.\n");
+            s.append("You're talking with ").append(who).append(". You can't operate this phone for them or share ")
+             .append("anything about it or its owner.\n");
         }
 
         String extra = Prefs.str(c, Prefs.EXTRA, "").trim();

@@ -11,6 +11,10 @@ Plain Java, zero dependencies, no AndroidX: the release APK is ~100 KB.
 - **Phone control** via an Accessibility service: open apps, read the screen, tap, type, scroll,
   back/home/recents, clear recents, force-stop ("sleep") apps. Only for **you** — the in-app
   console or texts from your owner number(s). Strangers' texts can never trigger it.
+- **Cloak app inbox**: sign the phone into an **admin** Cloak account and it answers chats from
+  Settings → Agent in the web app (polls Supabase `agent_messages`: every 3s for 2 min after
+  activity, then every 15s). Admin senders get phone control; with Admin → "Admins only" off,
+  other signed-in accounts get chat only. Needs `supabase/migrations/20261015000000_phone_agent.sql`.
 - **RAM saver**: foreground service that kills cached background apps every N minutes, on
   screen-off and on low memory. Keep-list for apps it must never touch.
 

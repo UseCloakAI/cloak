@@ -1103,7 +1103,7 @@ async function init(){
   sb.auth.onAuthStateChange(async(ev,sess)=>{
     if(ev==='INITIAL_SESSION'){if(_routed)return;_routed=true;if(sess?.user){email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}
     else if(ev==='SIGNED_IN'&&sess&&!_routed){_routed=true;email=sess.user.email||'';uid=sess.user.id;guest=false;await enterChat();}
-    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;chatId=null;hist=[];if(window.CloakThread)CloakThread.reset();admin=false;name='';guest=false;if(window.CloakMemory)CloakMemory.reset();if(window.CloakContext)CloakContext.reset();show('auth');}
+    else if(ev==='SIGNED_OUT'){_routed=false;entering=false;chatId=null;hist=[];if(window.CloakThread)CloakThread.reset();if(window.CloakPhoneAgent)CloakPhoneAgent.reset();admin=false;name='';guest=false;if(window.CloakMemory)CloakMemory.reset();if(window.CloakContext)CloakContext.reset();show('auth');}
     else if(ev==='TOKEN_REFRESHED'&&sess){email=sess.user.email||'';uid=sess.user.id;}
   });
   setTimeout(async()=>{if(_routed)return;try{const{data:{session}}=await sb.auth.getSession();if(_routed)return;_routed=true;if(session?.user){email=session.user.email||'';uid=session.user.id;guest=false;await enterChat();}else{hideLoading();show('auth');}}catch(e){_routed=true;hideLoading();show('auth');}},800);
@@ -1212,6 +1212,7 @@ async function loadProfile(){
     if(data){name=data.display_name||email.split('@')[0];admin=data.is_admin||email===ADMIN;onboardingDone=data.onboarding_done||false;}
     else{name=email.split('@')[0];admin=email===ADMIN;onboardingDone=false;await sb.from('profiles').upsert({id:uid,display_name:name,is_admin:admin,onboarding_done:false},{onConflict:'id'});}
     if(admin){document.getElementById('snav-admin').style.display='flex';loadAdminAnns();}
+    if(window.CloakPhoneAgent)CloakPhoneAgent.init();
     refreshUI();updateGreeting();if(!onboardingDone)showOnboarding();
   }catch(e){log('err','Profile load: '+e.message);}
 }

@@ -36,7 +36,7 @@ public final class AgentService extends Service {
 
     private ScheduledExecutorService exec;
     private final Map<String, Pending> pending = new HashMap<>();   // worker thread only
-    private long lastSweep;
+    private long lastSweep, nextPoll, lastRemote;
     private BroadcastReceiver screenOff;
 
     private static final class Pending {
@@ -50,8 +50,12 @@ public final class AgentService extends Service {
     /** Starts or stops the service to match the settings. */
     static void sync(Context c) {
         Intent i = new Intent(c, AgentService.class);
-        if (Prefs.enabled(c) || Prefs.ramSaver(c)) c.startForegroundService(i);
+        if (wanted(c)) c.startForegroundService(i);
         else c.stopService(i);
+    }
+
+    static boolean wanted(Context c) {
+        return Prefs.enabled(c) || Prefs.ramSaver(c) || Remote.on(c);
     }
 
     @Override
@@ -66,6 +70,7 @@ public final class AgentService extends Service {
         }
         exec = Executors.newSingleThreadScheduledExecutor();
         exec.scheduleWithFixedDelay(this::ramTick, 2, 2, TimeUnit.MINUTES);
+        exec.scheduleWithFixedDelay(this::remoteTick, 3, 3, TimeUnit.SECONDS);
 
         screenOff = new BroadcastReceiver() {
             @Override
@@ -81,7 +86,7 @@ public final class AgentService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (!Prefs.enabled(this) && !Prefs.ramSaver(this)) {
+        if (!wanted(this)) {
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -181,6 +186,21 @@ public final class AgentService extends Service {
         }
     }
 
+    // ── Cloak app inbox ─────────────────────────────────────────────────────
+
+    /** Polls every 3s for 2 min after activity, then every 15s. */
+    private void remoteTick() {
+        long now = System.currentTimeMillis();
+        if (!Remote.on(this) || now < nextPoll) return;
+        try {
+            int n = Remote.poll(this);
+            if (n > 0) lastRemote = System.currentTimeMillis();
+        } catch (Exception e) {
+            if (now - lastRemote > 60_000) lastRemote = 0;   // back off on errors
+        }
+        nextPoll = System.currentTimeMillis() + (System.currentTimeMillis() - lastRemote < 120_000 ? 0 : 12_000);
+    }
+
     // ── RAM saver ───────────────────────────────────────────────────────────
 
     private void ramTick() {
@@ -209,6 +229,7 @@ public final class AgentService extends Service {
     private Notification notification() {
         String text = Prefs.enabled(this) ? "Replying to texts" : "Auto-reply off";
         if (Prefs.ramSaver(this)) text += " · RAM saver on";
+        if (Remote.on(this)) text += " · app inbox on";
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         return new Notification.Builder(this, CHANNEL)

@@ -51,8 +51,10 @@ public final class MainActivity extends Activity {
     };
 
     private float dp;
-    private Switch swEnabled, swContacts, swRam;
-    private TextView status, ramOut, console, log;
+    private Switch swEnabled, swContacts, swRam, swRemote;
+    private TextView status, ramOut, console, log, remoteStatus;
+    private EditText sbEmail, sbPass;
+    private Button sbBtn;
     private RadioGroup persona, model;
     private EditText name, extra, delay, owners, ramEvery, keep, sleepList, input;
     private Button send;
@@ -139,6 +141,27 @@ public final class MainActivity extends Activity {
         owners = field(rep, "Your number(s) — texts from these can control the phone", Prefs.str(this, Prefs.OWNERS, ""), false);
         owners.setInputType(InputType.TYPE_CLASS_PHONE);
         rep.addView(text("Never replies to short codes (banks, 2FA). Anyone can text STOP to mute it.", 12, MUTED, false));
+
+        // Cloak app inbox
+        LinearLayout rem = card(root);
+        section(rem, "Cloak app inbox");
+        rem.addView(text("Chat with this phone from Settings → Agent in the Cloak app. Admin accounts get phone "
+                + "control; everyone else (only if you turn off \"admins only\" in Admin) gets chat only.", 12, MUTED, false));
+        swRemote = toggle(rem, "Answer chats from the Cloak app", Prefs.bool(this, Remote.ON, false));
+        swRemote.setOnCheckedChangeListener((v, on) -> {
+            Prefs.put(this, Remote.ON, on);
+            AgentService.sync(this);
+            refresh();
+        });
+        remoteStatus = text("", 13, MUTED, false);
+        rem.addView(remoteStatus);
+        sbEmail = field(rem, "Admin account email", Remote.email(this), false);
+        sbEmail.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        sbPass = field(rem, "Password (not saved)", "", false);
+        sbPass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        sbBtn = button("Sign in", true);
+        sbBtn.setOnClickListener(v -> signInOut());
+        rem.addView(sbBtn, wrap());
 
         // RAM
         LinearLayout ram = card(root);
@@ -243,6 +266,36 @@ public final class MainActivity extends Activity {
         console.setText(next.length() > 6000 ? next.substring(next.length() - 6000) : next);
     }
 
+    private void signInOut() {
+        if (Remote.signedIn(this)) {
+            Remote.signOut(this);
+            AgentService.sync(this);
+            refresh();
+            return;
+        }
+        String email = sbEmail.getText().toString().trim();
+        String pass = sbPass.getText().toString();
+        if (email.isEmpty() || pass.isEmpty()) return;
+        sbBtn.setEnabled(false);
+        remoteStatus.setText("Signing in…");
+        new Thread(() -> {
+            String err = null;
+            try {
+                Remote.signIn(this, email, pass);
+            } catch (Exception e) {
+                err = e.getMessage();
+            }
+            String fail = err;
+            ui.post(() -> {
+                sbPass.setText("");
+                sbBtn.setEnabled(true);
+                AgentService.sync(this);
+                refresh();
+                if (fail != null) remoteStatus.setText("Couldn't sign in: " + fail);
+            });
+        }).start();
+    }
+
     private void ramBtn(LinearLayout row, String label, String action) {
         Button btn = button(label, false);
         btn.setOnClickListener(v -> {
@@ -284,6 +337,14 @@ public final class MainActivity extends Activity {
             s.append(" Contacts-only is on but Contacts isn't granted, so nobody gets replies.");
         }
         status.setText(s);
+        boolean in = Remote.signedIn(this);
+        remoteStatus.setText(in ? "Signed in as " + Remote.email(this) + (Remote.on(this) ? " · answering" : " · paused")
+                : "Not signed in.");
+        sbBtn.setText(in ? "Sign out" : "Sign in");
+        ViewGroup box = (ViewGroup) sbPass.getParent();
+        box.getChildAt(box.indexOfChild(sbPass) - 1).setVisibility(in ? View.GONE : View.VISIBLE);  // its label
+        sbPass.setVisibility(in ? View.GONE : View.VISIBLE);
+        sbEmail.setEnabled(!in);
         List<String> lines = Prefs.logs(this);
         log.setText(lines.isEmpty() ? "Nothing yet." : String.join("\n", lines));
     }

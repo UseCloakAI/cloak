@@ -17,8 +17,8 @@
 <link rel="manifest" href="/manifest.json?v=20261001rollfix2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20261002voiceorb">
-<script src="version.js?v=1.1.217"></script>
+<link rel="stylesheet" href="cloak.css?v=20261015agent">
+<script src="version.js?v=1.1.218"></script>
 <link rel="stylesheet" href="search.css?v=20261001rollfix2">
 <link rel="stylesheet" href="brain.css?v=20261001rollfix2">
 <link rel="stylesheet" href="builds.css?v=20261001rollfix2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -484,6 +484,10 @@
               <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>
               Console
             </button>
+            <button class="snav-btn" id="snav-agent" style="display:none" onclick="switchSettingsTab('agent')">
+              <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></span>
+              Agent
+            </button>
             <button class="snav-btn" id="snav-admin" style="display:none" onclick="switchSettingsTab('admin')">
               <span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg></span>
               Admin
@@ -603,11 +607,31 @@
               </div>
             </div>
 
+            <!-- Phone agent (phone-agent.js) -->
+            <div class="spane" id="spane-agent">
+              <div class="srow">
+                <div class="srow-head"><div class="srow-name">Phone agent</div></div>
+                <div class="srow-desc">Chat with Cloak Agent running on a real phone. Admins can also have it use the phone: open apps, read the screen, free up RAM.</div>
+                <div class="pa-thread" id="pa-thread" aria-live="polite"></div>
+                <textarea class="inp-field" id="pa-input" placeholder="Message the phone agent…" maxlength="4000" style="margin-top:10px;min-height:60px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.6" onkeydown="CloakPhoneAgent.key(event)"></textarea>
+                <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+                  <button class="cta" onclick="CloakPhoneAgent.send()">Send</button>
+                  <button class="clear-log" onclick="CloakPhoneAgent.clear()">Clear</button>
+                  <span class="pa-status" id="pa-status"></span>
+                </div>
+              </div>
+            </div>
+
             <!-- Admin -->
             <div class="spane" id="spane-admin">
               <div class="srow">
                 <div class="srow-head"><div class="srow-name">Admin panel</div><span class="srow-badge">Owner</span></div>
                 <div class="srow-desc">Announcements appear as a banner to all signed-in users.</div>
+              </div>
+              <div class="srow">
+                <div class="srow-name">Phone agent access</div>
+                <div class="srow-desc">On: only admin accounts can chat with and control the phone agent. Off: any signed-in account can chat with it, but phone control stays admin-only.</div>
+                <label class="pa-toggle" style="margin-top:10px"><input type="checkbox" id="pa-admins-only" checked onchange="CloakPhoneAgent.setAdminsOnly(this.checked)"> Admins only</label>
               </div>
               <div class="srow">
                 <div class="srow-name">Post announcement</div>
@@ -897,7 +921,8 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 <script src="context.js?v=20261001rollfix2" defer></script>
 <script src="brain.js?v=20261001rollfix2" defer></script>
 <script src="thread.js?v=20261001rollfix2" defer></script>
-<script src="cloak.js?v=20261002voiceorb" defer></script>
+<script src="cloak.js?v=20261015agent" defer></script>
+<script src="phone-agent.js?v=20261015agent" defer></script>
 <!-- highlight.js + builds.js: code blocks, Builds panel, editor, file attachments (patches cloak.js) -->
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js" defer></script>
 <script src="builds.js?v=20261001rollfix2" defer></script>
