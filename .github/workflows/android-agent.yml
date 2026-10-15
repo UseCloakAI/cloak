@@ -1,0 +1,48 @@
+name: Android agent
+
+on:
+  push:
+    paths: ['android-agent/**', '.github/workflows/android-agent.yml']
+  pull_request:
+    paths: ['android-agent/**', '.github/workflows/android-agent.yml']
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      # Optional fixed signing key so updates install over the old app. Without these
+      # secrets the APK is debug-signed (works, but each build needs an uninstall first).
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.CLOAK_AGENT_KEYSTORE }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/agent.jks"
+            echo "CLOAK_KEYSTORE=$RUNNER_TEMP/agent.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build APK
+        env:
+          CLOAK_VERSION_CODE: ${{ github.run_number }}
+          CLOAK_KEYSTORE_PASS: ${{ secrets.CLOAK_AGENT_KEYSTORE_PASS }}
+          CLOAK_KEY_ALIAS: ${{ secrets.CLOAK_AGENT_KEY_ALIAS }}
+          CLOAK_KEY_PASS: ${{ secrets.CLOAK_AGENT_KEY_PASS }}
+        run: gradle assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloak-agent-apk
+          path: android-agent/app/build/outputs/apk/release/*.apk

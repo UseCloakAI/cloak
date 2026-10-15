@@ -1,0 +1,57 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing comes from CI secrets (see README). Without them the release
+// APK is signed with the debug key, which changes per machine — fine for a
+// first install, but updates then need an uninstall.
+def ks = System.getenv('CLOAK_KEYSTORE')
+
+android {
+    namespace 'org.usecloak.agent'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'org.usecloak.agent'
+        minSdk 26
+        targetSdk 34
+        versionCode((System.getenv('CLOAK_VERSION_CODE') ?: '1').toInteger())
+        versionName '1.0.' + (System.getenv('CLOAK_VERSION_CODE') ?: '0')
+    }
+
+    signingConfigs {
+        release {
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('CLOAK_KEYSTORE_PASS')
+                keyAlias System.getenv('CLOAK_KEY_ALIAS')
+                keyPassword System.getenv('CLOAK_KEY_PASS')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig ks ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    dependenciesInfo {
+        includeInApk false
+        includeInBundle false
+    }
+
+    lint {
+        checkReleaseBuilds false
+    }
+}
+
+// Zero dependencies on purpose: plain framework APIs keep the APK tiny for Android Go.
