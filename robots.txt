@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /admin-management.html
+Disallow: /plan
 
 Sitemap: https://usecloak.org/sitemap.xml
