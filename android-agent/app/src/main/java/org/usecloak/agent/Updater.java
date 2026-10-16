@@ -61,6 +61,7 @@ final class Updater {
             Prefs.log(c, "installing update v" + name);
             return "Installing v" + name + "…";
         } catch (Exception e) {
+            if ("HTTP 404".equals(e.getMessage())) return "No published update yet — up to date";
             return "Update check failed: " + e.getMessage();
         }
     }
