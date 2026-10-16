@@ -37,6 +37,9 @@ final class Actions {
                 case "screen": return need() != null ? need() : PhoneControl.instance.dump(2000);
                 case "tap": return need() != null ? need() : PhoneControl.instance.tap(v);
                 case "type": return need() != null ? need() : PhoneControl.instance.type(v);
+                case "tap_xy": return need() != null ? need() : PhoneControl.instance.tapXY(v);
+                case "enter": return need() != null ? need() : PhoneControl.instance.enter();
+                case "look": return need() != null ? need() : PhoneControl.instance.look(v);
                 case "scroll":
                     if (need() != null) return need();
                     return PhoneControl.instance.scroll(!"up".equalsIgnoreCase(v)) ? "scrolled" : "nothing to scroll";

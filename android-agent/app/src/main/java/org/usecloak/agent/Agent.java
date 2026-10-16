@@ -27,16 +27,29 @@ final class Agent {
     // A reply that claims phone work without running any action gets sent back once.
     private static final Pattern CLAIM = Pattern.compile(
             "(?i)\\b(opened|opening|launched|tapped|clicked|typed|searched|scrolled|closed|cleared|freed|initiated|"
-            + "screen (shows|is showing|displays)|on (the|your) screen|home screen)\\b");
+            + "screen (shows|is showing|displays)|on (the|your) screen|home screen|(now |is )?display(s|ing)|now showing|"
+            + "page shows|loaded|navigated|went to)\\b");
     private static final int HISTORY = 20;
     private static final int ACTION_ROUNDS = 6;
+
+    // The phone is the agent's own machine, not a remote control it borrows.
+    private static final String WORKSPACE =
+            "This Android phone is your own device — your workspace, the way a laptop is a person's computer. "
+            + "You live on it, you run on it, and you operate it yourself: open apps, browse, type, read the screen. "
+            + "Work like a careful person at their own computer: look, act one step, check the result, continue. "
+            + "Typical flow for a website: open Chrome, tap the address bar, type the URL, enter, then screen or look. "
+            + "If the text view of the screen is sparse or confusing, look before guessing.\n";
 
     private static final String TOOLS =
             "To act on the phone, reply with action tags only (one per line, max 5), e.g.\n"
             + "<do a=\"open\" v=\"Spotify\"/>  open an app\n"
             + "<do a=\"screen\"/>  read what's on screen\n"
             + "<do a=\"tap\" v=\"visible text\"/>  tap a button or label\n"
-            + "<do a=\"type\" v=\"text\"/>  type into the focused field\n"
+            + "<do a=\"tap_xy\" v=\"540,1820\"/>  tap exact screen coordinates (the @x,y shown next to items)\n"
+            + "<do a=\"type\" v=\"text\"/>  type into the focused field (replaces its text)\n"
+            + "<do a=\"enter\"/>  press the keyboard's Go / Search / Enter on the focused field\n"
+            + "<do a=\"look\" v=\"optional question\"/>  take a screenshot and have vision describe it — use it when "
+            + "the text view is thin, for images, web pages, games, or to check what really happened\n"
             + "<do a=\"scroll\" v=\"down\"/>  or up\n"
             + "<do a=\"back\"/>  <do a=\"home\"/>  <do a=\"recents\"/>\n"
             + "<do a=\"close_all\"/>  clear recent apps\n"
@@ -48,7 +61,9 @@ final class Agent {
             + "You can't see or change the phone except through these tags — you know nothing about the screen "
             + "until a screen result tells you. Never say you opened, tapped, typed or saw anything unless a "
             + "[phone] result in this conversation confirms it; if an action failed, say so plainly. "
-            + "Every message from the owner starts with a [phone now] snapshot — trust it over memory.\n"
+            + "Every message from the owner starts with a [phone now] snapshot — trust it over memory. "
+            + "Describe only what a snapshot, screen or look result literally contains: quote it, never fill in "
+            + "menus, buttons or text that isn't there.\n"
             + "You get the results back, then act again or answer. Read the screen before tapping. "
             + "When done, answer in plain text with no tags. Only act when asked. Never pay, buy, delete, "
             + "post, or send messages unless the owner explicitly said to.\n";
@@ -130,6 +145,7 @@ final class Agent {
             s.append("You're talking with ")
              .append(console ? ownerName + ", the phone's owner" : sms ? ownerName + ", the phone's owner, texting in from their own number" : who + ", a Cloak admin")
              .append(". You can operate this phone.\n")
+             .append(WORKSPACE)
              .append(TOOLS);
         } else {
             if (sms && "me".equals(Prefs.str(c, Prefs.PERSONA, "cloak"))) {
@@ -166,7 +182,7 @@ final class Agent {
     private static String snapshot(Context c) {
         String st = Actions.run(c, "status", "");
         String scr = PhoneControl.instance == null ? "(phone control is off — can't read the screen)"
-                : PhoneControl.instance.dump(1200);
+                : PhoneControl.instance.dump(1600);
         return "[phone now] " + st + "\n" + scr;
     }
 
