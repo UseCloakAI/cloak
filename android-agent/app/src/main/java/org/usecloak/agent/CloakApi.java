@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 /** POST https://api.usecloak.org/v1/chat — same brain as the web app (worker adds the CLOAK prompt). */
 final class CloakApi {
     private static final String URL_CHAT = "https://api.usecloak.org/v1/chat";
+    private static final String URL_LOOK = "https://api.usecloak.org/v1/look";
 
     private CloakApi() {}
 
@@ -37,8 +38,20 @@ final class CloakApi {
         throw last;
     }
 
+    /** POST /v1/look — vision answers a question about one image (the text model never sees it). */
+    static String look(String jpegB64, String question) throws Exception {
+        String body = new JSONObject().put("imageBase64", jpegB64).put("mimeType", "image/jpeg")
+                .put("question", question).toString();
+        JSONObject r = new JSONObject(send(URL_LOOK, body));
+        return r.optString("answer", "");
+    }
+
     private static String post(String json) throws Exception {
-        HttpURLConnection h = (HttpURLConnection) new URL(URL_CHAT).openConnection();
+        return new JSONObject(send(URL_CHAT, json)).optString("response", "");
+    }
+
+    private static String send(String url, String json) throws Exception {
+        HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
         try {
             h.setConnectTimeout(15_000);
             h.setReadTimeout(90_000);
@@ -58,7 +71,7 @@ final class CloakApi {
                 throw new Exception("HTTP " + code);
             }
             if (code >= 400 || r.has("error")) throw new Exception(r.optString("error", "HTTP " + code));
-            return r.optString("response", "");
+            return text;
         } finally {
             h.disconnect();
         }

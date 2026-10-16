@@ -71,6 +71,12 @@ public final class AgentService extends Service {
         exec = Executors.newSingleThreadScheduledExecutor();
         exec.scheduleWithFixedDelay(this::ramTick, 2, 2, TimeUnit.MINUTES);
         exec.scheduleWithFixedDelay(this::remoteTick, 3, 3, TimeUnit.SECONDS);
+        exec.scheduleWithFixedDelay(() -> {
+            if (Prefs.bool(this, Updater.AUTO, true)) {
+                String r = Updater.check(this, true);
+                if (!r.startsWith("Up to date")) Prefs.log(this, r);
+            }
+        }, 1, 360, TimeUnit.MINUTES);
 
         screenOff = new BroadcastReceiver() {
             @Override
@@ -171,7 +177,7 @@ public final class AgentService extends Service {
         Pending p = pending.remove(key);
         if (p == null || !Prefs.enabled(this)) return;
         String text = p.text.toString();
-        Prefs.log(this, "← " + p.name + ": " + clip(text));
+        Prefs.log(this, "← " + p.name + (p.owner ? " (owner)" : " (not owner — chat only)") + ": " + clip(text));
         try {
             String reply = Agent.reply(this, "sms:" + key, p.name, text, p.owner, true,
                     p.owner ? line -> Prefs.log(this, line) : null);

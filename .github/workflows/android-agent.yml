@@ -10,6 +10,8 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: android-agent
@@ -32,6 +34,7 @@ jobs:
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/agent.jks"
             echo "CLOAK_KEYSTORE=$RUNNER_TEMP/agent.jks" >> "$GITHUB_ENV"
+            echo "SIGNED=1" >> "$GITHUB_ENV"
           fi
 
       - name: Build APK
@@ -46,3 +49,16 @@ jobs:
         with:
           name: cloak-agent-apk
           path: android-agent/app/build/outputs/apk/release/*.apk
+
+      # The app's auto-updater reads this rolling release. Only fixed-key builds from main go
+      # out — a debug-signed APK can't install over the real one.
+      - name: Publish agent-latest
+        if: env.SIGNED == '1' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/cloak-agent.apk"
+          echo "{\"versionCode\": ${{ github.run_number }}, \"versionName\": \"1.0.${{ github.run_number }}\"}" > "$RUNNER_TEMP/version.json"
+          gh release delete agent-latest --yes --cleanup-tag || true
+          gh release create agent-latest "$RUNNER_TEMP/cloak-agent.apk" "$RUNNER_TEMP/version.json" \
+            --prerelease --title "Cloak Agent (latest)" --notes "Built from ${{ github.sha }}" --target "${{ github.sha }}"

@@ -68,10 +68,12 @@
   }
 
   async function clear(){
-    if(!confirm('Clear your chat with the phone agent?'))return;
+    if(!confirm('Clear your chat with the phone agent? It also forgets the conversation.'))return;
     const{error}=await sb.from('agent_messages').delete().eq('user_id',uid);
     if(error){status(error.message);return;}
     rows=[];render();
+    // Tell the phone to drop its memory of this chat too.
+    await sb.from('agent_messages').insert({role:'user',content:'/new'});
   }
 
   function reset(){

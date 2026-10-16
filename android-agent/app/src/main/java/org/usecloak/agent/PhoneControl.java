@@ -3,11 +3,21 @@ package org.usecloak.agent;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.os.Build;
 import android.os.Bundle;
+import android.util.Base64;
+import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
+
+import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -63,30 +73,133 @@ public final class PhoneControl extends AccessibilityService {
         return n.isEnabled();
     }
 
-    /** First visible node whose label is exactly one of the phrases (case-insensitive). */
+    /** Every on-screen window root, top-most first: dialogs, the keyboard, then the app. */
+    List<AccessibilityNodeInfo> roots() {
+        List<AccessibilityNodeInfo> out = new ArrayList<>();
+        try {
+            for (AccessibilityWindowInfo w : getWindows()) {
+                AccessibilityNodeInfo r = w.getRoot();
+                if (r != null && w.getType() != AccessibilityWindowInfo.TYPE_SYSTEM) out.add(r);
+            }
+        } catch (Exception ignored) {
+        }
+        if (out.isEmpty()) {
+            AccessibilityNodeInfo r = getRootInActiveWindow();
+            if (r != null) out.add(r);
+        }
+        return out;
+    }
+
+    private static boolean isKeyboard(AccessibilityNodeInfo root) {
+        AccessibilityWindowInfo w = root.getWindow();
+        return w != null && w.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD;
+    }
+
+    /** First visible node whose label is exactly one of the phrases (case-insensitive), any window. */
     AccessibilityNodeInfo findExact(String... phrases) {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) return null;
-        for (String p : phrases) {
-            for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByText(p)) {
-                if (n.isVisibleToUser() && label(n).equalsIgnoreCase(p)) return n;
+        for (AccessibilityNodeInfo root : roots()) {
+            for (String p : phrases) {
+                for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByText(p)) {
+                    if (n.isVisibleToUser() && label(n).equalsIgnoreCase(p)) return n;
+                }
             }
         }
         return null;
     }
 
-    /** Exact label match first, then the first visible partial match. */
+    /** Exact label match first (any window, keyboard included), then the first visible partial match. */
     AccessibilityNodeInfo find(String text) {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null || text.isEmpty()) return null;
-        List<AccessibilityNodeInfo> hits = root.findAccessibilityNodeInfosByText(text);
+        if (text.isEmpty()) return null;
         AccessibilityNodeInfo partial = null;
-        for (AccessibilityNodeInfo n : hits) {
-            if (!n.isVisibleToUser()) continue;
-            if (label(n).equalsIgnoreCase(text)) return n;
-            if (partial == null) partial = n;
+        for (AccessibilityNodeInfo root : roots()) {
+            for (AccessibilityNodeInfo n : root.findAccessibilityNodeInfosByText(text)) {
+                if (!n.isVisibleToUser()) continue;
+                if (label(n).equalsIgnoreCase(text)) return n;
+                if (partial == null) partial = n;
+            }
         }
         return partial;
+    }
+
+    boolean tapAt(int x, int y) {
+        Path p = new Path();
+        p.moveTo(x, y);
+        return dispatchGesture(new GestureDescription.Builder()
+                .addStroke(new GestureDescription.StrokeDescription(p, 0, 60)).build(), null, null);
+    }
+
+    String tapXY(String v) {
+        String[] xy = v.replaceAll("[^0-9,]", "").split(",");
+        if (xy.length != 2 || xy[0].isEmpty() || xy[1].isEmpty()) return "need v=\"x,y\"";
+        boolean ok = tapAt(Integer.parseInt(xy[0]), Integer.parseInt(xy[1]));
+        Actions.pause(900);
+        return ok ? "tapped at " + xy[0] + "," + xy[1] : "couldn't tap there";
+    }
+
+    /** Submits the focused field (the keyboard's Go / Search / Enter). */
+    String enter() {
+        for (AccessibilityNodeInfo root : roots()) {
+            AccessibilityNodeInfo f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (f != null && Build.VERSION.SDK_INT >= 30
+                    && f.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.getId())) {
+                Actions.pause(1200);
+                return "pressed enter";
+            }
+        }
+        AccessibilityNodeInfo key = findExact("Go", "Search", "Enter", "Done", "Send", "Next");
+        if (key != null && click(key)) {
+            Actions.pause(1200);
+            return "pressed " + label(key);
+        }
+        return "no focused field or enter key";
+    }
+
+    /** Screenshot → small JPEG → Cloak's vision model. Android 11+. */
+    String look(String question) {
+        if (Build.VERSION.SDK_INT < 30) return "can't take screenshots on this Android version — use screen";
+        CountDownLatch done = new CountDownLatch(1);
+        Bitmap[] shot = new Bitmap[1];
+        String[] err = new String[1];
+        takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(), new TakeScreenshotCallback() {
+            @Override
+            public void onSuccess(ScreenshotResult r) {
+                try {
+                    Bitmap hw = Bitmap.wrapHardwareBuffer(r.getHardwareBuffer(), r.getColorSpace());
+                    shot[0] = hw == null ? null : hw.copy(Bitmap.Config.ARGB_8888, false);
+                    r.getHardwareBuffer().close();
+                } catch (Exception e) {
+                    err[0] = e.getMessage();
+                }
+                done.countDown();
+            }
+
+            @Override
+            public void onFailure(int code) {
+                err[0] = "screenshot failed (" + code + ")";
+                done.countDown();
+            }
+        });
+        try {
+            if (!done.await(5, TimeUnit.SECONDS)) return "screenshot timed out";
+        } catch (InterruptedException e) {
+            return "interrupted";
+        }
+        if (shot[0] == null) return err[0] != null ? err[0] : "screenshot failed";
+        Bitmap b = shot[0];
+        int w = 720, h = Math.round(b.getHeight() * (720f / b.getWidth()));
+        Bitmap small = Bitmap.createScaledBitmap(b, w, h, true);
+        ByteArrayOutputStream jpg = new ByteArrayOutputStream();
+        small.compress(Bitmap.CompressFormat.JPEG, 70, jpg);
+        b.recycle();
+        small.recycle();
+        String q = (question.isEmpty() ? "Describe this phone screen: the app, what's shown, buttons, the keyboard if open."
+                : question) + " The image is " + w + "px wide; screen coordinates are the image's times "
+                + String.format(java.util.Locale.US, "%.2f", getResources().getDisplayMetrics().widthPixels / (float) w) + ".";
+        try {
+            return "screenshot: " + CloakApi.look(Base64.encodeToString(jpg.toByteArray(), Base64.NO_WRAP), q);
+        } catch (Exception e) {
+            return "vision failed: " + e.getMessage();
+        }
     }
 
     boolean click(AccessibilityNodeInfo n) {
@@ -95,11 +208,7 @@ public final class PhoneControl extends AccessibilityService {
         }
         Rect b = new Rect();
         n.getBoundsInScreen(b);
-        Path p = new Path();
-        p.moveTo(b.centerX(), b.centerY());
-        GestureDescription g = new GestureDescription.Builder()
-                .addStroke(new GestureDescription.StrokeDescription(p, 0, 60)).build();
-        return dispatchGesture(g, null, null);
+        return tapAt(b.centerX(), b.centerY());
     }
 
     String tap(String text) {
@@ -145,13 +254,43 @@ public final class PhoneControl extends AccessibilityService {
 
     // ── Screen dump for the model ───────────────────────────────────────────
 
+    /** Text of every window (app, dialogs, keyboard). Tap targets carry @x,y screen centers. */
     String dump(int max) {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) return "can't read the screen (it's off or locked)";
-        StringBuilder sb = new StringBuilder("app: ").append(Actions.label(this, root.getPackageName())).append('\n');
-        walk(root, sb, 0, max, false);
+        List<AccessibilityNodeInfo> rs = roots();
+        if (rs.isEmpty()) return "can't read the screen (it's off or locked)";
+        StringBuilder sb = new StringBuilder();
+        for (AccessibilityNodeInfo root : rs) {
+            boolean kb = isKeyboard(root);
+            sb.append(kb ? "── keyboard open (" : "── window: ").append(Actions.label(this, root.getPackageName()))
+              .append(kb ? ") — use enter to submit, or tap its keys" : "").append('\n');
+            if (!kb) walk(root, sb, 0, max, false);
+            else walkKeys(root, sb, max);
+        }
         if (sb.length() > max) sb.setLength(max);
         return sb.toString().trim();
+    }
+
+    /** Keyboard: only the action keys matter (letters are typed with type). */
+    private static void walkKeys(AccessibilityNodeInfo root, StringBuilder sb, int max) {
+        ArrayDeque<AccessibilityNodeInfo> q = new ArrayDeque<>();
+        q.add(root);
+        for (int seen = 0; !q.isEmpty() && seen < 400 && sb.length() < max; seen++) {
+            AccessibilityNodeInfo n = q.poll();
+            String t = label(n);
+            if (t.length() > 1 && n.isVisibleToUser() && t.matches("(?i)go|search|enter|done|send|next|delete|backspace|shift|space|.*emoji.*")) {
+                sb.append("[key] ").append(t).append(at(n)).append('\n');
+            }
+            for (int i = 0; i < n.getChildCount(); i++) {
+                AccessibilityNodeInfo ch = n.getChild(i);
+                if (ch != null) q.add(ch);
+            }
+        }
+    }
+
+    private static String at(AccessibilityNodeInfo n) {
+        Rect b = new Rect();
+        n.getBoundsInScreen(b);
+        return " @" + b.centerX() + "," + b.centerY();
     }
 
     private static void walk(AccessibilityNodeInfo n, StringBuilder sb, int depth, int max, boolean inClickable) {
@@ -161,9 +300,10 @@ public final class PhoneControl extends AccessibilityService {
         if (n.isVisibleToUser()) {
             if (n.isEditable()) {
                 CharSequence hint = n.getHintText();
-                sb.append("[field] ").append(t.isEmpty() && hint != null ? "(" + hint + ")" : clip(t)).append('\n');
+                sb.append(n.isFocused() ? "[field, focused] " : "[field] ")
+                  .append(t.isEmpty() && hint != null ? "(" + hint + ")" : clip(t)).append(at(n)).append('\n');
             } else if (!t.isEmpty()) {
-                sb.append(click ? "[tap] " : "").append(clip(t)).append('\n');
+                sb.append(click ? "[tap] " : "").append(clip(t)).append(click ? at(n) : "").append('\n');
             }
         }
         boolean passDown = click && t.isEmpty();

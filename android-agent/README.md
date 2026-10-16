@@ -34,6 +34,13 @@ Without them the APK is debug-signed and each new build needs an uninstall first
 
 Local build: Android SDK + `gradle assembleRelease` in this folder (Gradle 8.9+, JDK 17).
 
+## Auto-update
+
+Every push to `main` that touches `android-agent/` rebuilds and republishes the
+`agent-latest` GitHub release (only once the signing secrets are set). The app checks it every
+6 hours (or Updates → Check now), downloads, and installs. Allow "Install unknown apps" for
+Cloak Agent once; the first update needs a confirm tap, after that Android 12+ updates silently.
+
 ## Phone setup
 
 1. Install, open, tap through the Setup checklist (SMS, Contacts, Notification, Phone control, Battery).

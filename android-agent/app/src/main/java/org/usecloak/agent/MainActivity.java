@@ -116,6 +116,9 @@ public final class MainActivity extends Activity {
         setupRow(setup, "Run unrestricted (battery)", this::unrestricted, () ->
                 startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                         Uri.parse("package:" + getPackageName()))));
+        setupRow(setup, "Allow self-updates (Install unknown apps)", () -> Updater.canInstall(this), () ->
+                startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()))));
         TextView hint = text("Accessibility greyed out? App info → ⋮ → Allow restricted settings, then try again. "
                 + "Using Google Messages? Turn off RCS chats on this phone so every text arrives as SMS.", 12, MUTED, false);
         setup.addView(hint);
@@ -184,6 +187,23 @@ public final class MainActivity extends Activity {
         ram.addView(ramBtns);
         ramOut = text("", 12, MUTED, false);
         ram.addView(ramOut);
+
+        // Updates
+        LinearLayout up = card(root);
+        section(up, "Updates");
+        Switch swAuto = toggle(up, "Auto-update (checks every 6 hours)", Prefs.bool(this, Updater.AUTO, true));
+        swAuto.setOnCheckedChangeListener((v, on) -> Prefs.put(this, Updater.AUTO, on));
+        TextView upOut = text("", 12, MUTED, false);
+        Button upBtn = button("Check now", false);
+        upBtn.setOnClickListener(v -> {
+            upOut.setText("Checking…");
+            new Thread(() -> {
+                String r = Updater.check(this, true);
+                ui.post(() -> upOut.setText(r));
+            }).start();
+        });
+        up.addView(upBtn, wrap());
+        up.addView(upOut);
 
         // Console
         LinearLayout con = card(root);
