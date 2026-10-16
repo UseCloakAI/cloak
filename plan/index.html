@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cloak Plan</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@500;700&family=Syne:wght@800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+/* Tokens. One accent (green). Amber and red are status only. */
+:root{
+  --bg:#F3F5F4; --surface:#FFFFFF; --ink:#16201B; --muted:#46524C; --line:#CBD3CE;
+  --accent:#0E6B45; --accent-ink:#FFFFFF; --accent-soft:#DDEFE5;
+  --warn:#7A4B00; --warn-soft:#FBEBC8; --bad:#9B2318; --bad-soft:#F9DEDA;
+  --focus:#0E6B45; --shadow:0 1px 2px rgb(22 32 27 / .06), 0 6px 20px rgb(22 32 27 / .06);
+  --r:14px; --fs:17px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#111614; --surface:#1A211E; --ink:#EEF3F0; --muted:#B4C0BA; --line:#34403A;
+    --accent:#5FD39A; --accent-ink:#0B1A12; --accent-soft:#1E3A2C;
+    --warn:#F2C26B; --warn-soft:#3A2E14; --bad:#FF8A7D; --bad-soft:#3D1D19;
+    --focus:#5FD39A; --shadow:none;
+  }
+}
+html.big{--fs:20px}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100dvh;background:var(--bg);color:var(--ink);font-family:'Atkinson Hyperlegible',system-ui,-apple-system,sans-serif;font-size:var(--fs);line-height:1.5}
+.wrap{max-width:680px;margin:0 auto;padding:20px 16px calc(48px + env(safe-area-inset-bottom))}
+h1{font-size:1.6em;line-height:1.2;margin:.15em 0 .35em}
+h2{font-size:1.2em;line-height:1.25;margin:0 0 .5em}
+p{margin:.35em 0}
+a{color:var(--accent);text-underline-offset:3px}
+button{font:inherit;color:inherit;cursor:pointer}
+i.ph-bold{font-size:1.25em;line-height:1}
+:focus-visible{outline:4px solid var(--focus);outline-offset:3px;border-radius:8px}
+
+/* Buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:54px;padding:12px 20px;border-radius:var(--r);border:2px solid var(--accent);background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:1em;text-decoration:none;transition:transform .15s ease}
+.btn:active{transform:scale(.98)}
+.btn.quiet{background:transparent;color:var(--ink);border-color:var(--line)}
+.link{background:none;border:0;padding:10px 4px;min-height:44px;text-decoration:underline;text-underline-offset:3px;color:var(--muted);font-size:.85em}
+.link.danger{color:var(--bad)}
+
+/* Surfaces */
+.card{background:var(--surface);border:2px solid var(--line);border-radius:var(--r);padding:20px;margin:0 0 16px;box-shadow:var(--shadow)}
+.label{font-weight:700;color:var(--muted);margin:0}
+.sub{color:var(--muted);margin:0 0 20px}
+.help{color:var(--muted);font-size:.85em}
+
+/* Top bar */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:8px 16px;border-radius:999px;border:2px solid var(--line);background:var(--surface);font-weight:700;font-size:.8em}
+.back{display:inline-flex;align-items:center;gap:10px;min-height:46px;padding:8px 18px 8px 12px;margin:0 0 8px -4px;border-radius:999px;border:2px solid var(--line);background:var(--surface);font-weight:700;color:var(--ink);text-decoration:none}
+
+/* Score hero */
+.score{padding:24px}
+.score-row{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.big-num{font-size:3.4em;font-weight:700;line-height:1;letter-spacing:-.02em;margin:.1em 0}
+.togo{font-size:1.1em}
+.meter{position:relative;height:18px;border-radius:999px;background:var(--accent-soft);margin:18px 0 8px;overflow:hidden}
+.meter span{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:999px}
+.meter-ends{display:flex;justify-content:space-between;color:var(--muted);font-size:.8em;font-weight:700}
+
+/* Next step */
+.next{border-color:var(--accent);background:var(--accent-soft)}
+.next-text{font-size:1.15em;font-weight:700;margin:.2em 0 .7em}
+
+/* Home tiles */
+.tiles{display:grid;grid-template-columns:1fr;gap:12px;margin:8px 0 24px}
+@media (min-width:600px){.tiles{grid-template-columns:1fr 1fr}.tiles a:first-child{grid-column:1 / -1}}
+.tile{display:flex;align-items:center;gap:14px;min-height:76px;padding:14px 18px;border-radius:var(--r);border:2px solid var(--line);background:var(--surface);color:var(--ink);text-decoration:none;box-shadow:var(--shadow);transition:transform .15s ease}
+.tile:active{transform:scale(.98)}
+.tile .ic{flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}
+.tile .ic i{font-size:26px}
+.tile b{display:block;font-size:1.05em}
+.tile small{display:block;color:var(--muted);font-size:.8em}
+
+/* Forms */
+label{display:block;font-weight:700;margin:0 0 14px}
+input{display:block;width:100%;margin-top:6px;min-height:52px;padding:10px 14px;border-radius:12px;border:2px solid var(--muted);background:var(--surface);color:var(--ink);font:inherit;font-size:1.05em}
+input::placeholder{color:var(--muted);opacity:.85}
+.status-msg{min-height:1.5em;margin:12px 0 0;font-weight:700;color:var(--accent)}
+.status-msg.err{color:var(--bad)}
+
+/* Checklist buttons */
+.check{display:flex;align-items:flex-start;gap:16px;width:100%;text-align:left;padding:16px;margin:0 0 12px;border-radius:var(--r);border:2px solid var(--line);background:var(--surface);min-height:60px;box-shadow:var(--shadow)}
+.check .box{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;border:3px solid var(--muted);margin-top:-2px}
+.check.on{border-color:var(--accent);background:var(--accent-soft)}
+.check.on .box{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.check .t{display:block;font-weight:700}
+.check.on .t{text-decoration:line-through;text-decoration-thickness:2px}
+.check .h{display:block;color:var(--muted);font-size:.85em;margin-top:2px}
+.item-extra{margin:-4px 0 14px 66px;font-size:.85em}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.8em;font-weight:700;color:var(--warn);background:var(--warn-soft);padding:4px 10px;border-radius:999px;margin-top:6px}
+
+/* Plan groups */
+.group{margin:0 0 28px}
+.group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}
+.group-head h2{margin:0}
+.say{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:8px 14px;border-radius:999px;border:2px solid var(--line);background:var(--surface);font-weight:700;font-size:.8em;white-space:nowrap}
+
+/* Credit cards */
+.cc .owe{font-size:1.1em}
+.keep{font-size:1.25em;margin:.4em 0}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;font-weight:700;font-size:.9em}
+.good .pill{background:var(--accent-soft);color:var(--accent)}
+.warn .pill{background:var(--warn-soft);color:var(--warn)}
+.bad .pill{background:var(--bad-soft);color:var(--bad)}
+.cc.bad{border-color:var(--bad)}
+.flag{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:var(--bad);margin:0 0 6px}
+.inline{display:grid;grid-template-columns:1fr;gap:10px;margin-top:16px}
+@media (min-width:600px){.inline{grid-template-columns:1fr auto;align-items:end}.inline label{margin:0}.inline .btn{width:auto;min-width:120px}}
+
+/* Segmented status */
+.seg{display:grid;grid-template-columns:1fr;gap:8px;margin:12px 0 4px}
+@media (min-width:600px){.seg{grid-template-columns:repeat(3,1fr)}}
+.seg button{min-height:48px;border-radius:12px;border:2px solid var(--line);background:var(--surface);font-weight:700}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+/* Lists */
+.rows{list-style:none;margin:0;padding:0}
+.rows li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0}
+.rows li + li{border-top:1px solid var(--line)}
+.rows b{font-size:1.1em}
+
+/* Chart */
+.chart{width:100%;height:auto;display:block}
+.chart .goal{stroke:var(--accent);stroke-width:2;stroke-dasharray:8 8}
+.chart .goal-t{fill:var(--accent);font-weight:700;font-size:20px}
+.chart .ln{fill:none;stroke:var(--ink);stroke-width:4;stroke-linejoin:round;stroke-linecap:round}
+.chart .dot{fill:var(--surface);stroke:var(--ink);stroke-width:4}
+.chart .val{fill:var(--ink);font-weight:700;font-size:20px}
+.chart .xl{fill:var(--muted);font-size:17px}
+
+.empty{text-align:center;color:var(--muted);padding:12px 0}
+.done-banner{display:flex;align-items:center;gap:12px;border-color:var(--accent);background:var(--accent-soft);font-weight:700}
+.done-banner i{font-size:32px;color:var(--accent)}
+.foot{display:flex;justify-content:center;margin-top:8px}
+
+/* Sign-in */
+.err-line{min-height:1.5em;color:var(--bad);font-weight:700;margin:0 0 12px}
+
+/* Sign-in: Cloak's auth screen (hatch, stamped wordmark, hard-shadow card),
+   scaled up so it stays easy to read. Own tokens, nothing loaded from Cloak. */
+.ck{--ck-ink:#0A0A0A;--ck-paper:#F2EEE5;--ck-surf:#FAFAF7;--ck-acc:#D44D2A;--ck-yel:#F5C842;--ck-hatch:rgba(0,0,0,.025);
+  --ck-bd:2px solid #0A0A0A;--ck-sh:4px 4px 0 #0A0A0A;--ck-shlg:6px 6px 0 #0A0A0A;
+  --ck-fd:'Syne',system-ui,sans-serif;--ck-fu:'Space Grotesk',system-ui,sans-serif;
+  --ck-out:cubic-bezier(.16,1,.3,1);--ck-snap:cubic-bezier(.3,1.35,.55,1);--ck-pop:cubic-bezier(.34,1.56,.64,1);
+  --focus:var(--ck-acc);
+  position:relative;overflow:hidden;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:max(24px,calc(env(safe-area-inset-top) + 20px)) 16px max(24px,calc(env(safe-area-inset-bottom) + 20px));
+  background:var(--ck-paper);color:var(--ck-ink);font-family:var(--ck-fu);font-size:16px;line-height:1.55}
+html.big .ck{font-size:18px}
+@media (prefers-color-scheme: dark){
+  .ck{--ck-ink:#EDE8DF;--ck-paper:#131110;--ck-surf:#181512;--ck-acc:#E5603E;--ck-yel:#E8BB2A;--ck-hatch:rgba(255,255,255,.03);
+    --ck-bd:2px solid rgba(237,232,223,.6);--ck-sh:4px 4px 0 rgba(237,232,223,.45);--ck-shlg:6px 6px 0 rgba(237,232,223,.35)}
+}
+html.ck-on .wrap{max-width:none;padding:0}
+html.ck-on .sync{display:none}
+.ck::before{content:'';position:absolute;top:0;bottom:0;left:-40px;right:0;pointer-events:none;
+  background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,var(--ck-hatch) 24px,var(--ck-hatch) 26px);animation:ckHatch 1.6s linear infinite}
+@keyframes ckHatch{to{transform:translateX(36.77px)}}
+.ck-card{position:relative;z-index:1;width:100%;max-width:420px;padding:36px 30px;background:var(--ck-surf);border:var(--ck-bd);box-shadow:var(--ck-shlg);animation:ckRise .7s var(--ck-snap) backwards}
+.ck-card>*{animation:ckUp .6s var(--ck-out) backwards;animation-delay:calc(.14s + var(--fi,0) * 45ms)}
+.ck-card>:nth-child(2){--fi:1}.ck-card>:nth-child(3){--fi:2}.ck-card>:nth-child(4){--fi:3}.ck-card>:nth-child(5){--fi:4}
+@keyframes ckRise{from{opacity:0;translate:6px 22px;box-shadow:none}}
+@keyframes ckUp{from{opacity:0;translate:0 18px}}
+@keyframes ckStamp{from{opacity:0;scale:1.9;rotate:-9deg}30%{opacity:1}}
+@keyframes ckShake{0%,100%{translate:0}14%{translate:-8px}29%{translate:7px}44%{translate:-5px}59%{translate:3px}74%{translate:-1.5px}}
+.ck-brand{display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:24px;text-align:center}
+.ck-name{margin:0;font-family:var(--ck-fd);font-size:2em;font-weight:800;line-height:1;text-transform:uppercase;letter-spacing:-.02em;animation:ckStamp .6s var(--ck-pop) .12s backwards}
+.ck-tag{margin:0;font-size:.7em;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--ck-acc)}
+.ck-hint{margin:0 0 20px;text-align:center;opacity:.75}
+.ck-form{display:flex;flex-direction:column;gap:14px}
+.ck label{margin:0;font-size:.72em;text-transform:uppercase;letter-spacing:.12em}
+.ck input{margin-top:6px;min-height:52px;border-radius:0;border:var(--ck-bd);background:var(--ck-paper);color:var(--ck-ink);font-family:var(--ck-fu);font-size:1em;font-weight:500;letter-spacing:0;text-transform:none;outline:none;transition:box-shadow .38s var(--ck-snap),border-color .14s ease}
+.ck input:focus{box-shadow:var(--ck-sh);border-color:var(--ck-acc)}
+.ck input.ck-code{font-family:'Courier New',monospace;font-size:1.4em;font-weight:700;letter-spacing:.3em;text-align:center}
+.ck-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:52px;padding:10px 16px;border-radius:0;border:var(--ck-bd);background:var(--ck-acc);color:#fff;box-shadow:var(--ck-sh);font-family:var(--ck-fu);font-size:.8em;font-weight:700;text-transform:uppercase;letter-spacing:.12em;transition:box-shadow .38s var(--ck-snap),translate .38s var(--ck-snap)}
+.ck-btn:hover:not(:disabled){box-shadow:var(--ck-shlg);translate:-2px -2px}
+.ck-btn:active:not(:disabled){box-shadow:none;translate:4px 4px;transition-duration:90ms}
+.ck-btn:disabled{opacity:.55;cursor:wait}
+.ck-msg{margin:0;padding:12px 14px;border:var(--ck-bd);background:var(--ck-acc);color:#fff;font-size:.85em;font-weight:700;animation:ckShake .42s ease}
+.ck-msg.ok{background:var(--ck-yel);color:#0A0A0A;animation:none}
+.ck-msg:empty{display:none}
+.ck-links{display:flex;flex-wrap:wrap;justify-content:center;gap:0 20px}
+.ck-link{min-height:44px;padding:8px 4px;border:0;background:none;color:var(--ck-acc);font-family:var(--ck-fu);font-size:.8em;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.ck .say{display:flex;min-height:44px;margin:18px auto 0;border:var(--ck-bd);border-radius:0;background:transparent;color:var(--ck-ink);font-family:var(--ck-fu);font-size:.72em;text-transform:uppercase;letter-spacing:.12em}
+
+/* Which info to keep */
+.pick .btn{margin-top:12px}
+
+/* Sync status */
+.sync{display:flex;align-items:center;justify-content:center;gap:8px;min-height:1.5em;margin:0;color:var(--muted);font-size:.8em;font-weight:700}
+.sync.err{color:var(--warn)}
+
+@media (prefers-reduced-motion: no-preference){
+  .shake{animation:shake .4s ease}
+  @keyframes shake{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap"><main id="app" aria-live="polite"></main><p class="sync" id="sync" role="status"></p></div>
+
+<script>
+(function(){
+'use strict';
+
+/* Settings. This page uses its OWN Supabase project, never Cloak's. */
+var SB_URL = 'https://YOUR-PROJECT-REF.supabase.co';
+var SB_KEY = 'YOUR-PUBLISHABLE-KEY';     // publishable (anon) key only, never service_role
+var SB_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
+var ALLOWED = '97fd1f31ffa05ca0dc5d94ccb9cffc0ce48b564970b2cc383c9038a7f5498260'; // SHA-256 of the one email. Friendly check only; RLS is the real gate.
+var NAME = 'Laury';
+var START = 516, GOAL = 640;
+var KEY = 'credit-plan-v1';             // old this-device-only data, moved up once
+var CACHE = 'credit-plan-cache-v2';     // offline copy of the saved data
+var BIG = 'credit-plan-big';
+var TABLE = 'credit_plan_state';
+var CODE_LIFE = 3600e3;                 // Supabase email code life (default 1 hour)
+
+/* Helpers */
+var $app = document.getElementById('app');
+var $sync = document.getElementById('sync');
+function pad2(n){ return String(n).padStart(2,'0'); }
+function today(){ var d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function monthKey(){ return today().slice(0,7); }
+function toDate(s){ var p=s.split('-'); return new Date(+p[0], +p[1]-1, +(p[2]||1)); }
+function monthName(k){ return toDate(k).toLocaleString('en-US',{month:'long',year:'numeric'}); }
+function longDate(s){ return toDate(s).toLocaleString('en-US',{month:'long',day:'numeric',year:'numeric'}); }
+function shortDate(s){ return toDate(s).toLocaleString('en-US',{month:'short',day:'numeric'}); }
+function money(n){ return '$' + Math.round(n).toLocaleString('en-US'); }
+function esc(s){ return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function icon(n){ return '<i class="ph-bold ph-'+n+'" aria-hidden="true"></i>'; }
+function num(v){ var n=parseFloat(String(v).replace(/[$,\s]/g,'')); return isFinite(n)?n:NaN; }
+function noop(){}
+
+/* Storage. The server holds the real copy; localStorage is the offline cache. */
+function defaults(){ return {scores:[{d:'2026-10-15',v:START}], months:{}, cards:[], plan:{}, fixes:[], big:false}; }
+function fill(o){ o=(o && typeof o==='object') ? o : {}; var d=defaults(); for(var k in d){ if(o[k]===undefined) o[k]=d[k]; } return o; }
+function readJSON(k){ try{ var r=localStorage.getItem(k); return r ? JSON.parse(r) : null; }catch(e){ return null; } }
+function writeJSON(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+function drop(k){ try{ localStorage.removeItem(k); }catch(e){} }
+function stable(v){
+  if(Array.isArray(v)) return '['+v.map(stable).join(',')+']';
+  if(v && typeof v==='object') return '{'+Object.keys(v).sort().map(function(k){ return JSON.stringify(k)+':'+stable(v[k]); }).join(',')+'}';
+  return JSON.stringify(v);
+}
+function same(a,b){ return stable(a)===stable(b); }
+function isEmpty(d){
+  d=fill(JSON.parse(JSON.stringify(d)));
+  return d.scores.length<=1 && (!d.scores.length || d.scores[0].v===START) && !d.cards.length && !d.fixes.length
+    && !Object.keys(d.months).length && !Object.keys(d.plan).some(function(k){ return d.plan[k]; });
+}
+
+var S = fill(null);
+try{ S.big = localStorage.getItem(BIG)==='1'; }catch(e){}
+var sb = null, user = null, me = null;  // client, signed-in user, user id the cache belongs to
+var phase = 'boot';                      // boot | email | code | pick | app | down
+var email = '', sentAt = 0, busy = false, note = '', noteOk = false;
+var pick = null, syncedAt = null, pulled = false, rev = 0;
+var flash = '', flashErr = false;
+
+function isDirty(){ var c=readJSON(CACHE); return !!(c && c.dirty); }
+function cache(dirty){ writeJSON(CACHE, {uid:me, data:S, dirty:!!dirty, base:syncedAt}); }
+function save(){
+  rev++;
+  try{ localStorage.setItem(BIG, S.big?'1':'0'); }catch(e){}
+  cache(true);
+  clearTimeout(timer); timer=setTimeout(push, 800);
+}
+function status(t, bad){ $sync.textContent = t||''; $sync.className = 'sync'+(bad?' err':''); }
+
+/* Sync */
+var timer=null, inflight=false, again=false;
+function push(){
+  clearTimeout(timer); timer=null;
+  if(!sb || !user){ status('Not saved, check internet.', true); return Promise.resolve(false); }
+  if(inflight){ again=true; return Promise.resolve(false); }
+  inflight=true;
+  var snap=JSON.parse(JSON.stringify(S));
+  return sb.from(TABLE).upsert({user_id:user.id, data:snap, updated_at:new Date().toISOString()})
+    .select('updated_at').single().then(function(r){
+      inflight=false;
+      if(r.error) throw r.error;
+      syncedAt=r.data.updated_at;
+      var dirty=!same(snap, S);
+      cache(dirty);
+      if(again || (dirty && !timer)){ again=false; return push(); }
+      if(!dirty) status('Saved');
+      return true;
+    }).catch(function(){ inflight=false; again=false; status('Not saved, check internet.', true); return false; });
+}
+
+/* Load her saved data and settle it against anything on this device. */
+function pull(){
+  var at=rev;
+  return sb.from(TABLE).select('data,updated_at').eq('user_id', user.id).maybeSingle().then(function(r){
+    if(r.error) throw r.error;
+    if(rev!==at) return;               // she changed something while this loaded; her change wins
+    var row=r.data, saved=row ? fill(row.data) : null, base=row ? row.updated_at : null;
+    var c=readJSON(CACHE); if(c && c.uid!==user.id) c=null;
+    var old=readJSON(KEY);
+    var dirty=!!(c && c.dirty);
+    var mine=dirty ? fill(c.data) : (old && !isEmpty(old) ? fill(old) : null);
+    if(!mine || (saved && same(mine, saved))) return use(saved || defaults(), base);
+    if(!saved || isEmpty(saved) || (dirty && c.base===base)){ use(mine, base); cache(true); return push(); }
+    pick={mine:mine, saved:saved, base:base}; phase='pick'; render();
+  });
+}
+function use(data, base){
+  var fresh=fill(data), show=phase!=='app' || !same(fresh, S);
+  S=fresh; syncedAt=base; pulled=true; pick=null;
+  var old=readJSON(KEY); if(old){ writeJSON(KEY+'-backup', old); drop(KEY); }
+  try{ localStorage.setItem(BIG, S.big?'1':'0'); }catch(e){}
+  cache(false);
+  if(phase!=='app'){ phase='app'; status(''); }
+  if(show) render();
+}
+
+/* Auth */
+function sha(t){
+  return Promise.resolve().then(function(){ return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); }).then(function(b){
+    return Array.from(new Uint8Array(b)).map(function(x){ return x.toString(16).padStart(2,'0'); }).join('');
+  });
+}
+function allowed(e){ return sha(String(e||'').trim().toLowerCase()).then(function(h){ return h===ALLOWED; }, function(){ return true; }); }
+function enter(u){
+  return allowed(u.email).then(function(ok){
+    if(!ok){
+      return sb.auth.signOut({scope:'local'}).catch(noop).then(function(){
+        user=null; phase='email'; note='This page is private.'; noteOk=false; render();
+      });
+    }
+    user=u; me=u.id;
+    return pull();
+  });
+}
+function connect(){
+  var lib = sb ? Promise.resolve(null) : import(SB_LIB);
+  return lib.then(function(m){
+    if(m){
+      sb=m.createClient(SB_URL, SB_KEY, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:false, storageKey:'credit-plan-auth'}});
+      sb.auth.onAuthStateChange(function(ev){
+        if(ev==='SIGNED_OUT' && user){ user=null; phase='email'; note=''; render(); }
+      });
+    }
+    return sb.auth.getSession();
+  }).then(function(r){
+    var s=r.data && r.data.session;
+    if(s) return enter(s.user);
+    if(r.error) throw r.error;
+    user=null; phase='email'; render();
+  }).catch(offline);
+}
+function offline(){
+  var c=readJSON(CACHE);
+  if(phase==='app'){ status(isDirty() ? 'Not saved, check internet.' : 'Offline. Check internet.', true); return; }
+  if(c && c.data){
+    S=fill(c.data); syncedAt=c.base; me=c.uid; phase='app'; render();
+    status(c.dirty ? 'Not saved, check internet.' : 'Offline. Check internet.', true);
+    return;
+  }
+  phase='down'; render();
+}
+function authErr(err, step){
+  var code=(err && err.code) || '', st=err && err.status, m=(err && err.message) || '';
+  if(st===429 || /rate/.test(code)) return 'Please wait a minute, then try again.';
+  if(st===0 || /fetch|network|load failed/i.test(m) || (err && err.name==='AuthRetryableFetchError')) return 'Could not connect. Check your internet and try again.';
+  if(step==='code') return Date.now()-sentAt > CODE_LIFE ? 'That code expired. Tap Send a new code.' : "That code didn't work. Try again.";
+  return 'This page is private.';
+}
+function sendCode(){
+  return sb.auth.signInWithOtp({email:email, options:{shouldCreateUser:false}}).then(function(r){
+    if(r.error) throw r.error;
+    sentAt=Date.now();
+  });
+}
+function signOut(){
+  if(isDirty() && !confirm('Some changes are not saved yet. Sign out anyway?')) return;
+  clearTimeout(timer); timer=null; stopSpeak();
+  (sb ? sb.auth.signOut({scope:'local'}) : Promise.resolve()).catch(noop).then(function(){
+    user=null; me=null; syncedAt=null; pulled=false; drop(CACHE);
+    var big=S.big; S=fill(null); S.big=big;
+    note=''; phase=sb ? 'email' : 'down'; status(''); render();
+  });
+}
+function focusIn(id){ var el=document.getElementById(id); if(el) try{ el.focus(); }catch(e){} }
+
+/* Read aloud */
+var canSpeak = 'speechSynthesis' in window;
+function speak(t){ if(!canSpeak) return; try{ speechSynthesis.cancel(); var u=new SpeechSynthesisUtterance(t); u.rate=.9; speechSynthesis.speak(u); }catch(e){} }
+function stopSpeak(){ if(canSpeak){ try{ speechSynthesis.cancel(); }catch(e){} } }
+function sayBtn(text, label){ return canSpeak ? '<button class="say" type="button" data-act="say" data-say="'+esc(text)+'">'+icon('speaker-high')+(label||'Read to me')+'</button>' : ''; }
+
+/* Plan content (plain language) */
+var PLAN = [
+  {title:'Look at my credit', items:[
+    {id:'p1', t:'Get my 3 free credit reports', h:'Free every week. No credit card needed.', url:'https://www.annualcreditreport.com', urlText:'Open AnnualCreditReport.com'},
+    {id:'p2', t:'Write down anything wrong, late, or unpaid', h:'Add each one to "Things to fix".', go:'fix', goText:'Go to Things to fix', w:true}
+  ]},
+  {title:'Never pay late', items:[
+    {id:'p3', t:'Turn on autopay for every bill', h:'At least the minimum payment. This is the most important step.'},
+    {id:'p4', t:'Turn on autopay for my phone and utilities too', h:'Late bills of any kind can hurt my score.'}
+  ]},
+  {title:'Fix problems', items:[
+    {id:'p5', t:'Dispute anything that is wrong', h:'It is free on each credit bureau website.', w:true},
+    {id:'p6', t:'Ask collectors to remove it if I pay', h:'Get their promise in writing before paying.', w:true}
+  ]},
+  {title:'Build good history', items:[
+    {id:'p7', t:'Report my rent for free with Self', h:'My rent is my biggest bill. It can help my score.', w:true},
+    {id:'p8', t:'Turn on Experian Boost', h:'Free. Adds my phone and utility bills.'},
+    {id:'p9', t:'Get one secured card', h:'Chime or OpenSky. No credit check.', w:true},
+    {id:'p10', t:'Put one small bill on it and autopay in full', h:'Like my phone bill. Never leave a balance.'}
+  ]},
+  {title:'Keep cards low', items:[
+    {id:'p11', t:'Keep each card under 10%', h:'"My cards" shows the number for each card.', go:'cards', goText:'Go to My cards'},
+    {id:'p12', t:'Do not close old cards', h:'Old cards help my score, even if I do not use them.'},
+    {id:'p13', t:'Do not apply for new cards or loans', h:'Unless it is part of this plan.'}
+  ]}
+];
+var ALL_ITEMS = PLAN.reduce(function(a,g){ return a.concat(g.items); }, []);
+
+var MONTH_ITEMS = [
+  {id:'paid',   t:'I paid every bill on time'},
+  {id:'low',    t:'I paid my cards down low', h:'"My cards" shows how low.'},
+  {id:'score',  t:'I added my new score', h:'This checks itself when I save a score.'},
+  {id:'report', t:'I looked at one credit report', h:'Free at AnnualCreditReport.com'}
+];
+
+/* Math */
+function latest(){ var s=S.scores.slice().sort(function(a,b){return a.d<b.d?-1:1;}); return s.length ? s[s.length-1].v : START; }
+function util(c){ return c.limit>0 ? c.bal/c.limit : 0; }
+function tone(u){ return u<=0.10 ? 'good' : u<=0.30 ? 'warn' : 'bad'; }
+function toneText(u){ return u<=0.10 ? 'Great. Keep it here.' : u<=0.30 ? 'Okay. Pay a little more if I can.' : 'Too high. Paying this down helps most.'; }
+function toneIcon(u){ return u<=0.10 ? 'check-circle' : u<=0.30 ? 'warning-circle' : 'warning'; }
+function nextItem(){ for(var i=0;i<ALL_ITEMS.length;i++){ if(!S.plan[ALL_ITEMS[i].id]) return ALL_ITEMS[i]; } return null; }
+
+/* Shared bits */
+function backBar(title){ return '<a class="back" href="#home">'+icon('arrow-left')+'Home</a><h1>'+title+'</h1>'; }
+function check(group, it, on){
+  return '<button class="check'+(on?' on':'')+'" data-act="tick" data-g="'+group+'" data-id="'+it.id+'" aria-pressed="'+(on?'true':'false')+'">'
+    + '<span class="box">'+(on?icon('check'):'')+'</span>'
+    + '<span><span class="t">'+esc(it.t)+'</span>'+(it.h?'<span class="h">'+esc(it.h)+'</span>':'')
+    + (it.w?'<span class="tag">'+icon('hand-heart')+'Weston can help</span>':'')+'</span></button>';
+}
+function msg(){ var m = '<p class="status-msg'+(flashErr?' err':'')+'" role="status">'+esc(flash)+'</p>'; flash=''; flashErr=false; return m; }
+
+/* Views */
+function viewHome(){
+  var s=latest(), left=Math.max(0,GOAL-s), pct=Math.min(1,Math.max(0,(s-START)/(GOAL-START)));
+  var n=nextItem();
+  var tiles=[
+    ['score','chart-line-up','My score','Add my new score'],
+    ['month','calendar-check','This month','My monthly checklist'],
+    ['cards','credit-card','My cards','Keep balances low'],
+    ['plan','list-checks','My plan','What to do, one step at a time'],
+    ['fix','wrench','Things to fix','Problems on my report']
+  ].map(function(t){ return '<a class="tile" href="#'+t[0]+'"><span class="ic">'+icon(t[1])+'</span><span><b>'+t[2]+'</b><small>'+t[3]+'</small></span></a>'; }).join('');
+  var spoken = 'My score is '+s+'. '+(left?left+' points to go until '+GOAL+'.':'I reached my goal.') + (n?' Next thing to do: '+n.t+'.':'');
+  return '<div class="top"><h1>Hi '+NAME+'</h1><button class="chip" data-act="size">'+icon('text-aa')+(S.big?'Smaller text':'Bigger text')+'</button></div>'
+    + '<section class="card score"><p class="label">My score</p><div class="score-row"><p class="big-num">'+s+'</p>'
+    + '<p class="togo">'+(left?'<b>'+left+' points</b> to go':'<b>Goal reached!</b>')+'</p></div>'
+    + '<div class="meter" role="img" aria-label="'+Math.round(pct*100)+' percent of the way to '+GOAL+'"><span style="width:'+(pct*100).toFixed(1)+'%"></span></div>'
+    + '<div class="meter-ends"><span>Start '+START+'</span><span>Goal '+GOAL+'</span></div>'
+    + '<div style="margin-top:14px">'+sayBtn(spoken)+'</div></section>'
+    + (n ? '<section class="card next"><p class="label">Next thing to do</p><p class="next-text">'+esc(n.t)+'</p><a class="btn" href="#plan">Go to my plan</a></section>'
+         : '<section class="card done-banner">'+icon('confetti')+'<span>Every step in the plan is done. Keep it going each month.</span></section>')
+    + '<nav class="tiles" aria-label="Sections">'+tiles+'</nav>'
+    + '<div class="foot"><button class="link" data-act="lock">'+icon('sign-out')+' Sign out</button></div>';
+}
+
+
+function chart(){
+  var pts=S.scores.slice().sort(function(a,b){return a.d<b.d?-1:1;});
+  if(!pts.length) return '<p class="empty">No scores yet.</p>';
+  var W=600,H=300,pl=24,pr=24,pt=44,pb=44;
+  var vals=pts.map(function(p){return p.v;});
+  var lo=Math.floor((Math.min.apply(null,vals.concat([START]))-25)/10)*10;
+  var hi=Math.ceil((Math.max.apply(null,vals.concat([GOAL]))+25)/10)*10;
+  function x(i){ return pts.length===1 ? W/2 : pl+20 + i*(W-pl-pr-40)/(pts.length-1); }
+  function y(v){ return pt + (hi-v)*(H-pt-pb)/(hi-lo); }
+  var d=pts.map(function(p,i){ return (i?'L':'M')+x(i).toFixed(1)+','+y(p.v).toFixed(1); }).join(' ');
+  var step=Math.ceil(pts.length/5), out='';
+  out += '<line class="goal" x1="'+pl+'" x2="'+(W-pr)+'" y1="'+y(GOAL)+'" y2="'+y(GOAL)+'"/>';
+  out += '<text class="goal-t" x="'+(W-pr)+'" y="'+(y(GOAL)-10)+'" text-anchor="end">Goal '+GOAL+'</text>';
+  if(pts.length>1) out += '<path class="ln" d="'+d+'"/>';
+  pts.forEach(function(p,i){
+    var show = i===pts.length-1 || i%step===0;
+    out += '<circle class="dot" cx="'+x(i)+'" cy="'+y(p.v)+'" r="8"/>';
+    if(show){
+      out += '<text class="val" x="'+x(i)+'" y="'+(y(p.v)+34)+'" text-anchor="middle">'+p.v+'</text>';
+      out += '<text class="xl" x="'+x(i)+'" y="'+(H-10)+'" text-anchor="middle">'+shortDate(p.d)+'</text>';
+    }
+  });
+  return '<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="My scores over time. Latest is '+vals[vals.length-1]+'. Goal is '+GOAL+'.">'+out+'</svg>';
+}
+
+function viewScore(){
+  var list=S.scores.slice().sort(function(a,b){return a.d<b.d?1:-1;});
+  return backBar('My score')
+    + '<form class="card" data-form="score" novalidate><label for="sc">My score today<input id="sc" name="v" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Example: 540"></label>'
+    + '<p class="help">Find it in the Credit Karma or Experian app.</p>'
+    + '<button class="btn" type="submit">'+icon('floppy-disk')+'Save my score</button>'+msg()+'</form>'
+    + '<section class="card"><h2>How I am doing</h2>'+chart()+'</section>'
+    + '<section class="card"><h2>All my scores</h2><ul class="rows">'
+    + list.map(function(s){ return '<li><span>'+longDate(s.d)+'</span><b>'+s.v+'</b><button class="link danger" data-act="delscore" data-d="'+s.d+'">Remove</button></li>'; }).join('')
+    + '</ul></section>';
+}
+
+function viewMonth(){
+  var k=monthKey(), m=S.months[k]||{};
+  var done=MONTH_ITEMS.filter(function(i){return m[i.id];}).length;
+  var past=Object.keys(S.months).filter(function(x){return x!==k;}).sort().reverse().slice(0,6);
+  var spoken='This month. '+MONTH_ITEMS.map(function(i){return i.t+(m[i.id]?', done':', not done yet');}).join('. ')+'.';
+  return backBar('This month')
+    + '<div class="group-head"><p class="sub" style="margin:0">'+monthName(k)+'. <b>'+done+' of '+MONTH_ITEMS.length+' done</b></p>'+sayBtn(spoken)+'</div>'
+    + MONTH_ITEMS.map(function(i){ return check('m', i, !!m[i.id]); }).join('')
+    + (done===MONTH_ITEMS.length ? '<section class="card done-banner">'+icon('confetti')+'<span>All done this month. Great job!</span></section>' : '')
+    + (past.length ? '<section class="card"><h2>Past months</h2><ul class="rows">'+past.map(function(p){
+        var c=MONTH_ITEMS.filter(function(i){return S.months[p][i.id];}).length;
+        return '<li><span>'+monthName(p)+'</span><b>'+c+' of '+MONTH_ITEMS.length+'</b></li>'; }).join('')+'</ul></section>' : '');
+}
+
+function cardBlock(c, first){
+  var u=util(c), t=tone(u);
+  return '<section class="card cc '+t+'">'
+    + (first?'<p class="flag">'+icon('arrow-fat-down')+'Pay this one first</p>':'')
+    + '<h2>'+esc(c.name)+'</h2>'
+    + '<p class="owe">I owe <b>'+money(c.bal)+'</b> out of '+money(c.limit)+'</p>'
+    + '<p class="keep">Keep it under <b>'+money(c.limit*0.10)+'</b></p>'
+    + '<span class="pill">'+icon(toneIcon(u))+toneText(u)+'</span>'
+    + '<form class="inline" data-form="bal" data-id="'+c.id+'" novalidate><label>What I owe now ($)<input name="bal" type="text" inputmode="decimal" autocomplete="off" value="'+c.bal+'"></label>'
+    + '<button class="btn quiet" type="submit">Update</button></form>'
+    + '<button class="link danger" data-act="delcard" data-id="'+c.id+'">Remove this card</button></section>';
+}
+
+function viewCards(){
+  var cs=S.cards, totL=0, totB=0, worst=null;
+  cs.forEach(function(c){ totL+=c.limit; totB+=c.bal; if(util(c)>0.10 && (!worst || util(c)>util(worst))) worst=c; });
+  var tu = totL ? totB/totL : 0;
+  return backBar('My cards')
+    + '<p class="sub">Keep every card under 10% of its limit. This page does the math.</p>'
+    + (cs.length ? '<section class="card '+tone(tu)+'"><p class="label">All cards together</p><p class="keep">I owe <b>'+money(totB)+'</b> out of '+money(totL)+'</p><span class="pill">'+icon(toneIcon(tu))+toneText(tu)+'</span></section>'
+                 : '<section class="card"><p class="empty">No cards added yet. Add one below.</p></section>')
+    + cs.map(function(c){ return cardBlock(c, c===worst); }).join('')
+    + '<form class="card" data-form="addcard" novalidate><h2>Add a card</h2>'
+    + '<label>Card name<input name="name" autocomplete="off" placeholder="Example: Chime"></label>'
+    + '<label>Credit limit ($)<input name="limit" type="text" inputmode="decimal" autocomplete="off" placeholder="Example: 500"></label>'
+    + '<label>What I owe now ($)<input name="bal" type="text" inputmode="decimal" autocomplete="off" placeholder="Example: 40"></label>'
+    + '<button class="btn" type="submit">'+icon('plus')+'Add card</button>'+msg()+'</form>';
+}
+
+function viewPlan(){
+  var done=ALL_ITEMS.filter(function(i){return S.plan[i.id];}).length;
+  return backBar('My plan')
+    + '<p class="sub">'+done+' of '+ALL_ITEMS.length+' done. Go in order. One thing at a time is fine.</p>'
+    + PLAN.map(function(g){
+        var spoken=g.title+'. '+g.items.map(function(i){return i.t+'. '+(i.h||'');}).join(' ');
+        return '<section class="group"><div class="group-head"><h2>'+esc(g.title)+'</h2>'+sayBtn(spoken,'Read')+'</div>'
+          + g.items.map(function(i){
+              var extra='';
+              if(i.url) extra='<p class="item-extra"><a href="'+i.url+'" target="_blank" rel="noopener">'+esc(i.urlText)+'</a></p>';
+              if(i.go) extra='<p class="item-extra"><a href="#'+i.go+'">'+esc(i.goText)+'</a></p>';
+              return check('p', i, !!S.plan[i.id]) + extra;
+            }).join('')
+          + '</section>';
+      }).join('');
+}
+
+function viewFix(){
+  var labels=['To do','Working on it','Fixed'];
+  return backBar('Things to fix')
+    + '<p class="sub">Anything wrong, late, or unpaid on my credit report.</p>'
+    + (S.fixes.length ? S.fixes.map(function(f){
+        return '<section class="card"><h2>'+esc(f.name)+'</h2>'+(f.amt?'<p>'+money(f.amt)+'</p>':'')
+          + '<div class="seg" role="group" aria-label="Status for '+esc(f.name)+'">'
+          + labels.map(function(l,i){ return '<button data-act="fixst" data-id="'+f.id+'" data-s="'+i+'" class="'+(f.s===i?'on':'')+'" aria-pressed="'+(f.s===i)+'">'+(f.s===i?icon('check')+' ':'')+l+'</button>'; }).join('')
+          + '</div><button class="link danger" data-act="delfix" data-id="'+f.id+'">Remove</button></section>';
+      }).join('') : '<section class="card"><p class="empty">Nothing here yet. Add things from your credit report below.</p></section>')
+    + '<form class="card" data-form="addfix" novalidate><h2>Add something to fix</h2>'
+    + '<label>What is it?<input name="name" autocomplete="off" placeholder="Example: Old phone bill"></label>'
+    + '<label>How much? ($, if I know)<input name="amt" type="text" inputmode="decimal" autocomplete="off" placeholder="Example: 230"></label>'
+    + '<button class="btn" type="submit">'+icon('plus')+'Add</button>'+msg()+'</form>'
+    + '<section class="card next"><p><b>Not sure what to do with one?</b></p><p>Weston can help. Show him this page.</p></section>';
+}
+
+
+/* Sign-in views (Cloak look) */
+function ck(tag, body){ return '<div class="ck"><div class="ck-card"><div class="ck-brand"><h1 class="ck-name">Cloak Plan</h1><p class="ck-tag">'+tag+'</p></div>'+body+'</div></div>'; }
+function noteLine(){ return '<p class="ck-msg'+(noteOk?' ok':'')+'" role="alert">'+esc(note)+'</p>'; }
+
+function viewEmail(){
+  return ck('Private. Just for you.',
+    '<p class="ck-hint">Type your email. We will send you a code to open it.</p>'
+    + '<form class="ck-form" data-form="email" novalidate><label for="em">Email<input id="em" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" value="'+esc(email)+'"></label>'
+    + noteLine()
+    + '<button class="ck-btn" type="submit"'+(busy?' disabled':'')+'>'+icon('paper-plane-tilt')+(busy?'Sending...':'Send me a code')+'</button></form>'
+    + sayBtn('Type your email in the box. Then tap Send me a code. A code will come to your email.'));
+}
+
+function viewCode(){
+  return ck('Check your email',
+    '<p class="ck-hint">We sent a 6-digit code to <b>'+esc(email)+'</b>. Not there? Look in Spam.</p>'
+    + '<form class="ck-form" data-form="code" novalidate><label for="cd">Code<input id="cd" class="ck-code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" autocomplete="one-time-code" placeholder="123456"></label>'
+    + noteLine()
+    + '<button class="ck-btn" type="submit"'+(busy?' disabled':'')+'>'+icon('lock-simple-open')+(busy?'Opening...':'Open')+'</button>'
+    + '<div class="ck-links"><button class="ck-link" type="button" data-act="resend">Send a new code</button><button class="ck-link" type="button" data-act="other">Use a different email</button></div></form>'
+    + sayBtn('Check your email for a 6-digit code. Type the code in the box. Then tap Open. If it is not there, look in Spam.'));
+}
+
+function viewBoot(){ return ck('Opening...', ''); }
+
+function viewDown(){
+  var setup=/YOUR-/.test(SB_URL+SB_KEY);
+  return ck(setup ? 'Not set up yet' : 'No connection',
+    '<p class="ck-hint">'+(setup ? 'This page is not connected yet.' : 'Could not connect. Check your internet.')+'</p>'
+    + (setup ? '' : '<button class="ck-btn" type="button" data-act="retry">'+icon('arrow-clockwise')+'Try again</button>'));
+}
+
+/* Both this device and the account have info: ask which to keep. */
+function summary(d){
+  d=fill(d);
+  var sc=d.scores.slice().sort(function(a,b){return a.d<b.d?-1:1;}), v=sc.length ? sc[sc.length-1].v : START;
+  var steps=ALL_ITEMS.filter(function(i){ return d.plan[i.id]; }).length;
+  return 'Score '+v+'. '+steps+' of '+ALL_ITEMS.length+' plan steps done. '+d.cards.length+(d.cards.length===1?' card':' cards')+'. '+d.fixes.length+(d.fixes.length===1?' thing':' things')+' to fix.';
+}
+function viewPick(){
+  var a=summary(pick.saved), b=summary(pick.mine);
+  return '<div class="pick"><h1>Which info should I keep?</h1><p class="sub">This device has info that is different from what is saved in my account. Pick one. The other one will be replaced.</p>'
+    + '<section class="card"><p class="label">Saved in my account</p><p>'+esc(a)+'</p><button class="btn" data-act="keep" data-k="saved">Keep this one</button></section>'
+    + '<section class="card"><p class="label">On this device</p><p>'+esc(b)+'</p><button class="btn quiet" data-act="keep" data-k="mine">Keep this one</button></section>'
+    + sayBtn('Which info should I keep? Saved in my account: '+a+' On this device: '+b+' Pick one. The other one will be replaced.')
+    + '</div>';
+}
+
+/* Render */
+var VIEWS = {home:viewHome, score:viewScore, month:viewMonth, cards:viewCards, plan:viewPlan, fix:viewFix};
+var GATE = {boot:viewBoot, email:viewEmail, code:viewCode, pick:viewPick, down:viewDown};
+function render(){
+  document.documentElement.classList.toggle('big', !!S.big);
+  var gate = phase!=='app' && phase!=='pick';
+  document.documentElement.classList.toggle('ck-on', gate);
+  if(phase!=='app'){ $app.innerHTML = GATE[phase](); return; }
+  var r=(location.hash||'#home').slice(1);
+  $app.innerHTML = (VIEWS[r]||viewHome)();
+}
+window.addEventListener('hashchange', function(){ stopSpeak(); render(); window.scrollTo(0,0); });
+
+/* Clicks */
+document.addEventListener('click', function(e){
+  var el=e.target.closest('[data-act]'); if(!el) return;
+  var a=el.dataset.act, id=el.dataset.id;
+  if(a==='say'){ speak(el.dataset.say); return; }
+  if(a==='retry'){ phase='boot'; render(); connect(); return; }
+  if(a==='other'){ phase='email'; note=''; render(); focusIn('em'); return; }
+  if(a==='resend'){
+    if(busy) return;
+    busy=true;
+    sendCode().then(function(){ note='New code sent. Check your email.'; noteOk=true; },
+                    function(err){ note=authErr(err,'send'); noteOk=false; })
+      .then(function(){ busy=false; render(); focusIn('cd'); });
+    return;
+  }
+  if(a==='keep'){
+    var k=el.dataset.k, p=pick;
+    use(k==='mine' ? p.mine : p.saved, p.base);
+    if(k==='mine'){ cache(true); push(); }
+    if(location.hash && location.hash!=='#home') location.hash='#home';
+    return;
+  }
+  if(phase!=='app') return;
+  if(a==='size'){ S.big=!S.big; }
+  else if(a==='lock'){ signOut(); return; }
+  else if(a==='tick'){
+    if(el.dataset.g==='m'){ var k2=monthKey(); S.months[k2]=S.months[k2]||{}; S.months[k2][id]=!S.months[k2][id]; }
+    else { S.plan[id]=!S.plan[id]; }
+  }
+  else if(a==='delscore'){ if(!confirm('Remove this score?')) return; S.scores=S.scores.filter(function(s){return s.d!==el.dataset.d;}); }
+  else if(a==='delcard'){ if(!confirm('Remove this card?')) return; S.cards=S.cards.filter(function(c){return c.id!==id;}); }
+  else if(a==='delfix'){ if(!confirm('Remove this?')) return; S.fixes=S.fixes.filter(function(f){return f.id!==id;}); }
+  else if(a==='fixst'){ S.fixes.forEach(function(f){ if(f.id===id) f.s=+el.dataset.s; }); }
+  save(); render();
+});
+
+/* Forms */
+function fail(t){ flash=t; flashErr=true; render(); }
+document.addEventListener('submit', function(e){
+  var f=e.target, k=f.dataset.form; if(!k) return;
+  e.preventDefault();
+  var d={}; new FormData(f).forEach(function(v,n){ d[n]=String(v).trim(); });
+
+  if(k==='email'){
+    if(busy) return;
+    email=d.email.toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ note='Type your email.'; noteOk=false; render(); focusIn('em'); return; }
+    busy=true; note=''; render();
+    allowed(email).then(function(ok){
+      if(!ok) throw {code:'private'};
+      return sendCode();
+    }).then(function(){ busy=false; phase='code'; note=''; render(); focusIn('cd'); },
+            function(err){ busy=false; note=authErr(err,'send'); noteOk=false; render(); focusIn('em'); });
+    return;
+  }
+  if(k==='code'){
+    if(busy) return;
+    var token=d.code.replace(/\D/g,'');
+    if(token.length<6){ note='Type the 6 numbers from the email.'; noteOk=false; render(); focusIn('cd'); return; }
+    busy=true; note=''; render();
+    sb.auth.verifyOtp({email:email, token:token, type:'email'}).then(function(r){
+      if(r.error || !r.data || !r.data.user) throw r.error || {};
+      busy=false; note='';
+      return enter(r.data.user).catch(offline);
+    }).catch(function(err){ busy=false; note=authErr(err,'code'); noteOk=false; render(); focusIn('cd'); });
+    return;
+  }
+
+  if(phase!=='app') return;
+  if(k==='score'){
+    var v=Math.round(num(d.v));
+    if(!(v>=300 && v<=850)) return fail('Type a score between 300 and 850.');
+    S.scores=S.scores.filter(function(s){return s.d!==today();});
+    S.scores.push({d:today(), v:v});
+    var mk=monthKey(); S.months[mk]=S.months[mk]||{}; S.months[mk].score=true;
+    flash='Saved. My score is '+v+'.';
+  }
+  else if(k==='addcard'){
+    var lim=num(d.limit), bal=num(d.bal);
+    if(!d.name) return fail('Type the card name.');
+    if(!(lim>0)) return fail('Type the credit limit.');
+    if(!(bal>=0)) return fail('Type what I owe. Type 0 if nothing.');
+    S.cards.push({id:uid(), name:d.name, limit:lim, bal:bal});
+    flash='Card added.';
+  }
+  else if(k==='bal'){
+    var b=num(d.bal); if(!(b>=0)) return;
+    S.cards.forEach(function(c){ if(c.id===f.dataset.id) c.bal=b; });
+  }
+  else if(k==='addfix'){
+    if(!d.name) return fail('Type what it is.');
+    var amt=num(d.amt);
+    S.fixes.push({id:uid(), name:d.name, amt:amt>0?amt:0, s:0});
+    flash='Added.';
+  }
+  save(); render();
+});
+
+/* Keep the server copy fresh: retry when back online, flush when leaving,
+   pick up changes from her other device when she comes back to this one. */
+window.addEventListener('online', function(){
+  if(!sb || !user || !pulled) connect();
+  else if(isDirty()) push();
+});
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState==='hidden'){ if(timer) push(); return; }
+  if(phase==='app' && sb && user && !timer && !inflight && !isDirty()) pull().catch(noop);
+});
+
+render();
+if(/YOUR-/.test(SB_URL+SB_KEY)){ phase='down'; render(); }
+else connect();
+})();
+</script>
+</body>
+</html>
