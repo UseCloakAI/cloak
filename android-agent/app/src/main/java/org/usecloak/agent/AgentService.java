@@ -177,7 +177,7 @@ public final class AgentService extends Service {
         Pending p = pending.remove(key);
         if (p == null || !Prefs.enabled(this)) return;
         String text = p.text.toString();
-        Prefs.log(this, "← " + p.name + ": " + clip(text));
+        Prefs.log(this, "← " + p.name + (p.owner ? " (owner)" : " (not owner — chat only)") + ": " + clip(text));
         try {
             String reply = Agent.reply(this, "sms:" + key, p.name, text, p.owner, true,
                     p.owner ? line -> Prefs.log(this, line) : null);

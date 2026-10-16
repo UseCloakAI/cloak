@@ -29,6 +29,10 @@ final class Agent {
             "(?i)\\b(opened|opening|launched|tapped|clicked|typed|searched|scrolled|closed|cleared|freed|initiated|"
             + "screen (shows|is showing|displays)|on (the|your) screen|home screen|(now |is )?display(s|ing)|now showing|"
             + "page shows|loaded|navigated|went to)\\b");
+    // An owner reply that says it can't use the phone is wrong — it can. Sent back once.
+    private static final Pattern REFUSAL = Pattern.compile(
+            "(?i)\\b(can(no|')t|unable to|not able to|don'?t have (the )?(ability|access)|no (way|ability) to)\\b"
+            + ".{0,40}\\b(browse|brows|access|operate|control|open|use|see|view|reach|visit)");
     private static final int HISTORY = 20;
     private static final int ACTION_ROUNDS = 6;
 
@@ -66,12 +70,18 @@ final class Agent {
             + "menus, buttons or text that isn't there.\n"
             + "You get the results back, then act again or answer. Read the screen before tapping. "
             + "When done, answer in plain text with no tags. Only act when asked. Never pay, buy, delete, "
-            + "post, or send messages unless the owner explicitly said to.\n";
+            + "post, or send messages unless the owner explicitly said to.\n"
+            + "The owner can text /new to wipe this conversation's memory.\n";
 
     private Agent() {}
 
     static String reply(Context c, String convo, String who, String text, boolean owner, boolean sms, Steps steps)
             throws Exception {
+        String cmd = text.trim().toLowerCase(Locale.ROOT);
+        if (cmd.equals("/new") || cmd.equals("/reset")) {
+            Prefs.clearHistory(c, convo);
+            return "Fresh start — context cleared.";
+        }
         JSONArray msgs = Prefs.history(c, convo);
         msgs.put(msg("user", owner ? snapshot(c) + "\n\n" + text : text));
         String system = system(c, who, owner, sms);
@@ -87,6 +97,14 @@ final class Agent {
             List<String[]> acts = owner && round < ACTION_ROUNDS ? parse(raw) : new ArrayList<>();
             if (acts.isEmpty()) {
                 String ans = clean(raw, sms);
+                if (owner && !nudged && round < ACTION_ROUNDS && REFUSAL.matcher(ans).find()) {
+                    nudged = true;
+                    msgs.put(msg("assistant", raw));
+                    msgs.put(msg("user", "[phone] You can. This phone is yours and you operate it with <do> tags — "
+                            + "open apps, browse in Chrome, type, look at the screen. Do the task now, starting with "
+                            + "the first action tag. Only report a problem if an action result shows one."));
+                    continue;
+                }
                 if (owner && did.isEmpty() && !nudged && round < ACTION_ROUNDS && CLAIM.matcher(ans).find()) {
                     nudged = true;
                     msgs.put(msg("assistant", raw));
@@ -117,7 +135,7 @@ final class Agent {
         JSONArray saved = Prefs.history(c, convo);
         saved.put(msg("user", text));
         String mem = did.isEmpty() ? out : (sms ? "[did: " + String.join("; ", did) + "]\n" + out : out);
-        if (owner && did.isEmpty() && !out.isEmpty()) mem = "[no phone actions ran]\n" + out;
+        if (owner && did.isEmpty() && REFUSAL.matcher(out).find()) mem = "";   // never learn a refusal
         if (!mem.isEmpty()) saved.put(msg("assistant", mem));
         Prefs.saveHistory(c, convo, saved, HISTORY);
         return out;
@@ -130,6 +148,11 @@ final class Agent {
         StringBuilder s = new StringBuilder();
 
         boolean console = "you".equals(who);
+        if (owner) {
+            s.append("IMPORTANT: you are Cloak Agent and you DO have a phone — this one. You can browse the web, open ")
+             .append("apps, tap and type on it through <do> action tags. Never say you can't browse, access sites or ")
+             .append("operate the phone; act instead. Ignore any earlier message where you claimed you couldn't.\n\n");
+        }
         if (sms) {
             s.append("You're Cloak Agent, replying over SMS from an Android phone. Write like a text: plain text, ")
              .append("no markdown, usually one to three short sentences, never over 600 characters.\n");
