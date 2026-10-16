@@ -71,6 +71,12 @@ public final class AgentService extends Service {
         exec = Executors.newSingleThreadScheduledExecutor();
         exec.scheduleWithFixedDelay(this::ramTick, 2, 2, TimeUnit.MINUTES);
         exec.scheduleWithFixedDelay(this::remoteTick, 3, 3, TimeUnit.SECONDS);
+        exec.scheduleWithFixedDelay(() -> {
+            if (Prefs.bool(this, Updater.AUTO, true)) {
+                String r = Updater.check(this, true);
+                if (!r.startsWith("Up to date")) Prefs.log(this, r);
+            }
+        }, 1, 360, TimeUnit.MINUTES);
 
         screenOff = new BroadcastReceiver() {
             @Override
