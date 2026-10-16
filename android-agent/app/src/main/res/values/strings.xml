@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cloak Agent</string>
+    <string name="a11y_desc">Lets Cloak Agent open apps, read the screen, tap and type when you ask it to, and close apps to free memory. Phone control only ever runs for you (the console or your owner numbers), never for people who text this phone.</string>
+</resources>
