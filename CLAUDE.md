@@ -34,6 +34,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `phone-agent.js` — Settings → Agent (`CloakPhoneAgent`): chat with the phone agent via `agent_messages` (Realtime for replies), plus the Admin pane's "Admins only" toggle (`agent_config.admins_only`, default on). Admins get phone control; others chat only, and only while the toggle is off — enforced by RLS (`is_admin()` / `agent_open()`) and again on the phone. `profiles.is_admin` is locked by the `profiles_guard_admin` trigger: only the dashboard/service role can change it, never the client upsert in `loadProfile`.
 - `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA). Used by `agents.html`, not the main chat.
 - `supabase/migrations/` — SQL migrations. Apply via Supabase dashboard or CLI.
+- `plan/index.html` — Cloak Plan: a private, single-file credit-plan tracker (vanilla JS, own inline styles; sign-in mirrors Cloak's auth look). Signs in with a Cloak account (same Supabase project/anon key as `cloak.js`), but only emails in `plan_allowlist` with a confirmed address get in, enforced by RLS on `credit_plan_state` (`supabase/migrations/20261016000000_credit_plan.sql`). Allowlist rows are added by hand in SQL, never committed (the repo is served publicly). Not linked from Cloak, `noindex`, disallowed in `robots.txt`.
 - `robots.txt`, `sitemap.xml` — SEO.
 
 ## Versioning — MUST be updated on every commit

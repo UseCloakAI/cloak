@@ -180,7 +180,6 @@ html.ck-on .sync{display:none}
 .ck label{margin:0;font-size:.72em;text-transform:uppercase;letter-spacing:.12em}
 .ck input{margin-top:6px;min-height:52px;border-radius:0;border:var(--ck-bd);background:var(--ck-paper);color:var(--ck-ink);font-family:var(--ck-fu);font-size:1em;font-weight:500;letter-spacing:0;text-transform:none;outline:none;transition:box-shadow .38s var(--ck-snap),border-color .14s ease}
 .ck input:focus{box-shadow:var(--ck-sh);border-color:var(--ck-acc)}
-.ck input.ck-code{font-family:'Courier New',monospace;font-size:1.4em;font-weight:700;letter-spacing:.3em;text-align:center}
 .ck-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:52px;padding:10px 16px;border-radius:0;border:var(--ck-bd);background:var(--ck-acc);color:#fff;box-shadow:var(--ck-sh);font-family:var(--ck-fu);font-size:.8em;font-weight:700;text-transform:uppercase;letter-spacing:.12em;transition:box-shadow .38s var(--ck-snap),translate .38s var(--ck-snap)}
 .ck-btn:hover:not(:disabled){box-shadow:var(--ck-shlg);translate:-2px -2px}
 .ck-btn:active:not(:disabled){box-shadow:none;translate:4px 4px;transition-duration:90ms}
@@ -189,7 +188,7 @@ html.ck-on .sync{display:none}
 .ck-msg.ok{background:var(--ck-yel);color:#0A0A0A;animation:none}
 .ck-msg:empty{display:none}
 .ck-links{display:flex;flex-wrap:wrap;justify-content:center;gap:0 20px}
-.ck-link{min-height:44px;padding:8px 4px;border:0;background:none;color:var(--ck-acc);font-family:var(--ck-fu);font-size:.8em;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.ck-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 4px;border:0;background:none;color:var(--ck-acc);font-family:var(--ck-fu);font-size:.8em;font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .ck .say{display:flex;min-height:44px;margin:18px auto 0;border:var(--ck-bd);border-radius:0;background:transparent;color:var(--ck-ink);font-family:var(--ck-fu);font-size:.72em;text-transform:uppercase;letter-spacing:.12em}
 
 /* Which info to keep */
@@ -213,18 +212,17 @@ html.ck-on .sync{display:none}
 (function(){
 'use strict';
 
-/* Settings. This page uses its OWN Supabase project, never Cloak's. */
-var SB_URL = 'https://YOUR-PROJECT-REF.supabase.co';
-var SB_KEY = 'YOUR-PUBLISHABLE-KEY';     // publishable (anon) key only, never service_role
+/* Settings. Signs in with a Cloak account. Who gets in is decided server-side:
+   plan_allowlist + RLS on credit_plan_state (supabase/migrations/20261016000000_credit_plan.sql). */
+var SB_URL = 'https://kdawsqrrmwirilyhcolk.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkYXdzcXJybXdpcmlseWhjb2xrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NjUxNjAsImV4cCI6MjA4OTU0MTE2MH0.cMN9V51J3042DrdaDmL7-ro-AMaw-IU47wQLnW2NMBE';  // Cloak's publishable (anon) key, same as cloak.js
 var SB_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
-var ALLOWED = '97fd1f31ffa05ca0dc5d94ccb9cffc0ce48b564970b2cc383c9038a7f5498260'; // SHA-256 of the one email. Friendly check only; RLS is the real gate.
 var NAME = 'Laury';
 var START = 516, GOAL = 640;
 var KEY = 'credit-plan-v1';             // old this-device-only data, moved up once
 var CACHE = 'credit-plan-cache-v2';     // offline copy of the saved data
 var BIG = 'credit-plan-big';
 var TABLE = 'credit_plan_state';
-var CODE_LIFE = 3600e3;                 // Supabase email code life (default 1 hour)
 
 /* Helpers */
 var $app = document.getElementById('app');
@@ -265,7 +263,7 @@ var S = fill(null);
 try{ S.big = localStorage.getItem(BIG)==='1'; }catch(e){}
 var sb = null, user = null, me = null;  // client, signed-in user, user id the cache belongs to
 var phase = 'boot';                      // boot | email | code | pick | app | down
-var email = '', sentAt = 0, busy = false, note = '', noteOk = false;
+var email = '', busy = false, note = '', noteOk = false;
 var pick = null, syncedAt = null, pulled = false, rev = 0;
 var flash = '', flashErr = false;
 
@@ -327,17 +325,13 @@ function use(data, base){
 }
 
 /* Auth */
-function sha(t){
-  return Promise.resolve().then(function(){ return crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)); }).then(function(b){
-    return Array.from(new Uint8Array(b)).map(function(x){ return x.toString(16).padStart(2,'0'); }).join('');
-  });
-}
-function allowed(e){ return sha(String(e||'').trim().toLowerCase()).then(function(h){ return h===ALLOWED; }, function(){ return true; }); }
+var NOT_ALLOWED = "Cloak Plan isn't available for your account.";
 function enter(u){
-  return allowed(u.email).then(function(ok){
-    if(!ok){
+  return sb.rpc('plan_is_allowed').then(function(r){
+    if(r.error) throw r.error;
+    if(r.data!==true){
       return sb.auth.signOut({scope:'local'}).catch(noop).then(function(){
-        user=null; phase='email'; note='This page is private.'; noteOk=false; render();
+        user=null; phase='email'; note=NOT_ALLOWED; noteOk=false; render();
       });
     }
     user=u; me=u.id;
@@ -371,18 +365,12 @@ function offline(){
   }
   phase='down'; render();
 }
-function authErr(err, step){
+function authErr(err){
   var code=(err && err.code) || '', st=err && err.status, m=(err && err.message) || '';
   if(st===429 || /rate/.test(code)) return 'Please wait a minute, then try again.';
   if(st===0 || /fetch|network|load failed/i.test(m) || (err && err.name==='AuthRetryableFetchError')) return 'Could not connect. Check your internet and try again.';
-  if(step==='code') return Date.now()-sentAt > CODE_LIFE ? 'That code expired. Tap Send a new code.' : "That code didn't work. Try again.";
-  return 'This page is private.';
-}
-function sendCode(){
-  return sb.auth.signInWithOtp({email:email, options:{shouldCreateUser:false}}).then(function(r){
-    if(r.error) throw r.error;
-    sentAt=Date.now();
-  });
+  if(code==='email_not_confirmed' || /not confirmed/i.test(m)) return 'Confirm your email first. Look for the email from Cloak.';
+  return "That email or password didn't work. Try again.";
 }
 function signOut(){
   if(isDirty() && !confirm('Some changes are not saved yet. Sign out anyway?')) return;
@@ -600,30 +588,21 @@ function noteLine(){ return '<p class="ck-msg'+(noteOk?' ok':'')+'" role="alert"
 
 function viewEmail(){
   return ck('Private. Just for you.',
-    '<p class="ck-hint">Type your email. We will send you a code to open it.</p>'
+    '<p class="ck-hint">Sign in with your Cloak account.</p>'
     + '<form class="ck-form" data-form="email" novalidate><label for="em">Email<input id="em" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" value="'+esc(email)+'"></label>'
+    + '<label for="pw">Password<input id="pw" name="password" type="password" autocomplete="current-password"></label>'
     + noteLine()
-    + '<button class="ck-btn" type="submit"'+(busy?' disabled':'')+'>'+icon('paper-plane-tilt')+(busy?'Sending...':'Send me a code')+'</button></form>'
-    + sayBtn('Type your email in the box. Then tap Send me a code. A code will come to your email.'));
-}
-
-function viewCode(){
-  return ck('Check your email',
-    '<p class="ck-hint">We sent a 6-digit code to <b>'+esc(email)+'</b>. Not there? Look in Spam.</p>'
-    + '<form class="ck-form" data-form="code" novalidate><label for="cd">Code<input id="cd" class="ck-code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" autocomplete="one-time-code" placeholder="123456"></label>'
-    + noteLine()
-    + '<button class="ck-btn" type="submit"'+(busy?' disabled':'')+'>'+icon('lock-simple-open')+(busy?'Opening...':'Open')+'</button>'
-    + '<div class="ck-links"><button class="ck-link" type="button" data-act="resend">Send a new code</button><button class="ck-link" type="button" data-act="other">Use a different email</button></div></form>'
-    + sayBtn('Check your email for a 6-digit code. Type the code in the box. Then tap Open. If it is not there, look in Spam.'));
+    + '<button class="ck-btn" type="submit"'+(busy?' disabled':'')+'>'+icon('sign-in')+(busy?'Signing in...':'Sign in')+'</button>'
+    + '<div class="ck-links"><a class="ck-link" href="https://chat.usecloak.org">No account? Make one on Cloak</a></div></form>'
+    + sayBtn('Sign in with your Cloak account. Type your email, then your password. Then tap Sign in.'));
 }
 
 function viewBoot(){ return ck('Opening...', ''); }
 
 function viewDown(){
-  var setup=/YOUR-/.test(SB_URL+SB_KEY);
-  return ck(setup ? 'Not set up yet' : 'No connection',
-    '<p class="ck-hint">'+(setup ? 'This page is not connected yet.' : 'Could not connect. Check your internet.')+'</p>'
-    + (setup ? '' : '<button class="ck-btn" type="button" data-act="retry">'+icon('arrow-clockwise')+'Try again</button>'));
+  return ck('No connection',
+    '<p class="ck-hint">Could not connect. Check your internet.</p>'
+    + '<button class="ck-btn" type="button" data-act="retry">'+icon('arrow-clockwise')+'Try again</button>');
 }
 
 /* Both this device and the account have info: ask which to keep. */
@@ -644,7 +623,7 @@ function viewPick(){
 
 /* Render */
 var VIEWS = {home:viewHome, score:viewScore, month:viewMonth, cards:viewCards, plan:viewPlan, fix:viewFix};
-var GATE = {boot:viewBoot, email:viewEmail, code:viewCode, pick:viewPick, down:viewDown};
+var GATE = {boot:viewBoot, email:viewEmail, pick:viewPick, down:viewDown};
 function render(){
   document.documentElement.classList.toggle('big', !!S.big);
   var gate = phase!=='app' && phase!=='pick';
@@ -661,15 +640,6 @@ document.addEventListener('click', function(e){
   var a=el.dataset.act, id=el.dataset.id;
   if(a==='say'){ speak(el.dataset.say); return; }
   if(a==='retry'){ phase='boot'; render(); connect(); return; }
-  if(a==='other'){ phase='email'; note=''; render(); focusIn('em'); return; }
-  if(a==='resend'){
-    if(busy) return;
-    busy=true;
-    sendCode().then(function(){ note='New code sent. Check your email.'; noteOk=true; },
-                    function(err){ note=authErr(err,'send'); noteOk=false; })
-      .then(function(){ busy=false; render(); focusIn('cd'); });
-    return;
-  }
   if(a==='keep'){
     var k=el.dataset.k, p=pick;
     use(k==='mine' ? p.mine : p.saved, p.base);
@@ -702,24 +672,13 @@ document.addEventListener('submit', function(e){
     if(busy) return;
     email=d.email.toLowerCase();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ note='Type your email.'; noteOk=false; render(); focusIn('em'); return; }
+    if(!d.password){ note='Type your password.'; noteOk=false; render(); focusIn('pw'); return; }
     busy=true; note=''; render();
-    allowed(email).then(function(ok){
-      if(!ok) throw {code:'private'};
-      return sendCode();
-    }).then(function(){ busy=false; phase='code'; note=''; render(); focusIn('cd'); },
-            function(err){ busy=false; note=authErr(err,'send'); noteOk=false; render(); focusIn('em'); });
-    return;
-  }
-  if(k==='code'){
-    if(busy) return;
-    var token=d.code.replace(/\D/g,'');
-    if(token.length<6){ note='Type the 6 numbers from the email.'; noteOk=false; render(); focusIn('cd'); return; }
-    busy=true; note=''; render();
-    sb.auth.verifyOtp({email:email, token:token, type:'email'}).then(function(r){
+    sb.auth.signInWithPassword({email:email, password:d.password}).then(function(r){
       if(r.error || !r.data || !r.data.user) throw r.error || {};
-      busy=false; note='';
+      busy=false;
       return enter(r.data.user).catch(offline);
-    }).catch(function(err){ busy=false; note=authErr(err,'code'); noteOk=false; render(); focusIn('cd'); });
+    }).catch(function(err){ busy=false; note=authErr(err); noteOk=false; render(); focusIn('pw'); });
     return;
   }
 
@@ -765,8 +724,7 @@ document.addEventListener('visibilitychange', function(){
 });
 
 render();
-if(/YOUR-/.test(SB_URL+SB_KEY)){ phase='down'; render(); }
-else connect();
+connect();
 })();
 </script>
 </body>
