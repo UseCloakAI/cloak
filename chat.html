@@ -17,11 +17,11 @@
 <link rel="manifest" href="/manifest.json?v=20261001rollfix2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20261031build">
-<script src="version.js?v=1.1.261"></script>
-<link rel="stylesheet" href="search.css?v=20261001rollfix2">
-<link rel="stylesheet" href="brain.css?v=20261001rollfix2">
-<link rel="stylesheet" href="builds.css?v=20261001rollfix2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<link rel="stylesheet" href="cloak.css?v=1.1.272">
+<script src="version.js?v=1.1.272"></script>
+<link rel="stylesheet" href="search.css?v=1.1.272">
+<link rel="stylesheet" href="brain.css?v=1.1.272">
+<link rel="stylesheet" href="builds.css?v=1.1.272"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -669,7 +669,7 @@
                 <button class="cta" style="margin-top:8px" onclick="postAnn()">Post</button>
               </div>
               <div class="srow">
-                <div class="srow-name">Active announcements</div>
+                <div class="srow-name" style="display:flex;justify-content:space-between;align-items:center">Active announcements <button type="button" class="ann-deact" onclick="clearAllAnns()">Clear all</button></div>
                 <div class="ann-list" id="admin-ann-list" style="margin-top:8px"><div style="font-size:13px;opacity:.5">None active.</div></div>
               </div>
             </div>
@@ -838,7 +838,10 @@ window.cloakModelMap = {
 function modelButtonLabel() {
   const opt = document.querySelector('.model-option[data-model="' + window.cloakModel + '"]');
   const name = opt ? opt.querySelector('.model-option-name').textContent.replace(/\s+/g, ' ').trim() : 'Kairos 1.2';
-  if (window.cloakModel === 'kairos' && localStorage.getItem('cloak_agents') === '1') return name + ' + Agents';
+  if (window.cloakModel === 'kairos' && localStorage.getItem('cloak_agents') === '1') {
+    // Phones: no room for the long form next to Effort / Brain / Theme.
+    return name + (window.matchMedia('(max-width:640px)').matches ? ' +A' : ' + Agents');
+  }
   return name;
 }
 function paintMenuSwitches() {
@@ -984,21 +987,21 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 </script>
 
 <!-- motion.js first: cloak.js calls CloakMotion for theme wipes, rolls and exits -->
-<script src="motion.js?v=20261001rollfix2" defer></script>
+<script src="motion.js?v=1.1.272" defer></script>
 <!-- search.js must load before cloak.js so CLOAK_SEARCH is available -->
-<script src="search.js?v=20261001rollfix2"></script>
+<script src="search.js?v=1.1.272"></script>
 <!-- memory → context → brain: no deps on cloak.js at load time -->
-<script src="memory.js?v=20261001nopriv" defer></script>
-<script src="context.js?v=20261031plan" defer></script>
-<script src="brain.js?v=20261001rollfix2" defer></script>
-<script src="thread.js?v=20261001rollfix2" defer></script>
-<script src="cloak.js?v=20261031build" defer></script>
-<script src="phone-agent.js?v=20261015agent" defer></script>
+<script src="memory.js?v=1.1.272" defer></script>
+<script src="context.js?v=1.1.272" defer></script>
+<script src="brain.js?v=1.1.272" defer></script>
+<script src="thread.js?v=1.1.272" defer></script>
+<script src="cloak.js?v=1.1.272" defer></script>
+<script src="phone-agent.js?v=1.1.272" defer></script>
 <!-- highlight.js + builds.js: code blocks, Builds panel, editor, file attachments (patches cloak.js) -->
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js" defer></script>
-<script src="builds.js?v=20261001rollfix2" defer></script>
+<script src="builds.js?v=1.1.272" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
-<script src="effort.js?v=20261031hand" defer></script>
-<script src="agent-orbit.js?v=20261031build" defer></script>
-<script src="search-patch.js?v=20261031build" defer></script></body>
+<script src="effort.js?v=1.1.272" defer></script>
+<script src="agent-orbit.js?v=1.1.272" defer></script>
+<script src="search-patch.js?v=1.1.272" defer></script></body>
 </html>

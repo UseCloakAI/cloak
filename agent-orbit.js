@@ -96,6 +96,9 @@
   function mount(el, opts) {
     opts = opts || {};
     const size = opts.size || 112;
+    // spread < 1 pulls the agents in so they overlap and goo together,
+    // keeping the whole motion inside a small footprint.
+    const spread = opts.spread || 1;
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const fid = 'cloak-orbit-goo-' + (++uid);
 
@@ -145,7 +148,7 @@
       const s = clamp(sp, -.15, 1.2);
       const tw = mode === 2 ? (1 - clamp(sp, 0, 1)) * 2.2 : 0;
       const P = pose.map(([x, y, r]) => {
-        const [rx, ry] = rot(x * s, y * s, tw);
+        const [rx, ry] = rot(x * s * spread, y * s * spread, tw);
         return [rx, ry, lerp(RM, r, clamp(s, 0, 1))];
       });
       if (sp < .04 && !merged && mode !== 1) { merged = true; wv -= 4.8; }
