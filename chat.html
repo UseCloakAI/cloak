@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="cloak.css?v=20261031build">
-<script src="version.js?v=1.1.264"></script>
+<script src="version.js?v=1.1.265"></script>
 <link rel="stylesheet" href="search.css?v=20261001rollfix2">
 <link rel="stylesheet" href="brain.css?v=20261001rollfix2">
 <link rel="stylesheet" href="builds.css?v=20261001rollfix2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -669,7 +669,7 @@
                 <button class="cta" style="margin-top:8px" onclick="postAnn()">Post</button>
               </div>
               <div class="srow">
-                <div class="srow-name">Active announcements</div>
+                <div class="srow-name" style="display:flex;justify-content:space-between;align-items:center">Active announcements <button type="button" class="ann-deact" onclick="clearAllAnns()">Clear all</button></div>
                 <div class="ann-list" id="admin-ann-list" style="margin-top:8px"><div style="font-size:13px;opacity:.5">None active.</div></div>
               </div>
             </div>

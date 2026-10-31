@@ -129,23 +129,13 @@ const TIERS = {
   },
 };
 
-// Pictures stay off the chat prompt. /v1/look and an attached image both use
+// A chat request with images (`images: [...]`) uses
 // this lineup: the vision model, then Gemini 2.5 Flash, which accepts images.
+// Images go straight to the model on /v1/chat — there is no separate look call.
 const VISION_LINEUP = [
   { provider: "nvidia", model: NVIDIA_VISION_MODEL, reserve: 512, firstTokenMs: 20_000 },
   { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: GEMINI_FAST },
 ];
-// Image tool: a text tier calls this through /v1/look to ask one question about
-// one image. Not a chat tier (not selectable), and never Cloak's persona.
-const LOOK_PROMPT = `You look at one image and answer the question about it.
-Be concise and factual: 1–4 sentences unless the question asks for detail.
-Say plainly what you can't make out. Don't guess beyond what the image shows.`;
-// Largest image accepted by /v1/look (base64 characters, ~6 MB of image).
-const LOOK_MAX_B64 = 8_000_000;
-// The look tool runs the vision lineup on its own: a question about one image,
-// no chat history, no Cloak persona. Only reachable through /v1/look.
-TIERS.look = { name: "Look", systemPrompt: LOOK_PROMPT, temperature: 0.2, lineup: VISION_LINEUP };
-
 const UNAVAILABLE = "Cloak AI is currently unavailable. Please try again later.";
 const DEFAULT_MAX_TOKENS = 2048;
 const MAX_MAX_TOKENS = 8192;
@@ -523,7 +513,7 @@ function planAttempts(config, { hasImage, hasTools }) {
   return lineup.filter((a) => !(a.provider === "gemini" && hasTools)); // Gemini adapter has no tool support
 }
 
-function withImage(messages, imageBase64, mimeType) {
+function withImages(messages, images) {
   const out = messages.map((m) => ({ ...m }));
   for (let i = out.length - 1; i >= 0; i--) {
     if (out[i].role !== "user") continue;
@@ -535,7 +525,7 @@ function withImage(messages, imageBase64, mimeType) {
       role: "user",
       content: [
         { type: "text", text },
-        { type: "image_url", image_url: { url: `data:${mimeType || "image/jpeg"};base64,${imageBase64}` } },
+        ...images.map((im) => ({ type: "image_url", image_url: { url: `data:${im.mime || "image/jpeg"};base64,${im.data}` } })),
       ],
     };
     break;
@@ -543,9 +533,22 @@ function withImage(messages, imageBase64, mimeType) {
   return out;
 }
 
+// Images on a chat request: `images: [{data, mime}]` (up to IMG_MAX), or the
+// older single `imageBase64` + `mimeType`. Oversized ones are dropped.
+const IMG_MAX = 4, IMG_MAX_B64 = 8_000_000;
+function readImages(body) {
+  const list = Array.isArray(body.images) ? body.images
+    : body.imageBase64 ? [{ data: body.imageBase64, mime: body.mimeType }] : [];
+  return list
+    .filter((im) => im && typeof im.data === "string" && im.data.trim() && im.data.length <= IMG_MAX_B64)
+    .slice(0, IMG_MAX)
+    .map((im) => ({ data: im.data, mime: /^image\/[\w.+-]+$/.test(im.mime || "") ? im.mime : "image/jpeg" }));
+}
+
 function prepare(tierKey, req) {
   const config = TIERS[tierKey];
-  const hasImage = !!(req.imageBase64 && String(req.imageBase64).trim());
+  const images = req.images || [];
+  const hasImage = images.length > 0;
   const hasTools = !!(req.tools && req.tools.length);
   const guide = req.effort != null ? effortInstruction(req.effort) : "";
   const prompt = buildSystemPrompt(config, req.system);
@@ -555,7 +558,7 @@ function prepare(tierKey, req) {
     config,
     hasTools,
     attempts: planAttempts(config, { hasImage, hasTools }),
-    visionMessages: hasImage ? [system, ...withImage(req.messages, req.imageBase64, req.mimeType)] : null,
+    visionMessages: hasImage ? [system, ...withImages(req.messages, images)] : null,
     textMessages: base,
     // If every vision provider fails, answer text-only on the normal providers.
     textFallback: hasImage ? planAttempts(config, { hasImage: false, hasTools }) : [],
@@ -820,7 +823,7 @@ function sseResponse(produce) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Native endpoint: POST /v1/chat
-// Request:  { model, messages, system?, max_tokens?, imageBase64?, mimeType?, stream? }
+// Request:  { model, messages, system?, max_tokens?, images?: [{data, mime}], stream? }
 // Response: { model, response }            (stream: false)
 //           SSE data: {delta} … {done, model, response}  |  {error}   (stream: true)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -835,8 +838,7 @@ function chatReq(body, ctx) {
       system: body.system,
       effort,
       maxTokens: clampMaxTokens(body.max_tokens, tierKey, effort),
-      imageBase64: body.imageBase64,
-      mimeType: body.mimeType,
+      images: readImages(body),
       ctx,
     },
   };
@@ -883,8 +885,7 @@ async function handleNativeChat(env, request, ctx) {
     system: body.system,
     effort,
     maxTokens: clampMaxTokens(body.max_tokens, tierKey, effort),
-    imageBase64: body.imageBase64,
-    mimeType: body.mimeType,
+    images: readImages(body),
     ctx,
   };
   const name = MODEL_CONFIG[tierKey].name;
@@ -902,36 +903,6 @@ async function handleNativeChat(env, request, ctx) {
   try {
     const choice = await completeOnce(env, tierKey, req);
     return json({ model: name, response: choice.message.content || "", usage: choice.usage, effort: effort ?? DEFAULT_EFFORT });
-  } catch (e) {
-    return json({ error: e.message }, 503);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Image tool: POST /v1/look
-// Request:  { imageBase64, mimeType?, question }
-// Response: { answer }
-// The text model never gets the image; it only gets this short answer.
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function handleLook(env, request, ctx) {
-  const body = await readJson(request);
-  if (!body || typeof body.imageBase64 !== "string" || !body.imageBase64.trim()) {
-    return json({ error: "imageBase64 required" }, 400);
-  }
-  if (body.imageBase64.length > LOOK_MAX_B64) return json({ error: "Image too large" }, 413);
-  const question = String(body.question || "").trim().slice(0, 500) || "Describe this image.";
-  try {
-    const choice = await completeOnce(env, "look", {
-      messages: [{ role: "user", content: question }],
-      imageBase64: body.imageBase64,
-      mimeType: body.mimeType,
-      maxTokens: 400,
-      timeoutMs: 20_000,   // per model; the client gives up at 45s
-      deadlineMs: 40_000,
-      ctx,
-    });
-    return json({ answer: (choice.message.content || "").trim() });
   } catch (e) {
     return json({ error: e.message }, 503);
   }
@@ -1654,7 +1625,6 @@ export default {
             openai: "POST /v1/chat/completions",
             anthropic: "POST /v1/messages",
             search: "POST /v1/search",
-            look: "POST /v1/look",
             extract: "POST /v1/extract",
             transcribe: "POST /v1/transcribe",
             memory: "POST /v1/memory/extract",
@@ -1685,7 +1655,6 @@ export default {
       if (request.method === "POST") {
         if (path === "/v1/chat") return handleNativeChat(env, request, ctx);
         if (path === "/v1/chat/completions") return handleOpenAIChat(env, request);
-        if (path === "/v1/look") return handleLook(env, request, ctx);
         if (path === "/v1/messages") return handleAnthropicMessages(env, request);
         if (path === "/v1/search") return handleSearch(env, request);
         if (path === "/v1/extract") return handleExtract(env, request);
