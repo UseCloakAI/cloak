@@ -13,7 +13,7 @@ const CACHE_VERSION = 'cloak-v20261031snap';
 
 const SHELL = [
   '/chat.html',
-  '/version.js?v=1.1.237',
+  '/version.js?v=1.1.239',
   '/cloak.css?v=20261031snap',
   '/cloak.js?v=20261015agent',
   '/phone-agent.js?v=20261015agent',

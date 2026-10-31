@@ -2251,3 +2251,9 @@ html.kb-open .input-area{padding-bottom:14px;}
 .ld-ver{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);opacity:.35;font-variant-numeric:tabular-nums;margin-top:-10px;}
 .snav-ver{margin-top:auto;padding:14px 10px 4px;font-size:10px;font-weight:600;letter-spacing:.06em;line-height:1.5;color:var(--ink);opacity:.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
 @media(max-width:640px){.snav-ver{margin-top:0;padding:0 10px;align-self:center;white-space:nowrap;}}
+
+/* ── MATH (KaTeX) ── */
+.math-display { margin: 12px 0; overflow-x: auto; overflow-y: hidden; text-align: center; max-width: 100%; }
+.math-display .katex-display { margin: 0; }
+.katex { font-size: 1.05em; }
+.math-raw { font-family: inherit; background: none; }
