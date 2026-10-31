@@ -86,6 +86,10 @@ function beginAgents(botMsgEl, motion) {
   const meta = botMsgEl.querySelector('.bot-meta');
   const orb = meta && meta.querySelector('.cloak-orb');
   if (!meta) return;
+  // The header is display:none while a reply streams. Keep this message's
+  // header up so the orbit stays on screen for the whole agents turn.
+  botMsgEl.classList.add('agent-on');
+  dropTailOrb(botMsgEl);
   if (!botMsgEl._agentOrbit) {
     if (orb) orb.style.visibility = 'hidden';
     const host = document.createElement('span');
@@ -93,7 +97,7 @@ function beginAgents(botMsgEl, motion) {
     host.setAttribute('aria-hidden', 'true');
     if (orb) orb.insertAdjacentElement('afterend', host); else meta.prepend(host);
     botMsgEl._agentHost = host;
-    botMsgEl._agentOrbit = CloakAgentOrbit.mount(host, { size: 40, state: 'starting', motion: motion || 'orbit' });
+    botMsgEl._agentOrbit = CloakAgentOrbit.mount(host, { size: 128, state: 'starting', motion: motion || 'orbit' });
   } else if (motion) botMsgEl._agentOrbit.setMotion(motion);
   setBotState(botMsgEl, 'agents');
 }
@@ -107,6 +111,7 @@ function endAgents(botMsgEl) {
     setTimeout(() => {
       orbit.destroy();
       if (botMsgEl._agentHost) { botMsgEl._agentHost.remove(); botMsgEl._agentHost = null; }
+      botMsgEl.classList.remove('agent-on');
       const orb = botMsgEl.querySelector('.bot-meta .cloak-orb');
       if (orb) orb.style.visibility = '';
       resolve();
@@ -338,7 +343,8 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
   const bc = botMsgEl.querySelector('.bot-content');
   if (bc) bc._tk = null;
   botMsgEl._thinkBuf = ''; botMsgEl._thinkLine = null;
-  if (opts.agent) beginAgents(botMsgEl, opts.agent);
+  const agenting = !!(opts.agent || botMsgEl.classList.contains('agent-on'));
+  if (agenting) beginAgents(botMsgEl, opts.agent || undefined);
   let orb = null;
   let full = '';
   let shown = false;
@@ -351,7 +357,7 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
     if (!shown) {
       shown = true;
       stopThinkAnimation();
-      if (opts.agent) beginAgents(botMsgEl, opts.agent);
+      if (agenting) beginAgents(botMsgEl, opts.agent || undefined);
       else {
         botMsgEl._status = null;
         closeLiveThink(botMsgEl);
@@ -360,14 +366,14 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
         orb = t && t.querySelector('.cloak-orb');
       }
     }
-    if (!opts.agent) {
+    if (!agenting) {
       // Hop while tokens flow; squish if the stream stalls mid-answer.
       setOrbState(orb, 'streaming');
       clearTimeout(stallT);
       stallT = setTimeout(() => setOrbState(orb, 'thinking'), ORB_STALL_MS);
     }
     _renderLive(bc, vis);
-    if (!opts.agent) placeTailOrb(botMsgEl, bc);
+    if (!agenting) placeTailOrb(botMsgEl, bc);
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
@@ -580,6 +586,9 @@ window.send = async function () {
   // reused for the rest of the turn; the orb follows each step after that.
   let botMsgEl = insertBotBubbleForThoughts();
   try { botMsgEl._status = createCloakStatus(botMsgEl); } catch (_) { botMsgEl._status = null; }
+  // Agents mode: the orbit is up before the first token, and stays up
+  // through research, review, and the code handoff.
+  if (agentsOn()) beginAgents(botMsgEl, 'orbit');
   if (!botMsgEl._status) {
     const _bc = botMsgEl.querySelector('.bot-content');
     if (_bc) _bc.innerHTML = '<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
@@ -776,7 +785,7 @@ window.send = async function () {
         // state and the search/thought UI gets a clean bot-content.
         botMsgEl._status = null;
         dropTailOrb(botMsgEl);
-        if (replyModel !== model) beginAgents(botMsgEl, 'research');
+        if (botMsgEl.classList.contains('agent-on') || replyModel !== model) beginAgents(botMsgEl, 'research');
         else setBotState(botMsgEl, 'searching');
         const _sbc = botMsgEl.querySelector('.bot-content');
         if (_sbc) { _sbc.innerHTML = ''; _sbc._tk = null; }
@@ -847,7 +856,7 @@ window.send = async function () {
           dropTailOrb(botMsgEl);
           const vbc = botMsgEl.querySelector('.bot-content');
           if (vbc) { vbc.innerHTML = ''; vbc._tk = null; }
-          if (replyModel !== model) beginAgents(botMsgEl, 'research');
+          if (botMsgEl.classList.contains('agent-on') || replyModel !== model) beginAgents(botMsgEl, 'research');
           else setBotState(botMsgEl, 'searching');
           addStatus(botMsgEl, 'Verifying with more sources…');
           for (const call of verifyCalls) {
@@ -928,7 +937,7 @@ window.send = async function () {
         ? 'Service temporarily unavailable — please try again.'
         : CLOAK_SEARCH.escHtml(ex.message);
       if (!botMsgEl) botMsgEl = insertBotBubble();
-      if (botMsgEl && botMsgEl._agentOrbit) { botMsgEl._agentOrbit.destroy(); botMsgEl._agentOrbit = null; if (botMsgEl._agentHost) { botMsgEl._agentHost.remove(); botMsgEl._agentHost = null; } }
+      if (botMsgEl && botMsgEl._agentOrbit) { botMsgEl._agentOrbit.destroy(); botMsgEl._agentOrbit = null; if (botMsgEl._agentHost) { botMsgEl._agentHost.remove(); botMsgEl._agentHost = null; } botMsgEl.classList.remove('agent-on'); }
       replaceThinkWithContent(botMsgEl, 'Error: ' + errTxt);
       if (voiceMode) playVoice('Sorry, I ran into an error.');
       if (window.CloakThread) CloakThread.drain();
