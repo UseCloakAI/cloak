@@ -119,11 +119,17 @@ function showAgentWait(botMsgEl, kind) {
   botMsgEl._agentHost = host;
   botMsgEl.classList.add('agent-wait');
   if (window.CloakAgentOrbit) {
-    botMsgEl._agentOrbit = CloakAgentOrbit.mount(host, {
-      size: 112,
-      state: 'looping',
+    // Same box + spot as the resting orb (.bot-end-orb): the merged orb is
+    // 24px, agents stay tight and goo together. Starts as one orb, then
+    // splits on a spring so it morphs out of the chat orb.
+    const orbit = CloakAgentOrbit.mount(host, {
+      size: 94,
+      spread: .38,
+      state: 'starting',
       motion: AGENT_MOTION[kind] || 'orbit',
     });
+    botMsgEl._agentOrbit = orbit;
+    setTimeout(() => { if (botMsgEl._agentOrbit === orbit) orbit.setState('looping'); }, 260);
   }
 }
 function modelWroteBuild(text) {

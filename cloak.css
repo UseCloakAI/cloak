@@ -1970,7 +1970,8 @@ html.kb-open .input-area{padding-bottom:14px;}
 .msg.orb-below .bot-meta,
 .msg.orb-streaming .bot-meta,
 .msg.agent-wait .bot-meta { display: none; }
-.agent-stage { width: 112px; height: 112px; margin: 4px 0 2px; }
+.agent-stage { position: relative; width: 24px; height: 24px; margin-top: 8px; }
+.agent-stage > svg { position: absolute; left: 50%; top: 50%; translate: -50% -50%; }
 /* Searching globe — ink meridians/equator spun by orbGlobe() */
 .cloak-orb .orb-globe line,
 .cloak-orb .orb-globe path { fill: none; stroke: var(--ink); stroke-width: 5.2; stroke-linecap: round; }
