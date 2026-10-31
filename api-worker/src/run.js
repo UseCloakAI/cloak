@@ -78,7 +78,7 @@ export function makeChatRun(produceEvents) {
       if (this.status !== "idle") return this.attach(0);
       const run = body.run || {};
       this.meta = {
-        chat_id: typeof run.chat_id === "string" ? run.chat_id : null,
+        chat_id: run.chat_id != null && /^[\w-]{1,64}$/.test(String(run.chat_id)) ? String(run.chat_id) : null,
         token: typeof run.token === "string" ? run.token : null,
         sb: run.sb && okSupabase(run.sb.url) && typeof run.sb.key === "string" ? run.sb : null,
         id: String(run.id).slice(0, 64),
@@ -113,14 +113,20 @@ export function makeChatRun(produceEvents) {
         }
       }
       this.final = full;
+      const watched = this.subs.size > 0;
       for (const w of this.subs) w.close().catch(() => {});
       this.subs.clear();
-      this.state.storage.setAlarm(Date.now() + CLAIM_MS);
+      // Survive eviction between now and the save.
+      await this.state.storage.put("done", { meta: this.meta, final: full, status: this.status }).catch(() => {});
+      // Nobody watching (tab closed): save now. Someone watching: give the
+      // browser CLAIM_MS to say it has it.
+      this.state.storage.setAlarm(Date.now() + (watched ? CLAIM_MS : 0));
     }
 
     push(e) {
       this.events.push(e);
       const chunk = line(e);
+      // A write rejects once that browser has gone; drop it so "watched" is true.
       for (const w of this.subs) w.write(chunk).catch(() => this.subs.delete(w));
     }
 
@@ -130,7 +136,7 @@ export function makeChatRun(produceEvents) {
       for (const e of this.events.slice(from)) w.write(line(e)).catch(() => {});
       if (this.status === "running") this.subs.add(w);
       else w.close().catch(() => {});
-      return new Response(readable, { headers: { ...SSE_HEADERS, "X-Run-Status": this.status, "X-Run-Persisted": this.persisted ? "1" : "0", "Access-Control-Expose-Headers": "X-Run-Status, X-Run-Persisted" } });
+      return new Response(readable, { headers: { ...SSE_HEADERS, "X-Run-Status": this.status, "X-Run-Persisted": this.persisted ? "1" : "0", "X-Run-Note": this.note || "", "Access-Control-Expose-Headers": "X-Run-Status, X-Run-Persisted, X-Run-Note" } });
     }
 
     async alarm() {
@@ -143,21 +149,30 @@ export function makeChatRun(produceEvents) {
       if (this.status === "running") return;   // evicted mid-run and lost: nothing to do
       if (!this.persisted) {
         this.persisted = true;
-        if (!this.claimed && this.status !== "cancelled") await this.persist().catch((e) => console.error("[cloak-api] run persist:", e?.message || e));
+        if (!this.meta) {   // evicted since the run ended: reload what it saved
+          const d = await this.state.storage.get("done").catch(() => null);
+          if (d) { this.meta = d.meta; this.final = d.final; this.status = d.status; }
+        }
+        if (!this.claimed && this.status !== "cancelled") {
+          try { await this.persist(); this.note = this.note || "saved"; }
+          catch (e) { this.note = "save failed: " + (e?.message || e); console.error("[cloak-api] run persist:", this.note); }
+        }
         this.state.storage.setAlarm(Date.now() + KEEP_MS);
         return;
       }
       // Done and kept long enough: forget it.
       this.events = [];
       this.status = "idle";
+      await this.state.storage.deleteAll().catch(() => {});
     }
 
     async persist() {
       const m = this.meta;
       const text = cleanFinal(this.final);
-      if (!m || !m.sb || !m.token || !m.chat_id || !text) return;
+      if (!m || !m.sb || !m.token || !m.chat_id) { this.note = "not saved: no chat/auth on this run"; return; }
+      if (!text) { this.note = "not saved: empty reply"; return; }
       const uid = jwtSub(m.token);
-      if (!uid) return;
+      if (!uid) { this.note = "not saved: bad token"; return; }
       const r = await fetch(m.sb.url.replace(/\/$/, "") + "/rest/v1/thread_messages", {
         method: "POST",
         headers: {
@@ -166,7 +181,7 @@ export function makeChatRun(produceEvents) {
           "Content-Type": "application/json",
           Prefer: "return=minimal",
         },
-        body: JSON.stringify({ user_id: uid, chat_id: m.chat_id, role: "assistant", content: text.slice(0, 60000), source: "web", client_id: "run-" + m.id.slice(0, 56) }),
+        body: JSON.stringify({ user_id: uid, chat_id: Number(m.chat_id) || m.chat_id, role: "assistant", content: text.slice(0, 60000), source: "web", client_id: "run-" + m.id.slice(0, 56) }),
       });
       if (!r.ok) throw new Error("supabase " + r.status + " " + (await r.text()).slice(0, 200));
     }

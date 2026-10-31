@@ -552,6 +552,45 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
   return { text: full, streamed: shown };
 }
 
+// ── RE-ATTACH ──
+// Reopened (or came Back to) the app while a reply was still being written in
+// the cloud: pick it back up. Finished + already saved → it's in the chat.
+async function _reattachRun() {
+  let r = null;
+  try { r = JSON.parse(localStorage.getItem(RUN_KEY) || 'null'); } catch (_) {}
+  if (!r || !r.id) return;
+  if (Date.now() - r.at > 15 * 60e3) { localStorage.removeItem(RUN_KEY); log('inf', 'run ' + r.id + ' too old to re-attach'); return; }
+  const active = window.CloakThread && CloakThread.active();
+  if (String(active) !== String(r.chat)) { log('inf', 'run ' + r.id + ' belongs to chat ' + r.chat + ', open is ' + active); return; }
+  if (typeof busy !== 'undefined' && busy) { log('inf', 'run ' + r.id + ': busy, not re-attaching'); return; }
+  let res = null;
+  try { res = await fetch(CLOAK_API + '/v1/runs/' + r.id + '?from=0'); } catch (_) {}
+  log('inf', 'run ' + r.id + ' → ' + (res ? res.status + ' ' + (res.headers.get('X-Run-Status') || '') + ' ' + (res.headers.get('X-Run-Note') || '') : 'network error'));
+  if (!res || !res.ok || res.headers.get('X-Run-Persisted') === '1') {
+    localStorage.removeItem(RUN_KEY);   // gone, or already saved to the chat
+    try { res && res.body && res.body.cancel(); } catch (_) {}
+    return;
+  }
+  setBusy(true);
+  const el = insertBotBubbleForThoughts();
+  try { el._status = createCloakStatus(el); } catch (_) { el._status = null; }
+  try {
+    const out = await streamChat(null, el, null, { resume: { id: r.id, res } });
+    const text = _stripTags(out.text);
+    if (!text) { el.remove(); setBusy(false); return; }
+    if (window.CloakThread) CloakThread.push('CHATBOT', text, el);
+    if (out.streamed && text === out.text) finishLive(el, text);
+    else replaceThinkWithContent(el, text);
+  } catch (e) {
+    replaceThinkWithContent(el, 'Error: ' + CLOAK_SEARCH.escHtml(e.message || 'Something went wrong.'));
+  }
+  setBusy(false);
+}
+document.addEventListener('cloak:thread-ready', _reattachRun);
+// Back button restores the page from the back/forward cache: no reload, so
+// thread-ready doesn't fire and the old stream is dead.
+window.addEventListener('pageshow', (e) => { if (e.persisted) _reattachRun(); });
+
 // ── LIVE THINKING ──
 // Reasoning streams into the status log: each sentence pops in as its own
 // line; the current one fills in live.
