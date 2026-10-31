@@ -85,42 +85,24 @@ After a tag, stop. Do not write the specialist's answer yourself.`;
 }
 // Design-system agent orbit. Review cross-checks (ping-pong), code builds
 // (corners), a granted search darts out and back (research).
+// Agents use the chat orb's own motions: squish while thinking, the globe
+// while researching, and the hop while tokens stream. A second graphic
+// was covering that orb and reading as the wrong size and the wrong motion.
 function beginAgents(botMsgEl, motion) {
-  if (!botMsgEl || !window.CloakAgentOrbit) return;
-  const meta = botMsgEl.querySelector('.bot-meta');
-  const orb = meta && meta.querySelector('.cloak-orb');
-  if (!meta) return;
-  // The header is display:none while a reply streams. Keep this message's
-  // header up so the orbit stays on screen for the whole agents turn.
-  botMsgEl.classList.add('agent-on');
-  if (!botMsgEl._agentOrbit) {
-    dropTailOrb(botMsgEl);
-    if (orb) orb.style.visibility = 'hidden';
-    const host = document.createElement('span');
-    host.className = 'agent-orbit';
-    host.setAttribute('aria-hidden', 'true');
-    if (orb) orb.insertAdjacentElement('afterend', host); else meta.prepend(host);
-    botMsgEl._agentHost = host;
-    botMsgEl._agentOrbit = CloakAgentOrbit.mount(host, { size: 24, state: 'starting' });
-  } else if (motion && botMsgEl._agentOrbit.setMotion) botMsgEl._agentOrbit.setMotion(motion);
-  setBotState(botMsgEl, 'agents');
+  if (!botMsgEl) return;
+  if (botMsgEl._agentOrbit) {
+    try { botMsgEl._agentOrbit.destroy(); } catch (e) {}
+    botMsgEl._agentOrbit = null;
+  }
+  if (botMsgEl._agentHost) { botMsgEl._agentHost.remove(); botMsgEl._agentHost = null; }
+  botMsgEl.classList.remove('agent-on');
+  const real = botMsgEl.querySelector('.bot-meta .cloak-orb');
+  if (real) real.style.visibility = '';
+  setBotState(botMsgEl, motion === 'research' ? 'searching' : 'thinking');
 }
 function endAgents(botMsgEl) {
-  const orbit = botMsgEl && botMsgEl._agentOrbit;
-  if (!orbit) return Promise.resolve();
-  botMsgEl._agentOrbit = null;
-  orbit.setState('completed');
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  return new Promise(resolve => {
-    setTimeout(() => {
-      orbit.destroy();
-      if (botMsgEl._agentHost) { botMsgEl._agentHost.remove(); botMsgEl._agentHost = null; }
-      botMsgEl.classList.remove('agent-on');
-      const orb = botMsgEl.querySelector('.bot-meta .cloak-orb');
-      if (orb) orb.style.visibility = '';
-      resolve();
-    }, reduce ? 0 : 640);
-  });
+  if (botMsgEl) botMsgEl.classList.remove('agent-on');
+  return Promise.resolve();
 }
 // Concrete details the model must not invent. A phone, email, street, or
 // "according to listings" with no search behind it is treated as unchecked.
@@ -376,8 +358,6 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
   const bc = botMsgEl.querySelector('.bot-content');
   if (bc) bc._tk = null;
   botMsgEl._thinkBuf = ''; botMsgEl._thinkLine = null;
-  const agenting = !!(opts.agent || botMsgEl.classList.contains('agent-on'));
-  if (agenting) beginAgents(botMsgEl, opts.agent || undefined);
   let orb = null;
   let full = '';
   let shown = false;
@@ -390,23 +370,18 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
     if (!shown) {
       shown = true;
       stopThinkAnimation();
-      if (agenting) beginAgents(botMsgEl, opts.agent || undefined);
-      else {
-        botMsgEl._status = null;
-        closeLiveThink(botMsgEl);
-        setBotState(botMsgEl, 'streaming');
-        const t = tailOrb(botMsgEl);
-        orb = t && t.querySelector('.cloak-orb');
-      }
+      botMsgEl._status = null;
+      closeLiveThink(botMsgEl);
+      setBotState(botMsgEl, 'streaming');
+      const t = tailOrb(botMsgEl);
+      orb = t && t.querySelector('.cloak-orb');
     }
-    if (!agenting) {
-      // Hop while tokens flow; squish if the stream stalls mid-answer.
-      setOrbState(orb, 'streaming');
-      clearTimeout(stallT);
-      stallT = setTimeout(() => setOrbState(orb, 'thinking'), ORB_STALL_MS);
-    }
+    // Hop while tokens flow; squish if the stream stalls mid-answer.
+    setOrbState(orb, 'streaming');
+    clearTimeout(stallT);
+    stallT = setTimeout(() => setOrbState(orb, 'thinking'), ORB_STALL_MS);
     _renderLive(bc, vis);
-    if (!agenting) placeTailOrb(botMsgEl, bc);
+    placeTailOrb(botMsgEl, bc);
   };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
 
@@ -621,7 +596,6 @@ window.send = async function () {
   try { botMsgEl._status = createCloakStatus(botMsgEl); } catch (_) { botMsgEl._status = null; }
   // Agents mode: the orbit is up before the first token, and stays up
   // through research, review, and the code handoff.
-  if (agentsOn()) beginAgents(botMsgEl, 'orbit');
   if (!botMsgEl._status) {
     const _bc = botMsgEl.querySelector('.bot-content');
     if (_bc) _bc.innerHTML = '<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
