@@ -12,7 +12,7 @@ import {
   reserveScale, tokensScale, patienceScale, effortExtra, effortInstruction,
 } from "./effort.js";
 
-const VERSION = "4.9.1";
+const VERSION = "4.9.2";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
