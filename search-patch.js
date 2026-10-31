@@ -736,6 +736,12 @@ window.send = async function () {
   // keeps the cacheable part of the prompt identical between requests.
   // The image note sits before the clock so the prefix stays cacheable.
   const _images = await _imagesFor(trimmedMessages);
+  // Images referenced in this chat whose bytes are gone (reload / other device).
+  const _lostImages = trimmedMessages.some(m => m.role === 'user' && typeof m.content === 'string'
+    && [...m.content.matchAll(/\[Image ([A-Za-z0-9_-]+)\]/g)].some(h => !_imageRam.has(h[1])));
+  const _imgNote = _images.length
+    ? '\n\n## IMAGES\nThe image(s) the user attached are included with this message. You can see them: describe and use them directly.'
+    : _lostImages ? '\n\n## IMAGES\nEarlier images in this chat were not kept after a reload, so they are not attached now. If the user asks about one, say it did not carry over and ask them to attach it again. Ignore any earlier replies that said you cannot see images.' : '';
   // Search is one menu switch, on for every selected model. Agents are Kairos-only
   // and off by default. A handoff passes search through only when Kairos asks.
   const _system = (o) => {
@@ -743,7 +749,7 @@ window.send = async function () {
     const allowAgents = !o || o.agents !== false;
     return (allowSearch && searchOn() ? SEARCH_SYSTEM_PROMPT : '')
       + (allowAgents && agentsOn() ? agentsPrompt() : '')
-      + _cx.system + cloakClock();
+      + _cx.system + _imgNote + cloakClock();
   };
   const bodyObj = {
     model,
