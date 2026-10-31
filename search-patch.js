@@ -102,11 +102,18 @@ function clearAgentStage(botMsgEl) {
 }
 function showAgentWait(botMsgEl, kind) {
   dropTailOrb(botMsgEl);
-  clearAgentStage(botMsgEl);
   setBotState(botMsgEl, null);
   addStatus(botMsgEl, AGENT_WAIT[kind]);
   const bc = botMsgEl.querySelector('.bot-content');
   if (!bc) return;
+  // Already on stage (next handoff): swap the sentence, blend the motion.
+  if (botMsgEl._agentOrbit && botMsgEl._agentHost && bc.contains(botMsgEl._agentHost)) {
+    const p = bc.querySelector('p');
+    if (p) p.textContent = AGENT_WAIT[kind];
+    agentPhase(botMsgEl, AGENT_MOTION[kind] || 'orbit');
+    return;
+  }
+  clearAgentStage(botMsgEl);
   bc._tk = null;
   bc.textContent = '';
   const p = document.createElement('p');
@@ -119,18 +126,25 @@ function showAgentWait(botMsgEl, kind) {
   botMsgEl._agentHost = host;
   botMsgEl.classList.add('agent-wait');
   if (window.CloakAgentOrbit) {
-    // Same box + spot as the resting orb (.bot-end-orb): the merged orb is
-    // 24px, agents stay tight and goo together. Starts as one orb, then
-    // splits on a spring so it morphs out of the chat orb.
+    // Design-system motion, scaled down and anchored where the resting orb
+    // sits. Starts as one orb, then splits so it grows out of the chat orb.
     const orbit = CloakAgentOrbit.mount(host, {
-      size: 94,
-      spread: .38,
+      size: 76,
       state: 'starting',
       motion: AGENT_MOTION[kind] || 'orbit',
     });
     botMsgEl._agentOrbit = orbit;
     setTimeout(() => { if (botMsgEl._agentOrbit === orbit) orbit.setState('looping'); }, 260);
   }
+}
+// The orbs act out what Cloak is doing right now:
+// research → research, reasoning over results → spiral, planning → orbit,
+// building → snap, cross-checking → pong.
+function agentPhase(botMsgEl, motion) {
+  const o = botMsgEl && botMsgEl._agentOrbit;
+  if (!o) return;
+  o.setState('looping');
+  o.setMotion(motion);
 }
 function modelWroteBuild(text) {
   const s = String(text || '');
@@ -148,8 +162,10 @@ function beginAgents(botMsgEl, motion) {
   setBotState(botMsgEl, motion === 'research' ? 'searching' : 'thinking');
 }
 function endAgents(botMsgEl) {
-  clearAgentStage(botMsgEl);
-  return Promise.resolve();
+  const o = botMsgEl && botMsgEl._agentOrbit;
+  if (!o) { clearAgentStage(botMsgEl); return Promise.resolve(); }
+  o.setState('completed');   // agents merge back into one orb, then hand off
+  return new Promise(r => setTimeout(() => { if (botMsgEl._agentOrbit === o) clearAgentStage(botMsgEl); r(); }, 520));
 }
 // Concrete details the model must not invent. A phone, email, street, or
 // "according to listings" with no search behind it is treated as unchecked.
@@ -823,6 +839,7 @@ window.send = async function () {
               } catch (e) {}
             }
           }
+          agentPhase(botMsgEl, 'spiral');
           researchNotes = all.filter(s => s.extracted).map((s, i) => '[' + (i + 1) + '] ' + (s.url || '') + '\n' + String(s.extracted).slice(0, 1500)).join('\n\n');
           convo = [
             ...convo,
@@ -868,6 +885,7 @@ window.send = async function () {
           }, botMsgEl, _fetchController.signal, { silent: true });
           _fetchController = null;
           const verdict = (note.text || '').trim().slice(0, 1200);
+          agentPhase(botMsgEl, 'orbit');
           convo = [
             ...convo,
             { role: 'assistant', content: '(review handoff)' },
