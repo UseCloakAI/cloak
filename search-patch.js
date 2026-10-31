@@ -89,16 +89,16 @@ function beginAgents(botMsgEl, motion) {
   // The header is display:none while a reply streams. Keep this message's
   // header up so the orbit stays on screen for the whole agents turn.
   botMsgEl.classList.add('agent-on');
-  dropTailOrb(botMsgEl);
   if (!botMsgEl._agentOrbit) {
+    dropTailOrb(botMsgEl);
     if (orb) orb.style.visibility = 'hidden';
     const host = document.createElement('span');
     host.className = 'agent-orbit';
     host.setAttribute('aria-hidden', 'true');
     if (orb) orb.insertAdjacentElement('afterend', host); else meta.prepend(host);
     botMsgEl._agentHost = host;
-    botMsgEl._agentOrbit = CloakAgentOrbit.mount(host, { size: 128, state: 'starting', motion: motion || 'orbit' });
-  } else if (motion) botMsgEl._agentOrbit.setMotion(motion);
+    botMsgEl._agentOrbit = CloakAgentOrbit.mount(host, { size: 24, state: 'starting' });
+  } else if (motion && botMsgEl._agentOrbit.setMotion) botMsgEl._agentOrbit.setMotion(motion);
   setBotState(botMsgEl, 'agents');
 }
 function endAgents(botMsgEl) {
