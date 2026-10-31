@@ -1968,7 +1968,9 @@ html.kb-open .input-area{padding-bottom:14px;}
 /* Drop the "Cloak" label — only status text (thinking/searching) shows */
 .bot-label:not(.cs-thinking-label) { display: none; }
 .msg.orb-below .bot-meta,
-.msg.orb-streaming .bot-meta { display: none; }
+.msg.orb-streaming .bot-meta,
+.msg.agent-wait .bot-meta { display: none; }
+.agent-stage { width: 112px; height: 112px; margin: 4px 0 2px; }
 /* Searching globe — ink meridians/equator spun by orbGlobe() */
 .cloak-orb .orb-globe line,
 .cloak-orb .orb-globe path { fill: none; stroke: var(--ink); stroke-width: 5.2; stroke-linecap: round; }
