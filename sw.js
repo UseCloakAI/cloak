@@ -13,7 +13,7 @@ const CACHE_VERSION = 'cloak-v20261031plan';
 
 const SHELL = [
   '/chat.html',
-  '/version.js?v=1.1.245',
+  '/version.js?v=1.1.248',
   '/cloak.css?v=20261031plan',
   '/cloak.js?v=20261031plan',
   '/phone-agent.js?v=20261015agent',

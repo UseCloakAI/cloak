@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="cloak.css?v=20261031plan">
-<script src="version.js?v=1.1.245"></script>
+<script src="version.js?v=1.1.248"></script>
 <link rel="stylesheet" href="search.css?v=20261001rollfix2">
 <link rel="stylesheet" href="brain.css?v=20261001rollfix2">
 <link rel="stylesheet" href="builds.css?v=20261001rollfix2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -105,6 +105,10 @@
 .model-option-name{
   font-family:var(--fd);font-size:13px;font-weight:800;
   text-transform:uppercase;letter-spacing:.06em;color:var(--ink);
+}
+.model-rev{
+  letter-spacing:0;font-weight:700;opacity:.55;margin-left:6px;
+  text-transform:none;
 }
 .model-option.active .model-option-name{color:var(--paper)}
 
@@ -362,7 +366,7 @@
 
           <div class="model-picker" id="model-picker">
             <div class="model-btn" id="model-btn" onclick="toggleModelMenu(event)">
-              <span id="model-btn-label">Kairos</span>
+              <span id="model-btn-label">Kairos 1.2</span>
               <span class="mdl-chevron">
                 <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               </span>
@@ -373,17 +377,17 @@
                 <button type="button" class="mdl-switch" id="search-switch" role="switch" aria-checked="true" aria-label="Web search" onclick="toggleSearch(event)"><i></i></button>
               </div>
               <div class="model-option active" data-model="kairos" onclick="selectModel(this)">
-                <span class="model-option-name">Kairos</span>
-                <span class="model-option-desc">Default. Nemotron for the main reply.</span>
+                <span class="model-option-name">Kairos <span class="model-rev">1.2</span></span>
+                <span class="model-option-desc">Default. The main reply.</span>
                 <button type="button" class="mdl-agents" id="agents-switch" role="switch" aria-checked="false" aria-label="Kairos agents" onclick="toggleAgents(event)"><span>Agents</span><span class="mdl-switch" aria-hidden="true"><i></i></span></button>
               </div>
               <div class="model-option" data-model="linus" onclick="selectModel(this)">
-                <span class="model-option-name">Linus</span>
+                <span class="model-option-name">Linus <span class="model-rev">1</span></span>
                 <span class="model-option-desc">Code, builds &amp; debugging</span>
                 <span class="model-option-dot"></span>
               </div>
               <div class="model-option" data-model="pneuma" onclick="selectModel(this)">
-                <span class="model-option-name">Pneuma</span>
+                <span class="model-option-name">Pneuma <span class="model-rev">1</span></span>
                 <span class="model-option-desc">Text and images. The lighter option.</span>
                 <span class="model-option-dot"></span>
               </div>
@@ -832,9 +836,10 @@ window.cloakModelMap = {
 };
 
 function modelButtonLabel() {
-  if (window.cloakModel === 'kairos' && localStorage.getItem('cloak_agents') === '1') return 'Kairos + Agents';
   const opt = document.querySelector('.model-option[data-model="' + window.cloakModel + '"]');
-  return opt ? opt.querySelector('.model-option-name').textContent : 'Kairos';
+  const name = opt ? opt.querySelector('.model-option-name').textContent.replace(/\s+/g, ' ').trim() : 'Kairos 1.2';
+  if (window.cloakModel === 'kairos' && localStorage.getItem('cloak_agents') === '1') return name + ' + Agents';
+  return name;
 }
 function paintMenuSwitches() {
   const search = localStorage.getItem('cloak_search') !== '0';
