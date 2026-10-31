@@ -32,7 +32,9 @@ window.CLOAK_VERSION = { version: "$VERSION", release: $RELEASE, build: $COUNT, 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fill); else fill();
 })();
 JS
-# Cache-bust version.js itself so the new number is never served stale.
-sed -i "s#version\.js?v=[A-Za-z0-9.]*#version.js?v=$VERSION#g" chat.html sw.js 2>/dev/null || true
+# Cache-bust EVERY shell asset + the service worker cache, so a new build is
+# never served stale JS/CSS (a fixed tag kept phones on old code for days).
+sed -i "s#\(\.\(js\|css\)\)?v=[A-Za-z0-9._-]*#\1?v=$VERSION#g" chat.html sw.js 2>/dev/null || true
+sed -i "s#^const CACHE_VERSION = '[^']*';#const CACHE_VERSION = 'cloak-v$VERSION';#" sw.js 2>/dev/null || true
 git add version.js chat.html sw.js
 echo "Cloak version -> v$VERSION"
