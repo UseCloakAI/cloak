@@ -32,7 +32,6 @@
   // total = tokens for memory + summaries + recent turns + the new message.
   const BUDGETS = {
     pneuma: { total: 5200, memory: 420, summary: 900, keep: 4 },
-    logos: { total: 5200, memory: 420, summary: 900, keep: 4 },
     kairos: { total: 9000, memory: 700, summary: 1600, keep: 6 },
     linus: { total: 11000, memory: 520, summary: 1400, keep: 6 },
   };
@@ -46,7 +45,7 @@
   const RETRY_MS = 60000;
 
   const est = (s) => (s ? Math.ceil(String(s).length / 3.6) : 0);
-  const budgetFor = (model) => BUDGETS[model] || BUDGETS.pneuma;
+  const budgetFor = (model) => BUDGETS[model === 'logos' ? 'kairos' : model] || BUDGETS.pneuma;
   const listeners = {};
   let ctx = empty();
   let epoch = 0;

@@ -17,8 +17,8 @@
 <link rel="manifest" href="/manifest.json?v=20261001rollfix2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="cloak.css?v=20261031snap">
-<script src="version.js?v=1.1.244"></script>
+<link rel="stylesheet" href="cloak.css?v=20261031plan">
+<script src="version.js?v=1.1.245"></script>
 <link rel="stylesheet" href="search.css?v=20261001rollfix2">
 <link rel="stylesheet" href="brain.css?v=20261001rollfix2">
 <link rel="stylesheet" href="builds.css?v=20261001rollfix2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -73,7 +73,32 @@
 .model-dropdown.open .model-option:nth-child(2){--od:.05s}
 .model-dropdown.open .model-option:nth-child(3){--od:.1s}
 .model-dropdown.open .model-option:nth-child(4){--od:.15s}
+.menu-switch{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:12px 16px;border-bottom:var(--bdt);
+  font-family:var(--fd);font-size:11px;font-weight:800;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink);
+}
+.mdl-switch{
+  width:36px;height:20px;border:var(--bd);background:var(--p2);position:relative;
+  cursor:pointer;flex:none;padding:0;
+}
+.mdl-switch[aria-checked="true"]{background:var(--acc)}
+.mdl-switch i{
+  position:absolute;top:1px;left:1px;width:14px;height:14px;background:var(--ink);
+  transition:left .2s var(--ease-out);
+}
+.mdl-switch[aria-checked="true"] i{left:17px;background:var(--paper)}
+.mdl-agents{
+  position:absolute;right:12px;top:14px;display:flex;align-items:center;gap:6px;
+  font-family:var(--fd);font-size:9px;font-weight:800;letter-spacing:.08em;
+  text-transform:uppercase;background:transparent;border:none;color:var(--ink);
+  cursor:pointer;padding:0;
+}
+.model-option.active .mdl-agents{color:var(--paper)}
+.model-option.active .mdl-switch{border-color:var(--paper)}
 .model-option:last-child{border-bottom:none}
+.model-option[data-model="kairos"]{padding-right:108px}
 .model-option:hover{background:var(--p2)}
 .model-option.active{background:var(--ink)}
 
@@ -337,30 +362,29 @@
 
           <div class="model-picker" id="model-picker">
             <div class="model-btn" id="model-btn" onclick="toggleModelMenu(event)">
-              <span id="model-btn-label">Pneuma</span>
+              <span id="model-btn-label">Kairos</span>
               <span class="mdl-chevron">
                 <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               </span>
             </div>
             <div class="model-dropdown" id="model-dropdown">
-              <div class="model-option active" data-model="pneuma" onclick="selectModel(this)">
-                <span class="model-option-name">Pneuma</span>
-                <span class="model-option-desc">Fast &amp; responsive for everyday tasks</span>
-                <span class="model-option-dot"></span>
+              <div class="menu-switch">
+                <span>Web search</span>
+                <button type="button" class="mdl-switch" id="search-switch" role="switch" aria-checked="true" aria-label="Web search" onclick="toggleSearch(event)"><i></i></button>
               </div>
-              <div class="model-option" data-model="logos" onclick="selectModel(this)">
-                <span class="model-option-name">Logos</span>
-                <span class="model-option-desc">Deep reasoning &amp; complex problem solving</span>
-                <span class="model-option-dot"></span>
-              </div>
-              <div class="model-option" data-model="kairos" onclick="selectModel(this)">
+              <div class="model-option active" data-model="kairos" onclick="selectModel(this)">
                 <span class="model-option-name">Kairos</span>
-                <span class="model-option-desc">Creative &amp; long-context tasks</span>
-                <span class="model-option-dot"></span>
+                <span class="model-option-desc">Default. Nemotron for the main reply.</span>
+                <button type="button" class="mdl-agents" id="agents-switch" role="switch" aria-checked="false" aria-label="Kairos agents" onclick="toggleAgents(event)"><span>Agents</span><span class="mdl-switch" aria-hidden="true"><i></i></span></button>
               </div>
               <div class="model-option" data-model="linus" onclick="selectModel(this)">
                 <span class="model-option-name">Linus</span>
                 <span class="model-option-desc">Code, builds &amp; debugging</span>
+                <span class="model-option-dot"></span>
+              </div>
+              <div class="model-option" data-model="pneuma" onclick="selectModel(this)">
+                <span class="model-option-name">Pneuma</span>
+                <span class="model-option-desc">Text and images. The lighter option.</span>
                 <span class="model-option-dot"></span>
               </div>
             </div>
@@ -799,13 +823,52 @@
 
 <!-- ── MODEL PICKER LOGIC ── -->
 <script>
-window.cloakModel = 'pneuma';
+window.cloakModel = 'kairos';
 window.cloakModelMap = {
   pneuma: 'pneuma',
-  logos:  'logos',
+  logos:  'kairos',
   kairos: 'kairos',
   linus:  'linus'
 };
+
+function modelButtonLabel() {
+  if (window.cloakModel === 'kairos' && localStorage.getItem('cloak_agents') === '1') return 'Kairos + Agents';
+  const opt = document.querySelector('.model-option[data-model="' + window.cloakModel + '"]');
+  return opt ? opt.querySelector('.model-option-name').textContent : 'Kairos';
+}
+function paintMenuSwitches() {
+  const search = localStorage.getItem('cloak_search') !== '0';
+  const agents = localStorage.getItem('cloak_agents') === '1';
+  const s = document.getElementById('search-switch');
+  const a = document.getElementById('agents-switch');
+  if (s) s.setAttribute('aria-checked', search ? 'true' : 'false');
+  if (a) {
+    a.setAttribute('aria-checked', agents ? 'true' : 'false');
+    const knob = a.querySelector('.mdl-switch');
+    if (knob) knob.setAttribute('aria-checked', agents ? 'true' : 'false');
+  }
+}
+function toggleSearch(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const on = localStorage.getItem('cloak_search') === '0';
+  localStorage.setItem('cloak_search', on ? '1' : '0');
+  paintMenuSwitches();
+}
+function toggleAgents(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const on = localStorage.getItem('cloak_agents') === '1';
+  localStorage.setItem('cloak_agents', on ? '0' : '1');
+  const opt = document.querySelector('.model-option[data-model="kairos"]');
+  if (opt && window.cloakModel !== 'kairos') selectModel(opt);
+  else {
+    const label = document.getElementById('model-btn-label');
+    const name = modelButtonLabel();
+    if (window.CloakMotion) CloakMotion.roll(label, name); else label.textContent = name;
+  }
+  paintMenuSwitches();
+}
 
 function toggleModelMenu(e) {
   e && e.stopPropagation();
@@ -819,8 +882,8 @@ function toggleModelMenu(e) {
 function selectModel(optEl) {
   const modelId = optEl.dataset.model;
   window.cloakModel = modelId;
-  const name = optEl.querySelector('.model-option-name').textContent;
   const label = document.getElementById('model-btn-label');
+  const name = modelButtonLabel();
   if (window.CloakMotion) CloakMotion.roll(label, name); else label.textContent = name;
   document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
   optEl.classList.add('active');
@@ -830,15 +893,16 @@ function selectModel(optEl) {
 }
 
 (function() {
-  const saved = localStorage.getItem('cloak_model');
+  let saved = localStorage.getItem('cloak_model');
+  if (saved === 'logos') { saved = 'kairos'; localStorage.setItem('cloak_model', 'kairos'); }
   if (saved && document.querySelector(`.model-option[data-model="${saved}"]`)) {
     const opt = document.querySelector(`.model-option[data-model="${saved}"]`);
     document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
     opt.classList.add('active');
-    document.getElementById('model-btn-label').textContent =
-      opt.querySelector('.model-option-name').textContent;
     window.cloakModel = saved;
   }
+  document.getElementById('model-btn-label').textContent = modelButtonLabel();
+  paintMenuSwitches();
 })();
 
 document.addEventListener('click', function(e) {
@@ -920,15 +984,16 @@ window.cloakSendMessage = async function(messages, opts = {}) {
 <script src="search.js?v=20261001rollfix2"></script>
 <!-- memory → context → brain: no deps on cloak.js at load time -->
 <script src="memory.js?v=20261001nopriv" defer></script>
-<script src="context.js?v=20261001rollfix2" defer></script>
+<script src="context.js?v=20261031plan" defer></script>
 <script src="brain.js?v=20261001rollfix2" defer></script>
 <script src="thread.js?v=20261001rollfix2" defer></script>
-<script src="cloak.js?v=20261031ver" defer></script>
+<script src="cloak.js?v=20261031plan" defer></script>
 <script src="phone-agent.js?v=20261015agent" defer></script>
 <!-- highlight.js + builds.js: code blocks, Builds panel, editor, file attachments (patches cloak.js) -->
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js" defer></script>
 <script src="builds.js?v=20261001rollfix2" defer></script>
 <!-- search-patch.js overrides send() — must load after cloak.js -->
 <script src="effort.js?v=20261031snap" defer></script>
-<script src="search-patch.js?v=20261001rollfix2" defer></script></body>
+<script src="agent-orbit.js?v=20261031plan" defer></script>
+<script src="search-patch.js?v=20261031plan" defer></script></body>
 </html>
