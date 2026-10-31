@@ -2201,22 +2201,25 @@ html.kb-open .input-area{padding-bottom:14px;}
 .eff-readout{font-family:var(--fd);font-size:28px;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;line-height:1;}
 .eff-desc{font-size:12.5px;color:var(--ink);opacity:.62;margin:6px 0 16px;min-height:1.4em;}
 
-.eff-slider{padding:4px 10px 0;}
+.eff-slider{padding:4px 10px 0;user-select:none;-webkit-user-select:none;}
 .eff-track{position:relative;height:28px;cursor:pointer;touch-action:none;}
 .eff-track::before{content:'';position:absolute;left:0;right:0;top:50%;height:10px;translate:0 -50%;background:var(--p2);border:var(--bd);}
 .eff-fill{position:absolute;left:0;top:50%;height:10px;translate:0 -50%;width:50%;
   background:repeating-linear-gradient(-45deg,var(--acc) 0 6px,var(--acc2) 6px 9px);border:var(--bd);border-right:none;
-  transition:width .22s var(--sp-snap);}
+  transition:width var(--lift);}
 .eff-tick{position:absolute;top:50%;width:2px;height:4px;translate:-1px 9px;background:var(--ink);opacity:.25;pointer-events:none;}
 .eff-tick.major{height:8px;opacity:.45;}
 .eff-tick.on{opacity:.7;}
 .eff-thumb{position:absolute;top:50%;left:50%;width:22px;height:22px;translate:-50% -50%;
   background:var(--surf);border:var(--bd);box-shadow:var(--shsm);cursor:grab;
-  transition:left .22s var(--sp-snap),box-shadow var(--lift),scale var(--lift);}
+  transition:left var(--lift),box-shadow var(--lift),scale var(--lift);}
 .eff-thumb::after{content:'';position:absolute;inset:5px;background:var(--acc);}
 .eff-thumb:hover{box-shadow:var(--sh);}
 .eff-thumb:focus-visible{outline:2px solid var(--acc);outline-offset:3px;}
-.eff-pop.dragging .eff-thumb,.eff-pop.dragging .eff-fill{transition:none;}
+/* While the thumb is giving, it tracks the pull directly. Letting go of
+   .giving is what starts the spring into the next notch. */
+.eff-pop.giving .eff-fill{transition:none;}
+.eff-pop.giving .eff-thumb{transition:box-shadow var(--lift),scale var(--lift);}
 .eff-pop.dragging .eff-thumb{cursor:grabbing;box-shadow:none;scale:1.08;}
 .eff-stops{position:relative;height:30px;margin-top:6px;}
 .eff-stop{position:absolute;top:0;translate:-50% 0;background:none;border:none;padding:4px 2px;cursor:pointer;

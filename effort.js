@@ -1,7 +1,9 @@
 /* ════════════════════════════════════════════════════════
    CLOAK EFFORT — how hard Cloak works on a request.
-   A 0–100 slider (magnetic detents at Minimal / Low / Medium / High / Max)
-   in the topbar. The value goes to the API as `effort` on every chat call
+   A slider in the topbar that rests only on Minimal / Low / Medium / High / Max.
+   Dragging leans off the current notch — a little give — then the thumb springs
+   into the next one on the same material curve as the other controls. It never
+   settles between levels. The value goes to the API as `effort` on every chat call
    (api-worker/src/effort.js turns it into reasoning level, token budget,
    patience and prompt), and also sets client-side research depth:
    sources read per search and how many verification rounds are allowed.
@@ -16,12 +18,37 @@ const CloakEffort = (() => {
     { v: 75,  name: 'High',    desc: 'Thinks it through, checks its work.' },
     { v: 100, name: 'Max',     desc: 'Full effort. Exhaustive reasoning and verification.' },
   ];
-  const SNAP = 4; // magnetic pull toward a detent, in slider units
+  const TRIP = 12.5; // halfway to the next notch — past this, it lets go
+  const GIVE = 6;    // how far the thumb will lean, in slider units, before it lets go
 
+  let storedRaw = null;
+  try { storedRaw = localStorage.getItem(KEY); } catch (_) {}
   let value = 50;
-  try { const s = Number(localStorage.getItem(KEY)); if (Number.isFinite(s) && localStorage.getItem(KEY) !== null) value = clamp(s); } catch (_) {}
+  if (storedRaw !== null && storedRaw !== '' && Number.isFinite(Number(storedRaw))) value = quantize(Number(storedRaw));
+  let index = nearestIndex(value);
+  let holdNotch = false;
+  let dragging = false;
+  let gliding = false;
+  let glideTimer = 0;
 
-  function clamp(n) { return Math.max(0, Math.min(100, Math.round(n))); }
+  function nearestIndex(v) {
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i < LEVELS.length; i++) {
+      const d = Math.abs(LEVELS[i].v - v);
+      if (d < bestD) { best = i; bestD = d; }
+    }
+    return best;
+  }
+  function quantize(v) {
+    const n = Math.max(0, Math.min(100, Number(v)));
+    if (!Number.isFinite(n)) return value;
+    return LEVELS[nearestIndex(n)].v;
+  }
+  // Starts at about half the finger's travel, then stiffens and stops
+  // a little way off the notch — the rest of the gap is the spring.
+  function giveOffset(delta) {
+    return Math.sign(delta) * GIVE * Math.tanh(Math.abs(delta) / 11);
+  }
   function level(v = value) {
     return v < 13 ? LEVELS[0] : v < 38 ? LEVELS[1] : v < 63 ? LEVELS[2] : v < 88 ? LEVELS[3] : LEVELS[4];
   }
@@ -34,13 +61,19 @@ const CloakEffort = (() => {
 
   const listeners = new Set();
   function set(v, { persist = true } = {}) {
-    const n = clamp(v);
-    if (n === value && persist) { save(); return; }
+    const n = quantize(v);
+    const changed = n !== value;
     value = n;
+    index = nearestIndex(n);
     if (persist) save();
-    listeners.forEach(fn => { try { fn(value); } catch (_) {} });
+    if (changed) listeners.forEach(fn => { try { fn(value); } catch (_) {} });
+    else if (fill) {
+      fill.style.width = value + '%';
+      thumb.style.left = value + '%';
+    }
   }
   function save() { try { localStorage.setItem(KEY, String(value)); } catch (_) {} }
+  if (storedRaw !== null && storedRaw !== String(value)) save();
 
   /* ── UI ── */
   let btn, pop, track, fill, thumb, readout, nameEl, descEl, statsEl;
@@ -119,49 +152,97 @@ const CloakEffort = (() => {
     descEl = pop.querySelector('.eff-desc');
     statsEl = pop.querySelector('.eff-stats');
 
-    // Drag anywhere on the track. Magnetic detents; Shift = free (no snap).
-    let dragging = false, lastDetent = null;
-    const fromEvent = (e, free) => {
+    // Lean with the pointer, then spring to the next notch. Past the halfway
+    // point the thumb lets go and glides; until then it only gives a little,
+    // so a drag can never rest between Medium and High.
+    const reduce = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pointerPct = (e) => {
       const r = track.getBoundingClientRect();
-      let v = ((e.clientX - r.left) / r.width) * 100;
-      if (!free) {
-        const near = LEVELS.find(l => Math.abs(l.v - v) <= SNAP);
-        if (near) v = near.v;
-      }
-      return clamp(v);
+      if (!r.width) return value;
+      return Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
     };
-    const haptic = (v) => {
-      const d = LEVELS.find(l => l.v === v);
-      if (d && d.v !== lastDetent) { lastDetent = d.v; if (typeof hapticTap === 'function') hapticTap(); }
-      if (!d) lastDetent = null;
+    const markGliding = () => {
+      if (reduce()) { gliding = false; return; }
+      gliding = true;
+      clearTimeout(glideTimer);
+      glideTimer = setTimeout(() => { gliding = false; }, 420);
+    };
+    // Drop the direct-follow override and commit the current left, so the
+    // spring transition starts from the lean instead of skipping to the notch.
+    const armGlide = () => {
+      const wasGiving = pop.classList.contains('giving');
+      if (wasGiving) {
+        pop.classList.remove('giving');
+        void thumb.offsetWidth;
+      }
+      markGliding();
+    };
+    const lean = (p) => {
+      gliding = false;
+      clearTimeout(glideTimer);
+      const x = Math.max(0, Math.min(100, p));
+      pop.classList.add('giving');
+      fill.style.width = x.toFixed(2) + '%';
+      thumb.style.left = x.toFixed(2) + '%';
+    };
+    const applyPointer = (pointer) => {
+      let next = index;
+      while (next < LEVELS.length - 1 && pointer >= LEVELS[next].v + TRIP) next++;
+      while (next > 0 && pointer <= LEVELS[next].v - TRIP) next--;
+      if (next !== index) {
+        index = next;
+        holdNotch = true;
+        armGlide();
+        if (typeof hapticTap === 'function') hapticTap();
+        set(LEVELS[next].v);
+        return;
+      }
+      const rest = LEVELS[index].v;
+      if (gliding || holdNotch) {
+        if (Math.abs(pointer - rest) > 2 || gliding) return;
+        holdNotch = false;
+      }
+      lean(rest + giveOffset(pointer - rest));
     };
     track.addEventListener('pointerdown', (e) => {
-      dragging = true; track.setPointerCapture(e.pointerId); pop.classList.add('dragging');
-      const v = fromEvent(e, e.shiftKey); haptic(v); set(v, { persist: false });
+      if (e.button !== 0) return;
+      dragging = true;
+      holdNotch = false;
+      track.setPointerCapture(e.pointerId);
+      pop.classList.add('dragging');
+      applyPointer(pointerPct(e));
       thumb.focus({ preventScroll: true });
     });
     track.addEventListener('pointermove', (e) => {
       if (!dragging) return;
-      const v = fromEvent(e, e.shiftKey); haptic(v); set(v, { persist: false });
+      applyPointer(pointerPct(e));
     });
-    const end = () => { if (!dragging) return; dragging = false; pop.classList.remove('dragging'); set(value); };
+    const end = () => {
+      if (!dragging) return;
+      dragging = false;
+      holdNotch = false;
+      pop.classList.remove('dragging');
+      const parked = !pop.classList.contains('giving') && Math.abs(parseFloat(thumb.style.left) - value) < 0.4;
+      if (!parked) armGlide();
+      set(value);
+    };
     track.addEventListener('pointerup', end);
     track.addEventListener('pointercancel', end);
 
     thumb.addEventListener('keydown', (e) => {
-      const step = e.shiftKey ? 10 : 1;
-      let v = value;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v += step;
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v -= step;
-      else if (e.key === 'PageUp') v = (LEVELS.find(l => l.v > value) || LEVELS[4]).v;
-      else if (e.key === 'PageDown') v = ([...LEVELS].reverse().find(l => l.v < value) || LEVELS[0]).v;
+      const i = nearestIndex(value);
+      let v = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'PageUp') v = LEVELS[Math.min(LEVELS.length - 1, i + 1)].v;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'PageDown') v = LEVELS[Math.max(0, i - 1)].v;
       else if (e.key === 'Home') v = 0;
       else if (e.key === 'End') v = 100;
       else if (e.key === 'Escape') { close(); btn.focus(); return; }
       else return;
-      e.preventDefault(); set(v);
+      e.preventDefault();
+      armGlide();
+      set(v);
     });
-    pop.querySelectorAll('.eff-stop').forEach(b => b.addEventListener('click', () => { set(Number(b.dataset.v)); thumb.focus(); }));
+    pop.querySelectorAll('.eff-stop').forEach(b => b.addEventListener('click', () => { armGlide(); set(Number(b.dataset.v)); thumb.focus(); }));
   }
 
   function open() {
@@ -172,7 +253,17 @@ const CloakEffort = (() => {
   }
   function close() {
     if (!pop) return;
-    pop.classList.remove('open'); btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false');
+    dragging = false;
+    holdNotch = false;
+    gliding = false;
+    clearTimeout(glideTimer);
+    if (thumb) {
+      fill.style.width = value + '%';
+      thumb.style.left = value + '%';
+    }
+    pop.classList.remove('open', 'giving', 'dragging');
+    btn.classList.remove('open');
+    btn.setAttribute('aria-expanded', 'false');
   }
 
   function mount() {
