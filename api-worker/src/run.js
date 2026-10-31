@@ -17,7 +17,6 @@
 
 const CLAIM_MS = 15_000;
 const KEEP_MS = 10 * 60_000;     // a finished run stays replayable this long
-const BEAT_MS = 20_000;          // alarm heartbeat while running keeps the DO up
 const SSE_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Content-Type": "text/event-stream",
@@ -85,17 +84,18 @@ export function makeChatRun(produceEvents) {
         id: String(run.id).slice(0, 64),
       };
       delete body.run;
+      // The work runs in the alarm handler, not this request: a request's work
+      // dies with its caller's connection; an alarm runs on its own (15 min).
       this.status = "running";
+      this.pending = body;
       this.ctrl = new AbortController();
-      this.state.storage.setAlarm(Date.now() + BEAT_MS);
-      const res = this.attach(0);
-      this.state.waitUntil(this.work(body));
-      return res;
+      this.state.storage.setAlarm(Date.now());
+      return this.attach(0);
     }
 
     async work(body) {
       let full = "";
-      const ctx = { waitUntil: (p) => this.state.waitUntil(p) };
+      const ctx = { waitUntil: (p) => { p?.catch?.(() => {}); } };
       try {
         for await (const e of produceEvents(this.env, body, ctx, this.ctrl.signal)) {
           if (this.status === "cancelled") break;
@@ -134,7 +134,13 @@ export function makeChatRun(produceEvents) {
     }
 
     async alarm() {
-      if (this.status === "running") { this.state.storage.setAlarm(Date.now() + BEAT_MS); return; }
+      if (this.pending) {
+        const body = this.pending;
+        this.pending = null;
+        try { await this.work(body); } catch (e) { console.error("[cloak-api] run work:", e?.message || e); }
+        return;   // work() set the claim alarm
+      }
+      if (this.status === "running") return;   // evicted mid-run and lost: nothing to do
       if (!this.persisted) {
         this.persisted = true;
         if (!this.claimed && this.status !== "cancelled") await this.persist().catch((e) => console.error("[cloak-api] run persist:", e?.message || e));
