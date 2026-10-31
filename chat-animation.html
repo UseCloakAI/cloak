@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloak — send &amp; reply loop</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A0A0A;--paper:#F2EEE5;--surf:#FAFAF7;--p2:#EAE5DB;--p3:#DDD8CC;--acc:#D44D2A;--acc2:#B83B1D;
+  --bd:2px solid #0A0A0A;--shsm:2px 2px 0 #0A0A0A;--sh:4px 4px 0 #0A0A0A;
+  --fd:'Syne',sans-serif;--fu:'Space Grotesk',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--ink:#F2EEE5;--paper:#121110;--surf:#1A1917;--p2:#24221F;--p3:#2F2C28;
+    --bd:2px solid #F2EEE5;--shsm:2px 2px 0 #F2EEE5;--sh:4px 4px 0 #F2EEE5;}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--fu);display:grid;place-items:center;overflow:hidden}
+
+.stage{width:min(560px,92vw);height:440px;display:flex;flex-direction:column;justify-content:flex-end;gap:18px}
+.thread{display:flex;flex-direction:column;gap:22px;transition:opacity .45s ease}
+.thread.out{opacity:0}
+
+/* user bubble */
+.user{align-self:flex-end;max-width:78%;background:var(--p2);border:var(--bd);box-shadow:var(--shsm);
+  padding:10px 15px;font-size:14px;font-weight:500;line-height:1.68;
+  opacity:0;translate:0 14px;transition:opacity .3s ease,translate .42s cubic-bezier(.34,1.56,.64,1)}
+.user.in{opacity:1;translate:0 0}
+
+/* bot */
+.bot{display:flex;flex-direction:column;gap:8px;opacity:0;transition:opacity .25s ease}
+.bot.in{opacity:1}
+.meta{display:flex;align-items:center;gap:8px;height:27px}
+.label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.15em;color:var(--acc);transition:opacity .2s}
+.agent{display:flex;align-items:center;gap:12px;height:0;opacity:0;overflow:hidden;transition:height .35s cubic-bezier(.22,1,.36,1),opacity .25s}
+.agent.on{height:64px;opacity:1}
+.agent .steps{font-size:12px;font-weight:600;opacity:.7}
+.text{font-size:15px;line-height:1.82;min-height:0}
+.text .w{opacity:0;animation:wIn .22s ease forwards}
+@keyframes wIn{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+
+.orb{width:24px;height:24px;flex-shrink:0;display:inline-flex}
+.orb svg{width:100%;height:100%;overflow:visible;display:block}
+.orb circle{fill:var(--acc);stroke:var(--ink);stroke-width:10.8}
+.orb.thinking{animation:squish 1.05s cubic-bezier(.45,0,.55,1) infinite;transform-origin:50% 100%}
+.orb.streaming{animation:hop .52s linear infinite;transform-origin:50% 100%}
+.orb.done{animation:settle .6s cubic-bezier(.34,1.56,.64,1);transform-origin:50% 100%}
+@keyframes squish{0%,100%{transform:scale(1,1)}22%{transform:scale(1.24,.76)}46%{transform:scale(.86,1.14)}66%{transform:scale(1.1,.9)}84%{transform:scale(.97,1.03)}}
+@keyframes hop{
+  0%{transform:translateY(0) scale(1,1);animation-timing-function:cubic-bezier(.5,0,.8,.4)}
+  40%{transform:translateY(55%) scale(.94,1.06);animation-timing-function:linear}
+  50%{transform:translateY(62%) scale(1.18,.82);animation-timing-function:cubic-bezier(.2,.7,.4,1)}
+  100%{transform:translateY(0) scale(1,1)}}
+@keyframes settle{0%{transform:scale(1,1)}30%{transform:scale(1.22,.8)}60%{transform:scale(.92,1.08)}100%{transform:scale(1,1)}}
+
+/* composer */
+.composer{display:flex;align-items:center;gap:10px;background:var(--surf);border:var(--bd);box-shadow:var(--sh);padding:10px 10px 10px 16px}
+.field{flex:1;font-size:14px;font-weight:500;min-height:22px;white-space:nowrap;overflow:hidden}
+.field.empty::before{content:'Message Cloak…';opacity:.4}
+.caret{display:inline-block;width:2px;height:16px;background:var(--acc);vertical-align:-3px;margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.send{width:36px;height:36px;border:var(--bd);background:var(--p3);color:var(--ink);display:grid;place-items:center;
+  box-shadow:var(--shsm);transition:background .15s,translate .09s,box-shadow .09s}
+.send.ready{background:var(--acc);color:#fff}
+.send.press{translate:2px 2px;box-shadow:none}
+.send svg{width:16px;height:16px}
+
+@media (prefers-reduced-motion:reduce){
+  .orb.thinking,.orb.streaming,.orb.done,.caret{animation:none}
+  .user{transition:opacity .3s ease}
+}
+</style>
+</head>
+<body>
+<div class="stage" aria-label="Animation: a message is sent to Cloak and Cloak replies" role="img">
+  <div class="thread" id="thread"></div>
+  <div class="composer">
+    <div class="field empty" id="field"></div>
+    <div class="send" id="send" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+    </div>
+  </div>
+</div>
+
+<script src="agent-orbit.js"></script>
+<script>
+(() => {
+  const SCRIPT = [
+    { q: "What should I cook tonight? I've got rice, eggs and spinach.",
+      agentMotion: "research", agentSteps: ["Checking your pantry notes…", "Finding quick recipes…", "Picking the best fit…"],
+      a: "Easy win: garlicky spinach fried rice. Crisp day-old rice in a hot pan, wilt the spinach, push it aside and scramble the eggs, then toss it all with soy and a squeeze of lime. Fifteen minutes, one pan." },
+    { q: "Help me word a text to cancel plans without being rude.",
+      agentMotion: "team", agentSteps: ["Reading your tone from past chats…", "Drafting options…", "Softening the wording…"],
+      a: "Try: “Hey, I’m really sorry but I need to bail tonight. I’m running on empty and wouldn’t be good company. Can we lock in another day this week? I’d love to catch up properly.”" },
+  ];
+  const $ = id => document.getElementById(id);
+  const thread = $('thread'), field = $('field'), send = $('send');
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const orbSVG = '<svg viewBox="-52 -52 104 104" aria-hidden="true"><circle cx="0" cy="0" r="46"/></svg>';
+
+  async function typeIn(text) {
+    field.classList.remove('empty');
+    for (let i = 1; i <= text.length; i++) {
+      field.innerHTML = '';
+      field.textContent = text.slice(0, i);
+      field.insertAdjacentHTML('beforeend', '<span class="caret"></span>');
+      if (i === 1) send.classList.add('ready');
+      await wait(28 + Math.random() * 40);
+    }
+  }
+
+  async function run({ q, a, agentSteps, agentMotion }) {
+    thread.classList.remove('out');
+    thread.innerHTML = '';
+    field.className = 'field empty'; field.innerHTML = '';
+    await wait(600);
+    await typeIn(q);
+    await wait(380);
+
+    // send
+    send.classList.add('press'); await wait(110); send.classList.remove('press', 'ready');
+    field.className = 'field empty'; field.innerHTML = '';
+    const u = document.createElement('div'); u.className = 'user'; u.textContent = q;
+    thread.appendChild(u); requestAnimationFrame(() => u.classList.add('in'));
+    await wait(420);
+
+    // bot: thinking
+    const b = document.createElement('div'); b.className = 'bot';
+    b.innerHTML = `<div class="meta"><span class="orb thinking">${orbSVG}</span><span class="label">Thinking</span></div><div class="agent"><div class="ao"></div><span class="steps"></span></div><div class="text"></div>`;
+    thread.appendChild(b); requestAnimationFrame(() => b.classList.add('in'));
+    const orb = b.querySelector('.orb'), label = b.querySelector('.label'), out = b.querySelector('.text');
+    await wait(1100);
+
+    // agent
+    const ag = b.querySelector('.agent'), steps = ag.querySelector('.steps');
+    label.textContent = 'Agent working'; orb.style.visibility = 'hidden';
+    ag.classList.add('on');
+    const o = window.CloakAgentOrbit ? CloakAgentOrbit.mount(ag.querySelector('.ao'), { size: 56, state: 'starting', motion: agentMotion }) : null;
+    await wait(500); o && o.setState('looping');
+    for (const st of agentSteps) { steps.textContent = st; await wait(900); }
+    o && o.setState('completed'); steps.textContent = 'Done';
+    await wait(900);
+    ag.classList.remove('on'); orb.style.visibility = '';
+    await wait(350); o && o.destroy();
+
+    // streaming
+    orb.className = 'orb streaming'; label.style.opacity = 0;
+    for (const w of a.split(' ')) {
+      const s = document.createElement('span'); s.className = 'w'; s.textContent = w + ' ';
+      out.appendChild(s);
+      await wait(45 + Math.random() * 55);
+    }
+
+    // done
+    orb.className = 'orb'; void orb.offsetWidth; orb.className = 'orb done';
+    await wait(2600);
+    thread.classList.add('out');
+    await wait(500);
+  }
+
+  (async () => { for (let i = 0; ; i = (i + 1) % SCRIPT.length) await run(SCRIPT[i]); })();
+})();
+</script>
+</body>
+</html>
