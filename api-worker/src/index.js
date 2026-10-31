@@ -615,10 +615,17 @@ function specFor(c, plan, req) {
 async function completeOnce(env, tierKey, req) {
   const plan = prepare(tierKey, req);
   const errors = [];
+  // Optional limits: per-model timeout, total deadline. A model that times
+  // out isn't retried on its other keys (it's the model, not the key).
+  const t0 = Date.now(), slow = new Set();
   for await (const c of candidates(env, plan, req, errors)) {
+    const tag = `${c.provider}:${c.model}`;
+    if (slow.has(tag)) continue;
+    const left = req.deadlineMs ? req.deadlineMs - (Date.now() - t0) : Infinity;
+    if (left < 3000) { errors.push("deadline reached"); break; }
     const spec = specFor(c, plan, req);
     try {
-      const res = await send(c, spec, false, AbortSignal.timeout(FULL_RESPONSE_TIMEOUT_MS), req.ctx);
+      const res = await send(c, spec, false, AbortSignal.timeout(Math.min(req.timeoutMs || FULL_RESPONSE_TIMEOUT_MS, left)), req.ctx);
       const data = await res.json();
       let choice;
       if (c.provider === "gemini") {
@@ -640,6 +647,7 @@ async function completeOnce(env, tierKey, req) {
         usage: { in: spec.inTokens, dropped: spec.dropped },
       };
     } catch (e) {
+      if (e.name === "TimeoutError") slow.add(tag);
       errors.push(e.name === "TimeoutError" ? `${c.provider} (${c.model}) timeout` : e.message);
     }
   }
@@ -919,6 +927,8 @@ async function handleLook(env, request, ctx) {
       imageBase64: body.imageBase64,
       mimeType: body.mimeType,
       maxTokens: 400,
+      timeoutMs: 20_000,   // per model; the client gives up at 45s
+      deadlineMs: 40_000,
       ctx,
     });
     return json({ answer: (choice.message.content || "").trim() });

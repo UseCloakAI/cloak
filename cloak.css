@@ -1185,7 +1185,14 @@ html.kb-open .input-area{padding-bottom:14px;}
   .sb-overlay.show{visibility:visible;opacity:1;transition:opacity .28s ease,visibility 0s;}
   .auth-card{padding:28px 22px;box-shadow:none;border-left:none;border-right:none;max-width:100%;}
   .screen{padding:max(20px,calc(env(safe-area-inset-top,0px) + 16px)) 0 max(20px,calc(env(safe-area-inset-bottom,0px) + 12px));justify-content:center;overflow-y:auto;min-height:100dvh;}
-  .topbar{padding:0 14px;}
+  .topbar{padding:0 14px;gap:8px;}
+  /* Never push the right-hand buttons off-screen: the model label gives way. */
+  .topbar-left{flex:1 1 auto;min-width:0;gap:6px;}
+  .topbar-right{flex-shrink:0;gap:6px;}
+  .topbar-left>*{flex-shrink:0;}
+  .topbar-left>#model-picker{flex-shrink:1;min-width:0;}
+  #model-btn{min-width:0;max-width:100%;padding:5px 9px;}
+  #model-btn-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
   .messages{padding:0 0 20px;gap:0;}
   .bubble{max-width:88%;font-size:14px;}.msg.user{padding:14px 16px 0;}.msg.bot{padding:18px 16px 0;}
   .av{width:28px;height:28px;font-size:10px;}

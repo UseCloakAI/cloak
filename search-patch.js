@@ -299,14 +299,37 @@ function _parseLooks(text) {
 
 const _LOOK_STRIP_RE = /<look\b[^>]*>(?:\s*<\/look>)?/gi;
 
+// Phone photos are several MB; vision models want ~1MP. Shrink once
+// (longest side 1280, JPEG) and keep the small copy in RAM.
+async function _shrinkImage(img) {
+  if (img.small) return img.small;
+  try {
+    const bin = atob(img.b64), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const bmp = await createImageBitmap(new Blob([u8], { type: img.mime || 'image/jpeg' }));
+    const k = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    if (bmp.close) bmp.close();
+    const url = c.toDataURL('image/jpeg', 0.85);
+    img.small = { mime: 'image/jpeg', b64: url.slice(url.indexOf(',') + 1) };
+  } catch (_) {
+    img.small = { mime: img.mime, b64: img.b64 };   // undecodable here: send as-is
+  }
+  return img.small;
+}
+
 async function _lookAt(id, question, allowed) {
-  const img = allowed.has(id) ? _imageRam.get(id) : null;
-  if (!img) return 'That image is no longer loaded in this session.';
+  const full = allowed.has(id) ? _imageRam.get(id) : null;
+  if (!full) return 'That image is no longer loaded in this session.';
+  const img = await _shrinkImage(full);
   try {
     const res = await fetch(CLOAK_API + '/v1/look', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ imageBase64: img.b64, mimeType: img.mime, question }),
+      signal: AbortSignal.timeout ? AbortSignal.timeout(45000) : undefined,
     });
     const data = await res.json().catch(() => ({}));
     return res.ok && data.answer ? data.answer : 'The image could not be read right now.';

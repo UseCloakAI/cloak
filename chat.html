@@ -18,7 +18,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="cloak.css?v=20261031build">
-<script src="version.js?v=1.1.263"></script>
+<script src="version.js?v=1.1.264"></script>
 <link rel="stylesheet" href="search.css?v=20261001rollfix2">
 <link rel="stylesheet" href="brain.css?v=20261001rollfix2">
 <link rel="stylesheet" href="builds.css?v=20261001rollfix2"><script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -838,7 +838,10 @@ window.cloakModelMap = {
 function modelButtonLabel() {
   const opt = document.querySelector('.model-option[data-model="' + window.cloakModel + '"]');
   const name = opt ? opt.querySelector('.model-option-name').textContent.replace(/\s+/g, ' ').trim() : 'Kairos 1.2';
-  if (window.cloakModel === 'kairos' && localStorage.getItem('cloak_agents') === '1') return name + ' + Agents';
+  if (window.cloakModel === 'kairos' && localStorage.getItem('cloak_agents') === '1') {
+    // Phones: no room for the long form next to Effort / Brain / Theme.
+    return name + (window.matchMedia('(max-width:640px)').matches ? ' +A' : ' + Agents');
+  }
   return name;
 }
 function paintMenuSwitches() {
