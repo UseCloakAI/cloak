@@ -105,15 +105,16 @@ export function effortExtra(extra, e) {
 
 // Appended to the system prompt (not at medium — the base prompt already is).
 export function effortInstruction(e) {
+  const handoff = "If a specialist handoff is available, that handoff is the whole reply for this turn. Do not do the specialist's work yourself.";
   switch (effortName(e)) {
     case "minimal":
-      return "## EFFORT: MINIMAL\nThe user wants speed. Answer directly and briefly. Skip extended deliberation, alternatives and caveats unless they're essential. Don't search unless the question can't be answered without current information.";
+      return "## EFFORT: MINIMAL\nThe user wants speed. Answer directly and briefly. Skip extended deliberation, alternatives and caveats unless they're essential. Don't search unless the question can't be answered without current information.\n" + handoff;
     case "low":
-      return "## EFFORT: LOW\nKeep it quick. Think only as much as needed, answer concisely, and avoid long explanations.";
+      return "## EFFORT: LOW\nKeep it quick. Think only as much as needed, answer concisely, and avoid long explanations.\n" + handoff;
     case "high":
-      return "## EFFORT: HIGH\nTake extra care. Think the problem through step by step, consider edge cases and alternatives, double-check facts and calculations, and give a thorough answer. Search when anything might be out of date.";
+      return "## EFFORT: HIGH\nTake extra care. Think the problem through step by step, consider edge cases and alternatives, double-check facts and calculations, and give a thorough answer. Search when anything might be out of date.\n" + handoff;
     case "max":
-      return "## EFFORT: MAX\nUse your full effort. Reason exhaustively before answering: break the problem down, consider multiple approaches, check every step, verify facts against sources (search when there's any doubt), and look for mistakes in your own answer before finalising. Be complete — depth matters more than speed here.";
+      return "## EFFORT: MAX\nUse your full effort. Reason exhaustively before answering: break the problem down, consider multiple approaches, check every step, verify facts against sources (search when there's any doubt), and look for mistakes in your own answer before finalising. Be complete — depth matters more than speed here.\n" + handoff;
     default:
       return "";
   }
