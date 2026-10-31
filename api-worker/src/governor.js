@@ -16,21 +16,19 @@
 // Conservative free-tier defaults. Groq values are replaced live by the
 // x-ratelimit-limit-* headers it returns. rpd/tpd are informational.
 // Groq free tier since 2026-08-16 (Llama models retired for free accounts):
-// 30 RPM, 1,000 RPD, 8K TPM, 200K TPD on each model.
+// 30 RPM, 1,000 RPD, 8K TPM, 200K TPD. Qwen 3.6 shut down 2026-09-14; Qwen 3.8
+// is no longer in the lineup.
 const LIMITS = {
   "groq:openai/gpt-oss-120b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
   "groq:openai/gpt-oss-20b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
-  "groq:qwen/qwen3.8-27b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
-  "groq:qwen/qwen3.6-27b": { rpm: 30, rpd: 1000, tpm: 8000, ctx: 131072 },
   "groq:whisper-large-v3-turbo": { rpm: 20, rpd: 2000, tpm: 0, ctx: 0 },
   "groq:*": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 32768 },
   "nvidia:z-ai/glm-5.3-flash": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:poolside/laguna-xs-2.1": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:nvidia/nemotron-3-super-120b-a12b": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:*": { rpm: 40, rpd: 0, tpm: 0, ctx: 65536 },
-  "gemini:gemini-3.8-flash": { rpm: 5, rpd: 20, tpm: 250000, ctx: 1000000 },
-  "gemini:gemini-3.5-flash": { rpm: 5, rpd: 20, tpm: 250000, ctx: 1000000 },
-  "gemini:gemini-3.5-flash-lite": { rpm: 15, rpd: 500, tpm: 250000, ctx: 1000000 },
+  // 2.5 Flash free tier: 10 RPM, 250 RPD, 250k TPM. Kept as the last resort.
+  "gemini:gemini-2.5-flash": { rpm: 10, rpd: 250, tpm: 250000, ctx: 1048576 },
   "gemini:*": { rpm: 10, rpd: 250, tpm: 250000, ctx: 1000000 },
 };
 

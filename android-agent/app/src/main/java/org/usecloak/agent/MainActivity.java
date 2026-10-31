@@ -39,7 +39,7 @@ public final class MainActivity extends Activity {
     // Cloak tokens (cloak.css)
     private static final int INK = 0xFF0A0A0A, PAPER = 0xFFF2EEE5, SURF = 0xFFFAFAF7, P2 = 0xFFEAE5DB,
             ACC = 0xFFD44D2A, MUTED = 0xFF6B675F;
-    private static final String[] MODELS = {"pneuma", "logos", "kairos"};
+    private static final String[] MODELS = {"pneuma", "kairos", "linus"};
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable refresher = new Runnable() {
@@ -133,7 +133,9 @@ public final class MainActivity extends Activity {
         extra = field(rep, "Extra instructions (tone, what to say, what not to)", Prefs.str(this, Prefs.EXTRA, ""), true);
         rep.addView(text("Model", 12, MUTED, true));
         int mi = 0;
-        for (int i = 0; i < MODELS.length; i++) if (MODELS[i].equals(Prefs.str(this, Prefs.MODEL, "pneuma"))) mi = i;
+        String savedModel = Prefs.str(this, Prefs.MODEL, "kairos");
+        if ("logos".equals(savedModel)) savedModel = "kairos";
+        for (int i = 0; i < MODELS.length; i++) if (MODELS[i].equals(savedModel)) mi = i;
         model = radios(rep, new String[]{"Pneuma", "Logos", "Kairos"}, mi, false);
         delay = field(rep, "Wait for more texts (seconds)", String.valueOf(Prefs.num(this, Prefs.DELAY, 6)), false);
         delay.setInputType(InputType.TYPE_CLASS_NUMBER);

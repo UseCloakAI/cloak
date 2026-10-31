@@ -4,7 +4,7 @@
 // /admin/provider-keys. All chat routes support live token streaming.
 // Every upstream call goes through the free-tier governor (./governor.js).
 
-import { CLOAK, CODE_PLAYBOOK } from "./prompts.js";
+import { CLOAK, CODE_PLAYBOOK, REVIEW_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
 import {
@@ -12,7 +12,7 @@ import {
   reserveScale, tokensScale, patienceScale, effortExtra, effortInstruction,
 } from "./effort.js";
 
-const VERSION = "4.8.0";
+const VERSION = "4.9.0";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -28,15 +28,17 @@ const SSE_HEADERS = {
   "X-Accel-Buffering": "no",
 };
 
-// Model IDs checked 2026-09-29 against each provider's free tier. Groq retired
-// its Llama models for free accounts on 2026-08-16; its free chat models are
-// gpt-oss-120b/20b and Qwen 3.6/3.8 27B (8K tokens/min each).
-const GEMINI_MODEL = "gemini-3.5-flash";
-const GEMINI_LITE = "gemini-3.5-flash-lite";
+// Model IDs checked 2026-10-31. NVIDIA first. Groq gpt-oss, then Gemini 2.5
+// Flash, are the last resort for a text reply. Qwen 3.6 is shut down. Gemini
+// 3.5, 3.8, and 3.5 Flash-Lite are not in the lineup. Logos is retired.
+const GEMINI_MODEL = "gemini-2.5-flash";
 const NVIDIA_VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
 const NEMOTRON = "nvidia/nemotron-3-super-120b-a12b";
 const GPT_OSS = "openai/gpt-oss-120b";
-const QWEN = "qwen/qwen3.8-27b";
+const GPT_OSS_20 = "openai/gpt-oss-20b";
+// 2.5 Flash thinks with a token budget, not Gemini 3's thinkingLevel. 0 asks
+// for a direct answer so the last resort does not spend the reply on thoughts.
+const GEMINI_FAST = { thinkingConfig: { thinkingBudget: 0 } };
 
 // Each tier is an ordered lineup tried best-first; a retired, rate-limited or
 // slow model is skipped and the next takes over. Tiers are routing only (fast /
@@ -49,27 +51,23 @@ const QWEN = "qwen/qwen3.8-27b";
 //   reserve       output tokens on top of max_tokens for the model's reasoning,
 //                 which every provider counts against the output cap
 //   firstTokenMs  wait for the first token before failing over (default 20s)
+const LAST_RESORT = [
+  { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 512 },
+  { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: GEMINI_FAST },
+];
+
 const MODEL_CONFIG = {
+  // Lighter option: NVIDIA's vision model, so text and pictures share one brain.
   pneuma: {
     name: "Cloak",
     systemPrompt: CLOAK,
-    temperature: 0.9,
+    temperature: 0.7,
     lineup: [
-      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 512 },
-      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
-      { provider: "groq", model: QWEN, temperature: 0.7, extra: { reasoning_effort: "none" } },
+      { provider: "nvidia", model: NVIDIA_VISION_MODEL, reserve: 512, firstTokenMs: 20_000 },
+      ...LAST_RESORT,
     ],
   },
-  logos: {
-    name: "Cloak",
-    systemPrompt: CLOAK,
-    temperature: 0.3,
-    lineup: [
-      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "medium" }, reserve: 1024 },
-      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
-      { provider: "groq", model: QWEN, temperature: 0.6, extra: { reasoning_effort: "low" }, reserve: 1024 },
-    ],
-  },
+  // Default. Nemotron answers. Groq and Gemini only if NVIDIA returns nothing.
   kairos: {
     name: "Cloak",
     systemPrompt: CLOAK,
@@ -77,53 +75,23 @@ const MODEL_CONFIG = {
     lineup: [
       { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
       { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "medium" }, reserve: 1024 },
-      {
-        provider: "gemini",
-        model: GEMINI_MODEL,
-        temperature: 1.0,
-        extra: { thinkingConfig: { thinkingLevel: "medium", includeThoughts: true } },
-        reserve: 4096,
-      },
+      { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: GEMINI_FAST },
     ],
   },
-  // Code tier: strongest free coding models that answer at chat speed, in
-  // order. Reasoning is kept short so the code gets the output budget, and
-  // thoughts stream so the reply is live from the first second.
-  //   Gemini 3.8 Flash   best code of the free tier, fast; 20/day per project
-  //   GLM-5.3-Flash      NVIDIA, 18B active, near-frontier coding, no daily cap
-  //   gpt-oss-120b       Groq, ~500 tok/s; its 8K TPM leaves ~2K output, so it
-  //                      goes last when the prompt is too big (minOutputTokens)
-  //   3.5 Flash-Lite     500/day, fast
-  //   Laguna XS 2.1      Poolside's code model, NVIDIA, fast, no reasoning
-  //   Qwen3.8-27B        Groq, thinking off (it overthinks by default)
-  //   Nemotron 3 Super   NVIDIA, the known-good last resort
-  // Not here: Kimi K3 and GLM-5.3 (full) — on NVIDIA's free tier they crawl
-  // (<10 tok/s, minute-long first tokens), which is what made Linus hang.
+  // Code tier. NVIDIA code models first, reasoning kept short so the file fits.
+  // GLM-5.3-Flash and Laguna can jam on the free fleet; Nemotron is the NVIDIA
+  // fallback, then the same text last resort as every other tier.
+  // Not here: Kimi K3 and full GLM-5.3 — they crawl on NVIDIA's free tier.
   linus: {
     name: "Cloak",
     systemPrompt: CLOAK,
     playbook: CODE_PLAYBOOK,
     temperature: 0.3,
     lineup: [
-      {
-        provider: "gemini",
-        model: "gemini-3.8-flash",
-        temperature: 1.0,
-        extra: { thinkingConfig: { thinkingLevel: "medium", includeThoughts: true } },
-        reserve: 4096,
-      },
       { provider: "nvidia", model: "z-ai/glm-5.3-flash", temperature: 0.6, extra: { reasoning_effort: "low" }, reserve: 2048, firstTokenMs: 15_000 },
-      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "low" }, reserve: 512 },
-      {
-        provider: "gemini",
-        model: GEMINI_LITE,
-        temperature: 1.0,
-        extra: { thinkingConfig: { thinkingLevel: "low", includeThoughts: true } },
-        reserve: 2048,
-      },
       { provider: "nvidia", model: "poolside/laguna-xs-2.1", temperature: 0.3, firstTokenMs: 15_000 },
-      { provider: "groq", model: QWEN, temperature: 0.7, extra: { reasoning_effort: "none" } },
       { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+      ...LAST_RESORT,
     ],
     // Code needs room: whole files, full apps. Clients rarely send max_tokens.
     defaultMaxTokens: 8192,
@@ -133,28 +101,38 @@ const MODEL_CONFIG = {
 };
 const VALID_MODELS = Object.keys(MODEL_CONFIG);
 
-// Background work (memory extraction, context compression) runs on the models
-// with the most free quota so chat tiers keep theirs. Not selectable by clients.
+// review: Kairos asks for a short second pass. Not in the model menu.
+// utility: memory extraction and context compression. Not selectable.
 const TIERS = {
   ...MODEL_CONFIG,
+  review: {
+    name: "Cloak",
+    systemPrompt: REVIEW_PLAYBOOK,
+    temperature: 0.2,
+    lineup: [
+      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 256 },
+      { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: GEMINI_FAST },
+    ],
+    defaultMaxTokens: 512,
+    maxMaxTokens: 1024,
+  },
   utility: {
     name: "Utility",
     systemPrompt: "",
     temperature: 0.1,
     lineup: [
-      { provider: "groq", model: "openai/gpt-oss-20b", extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 512 },
-      { provider: "groq", model: "qwen/qwen3.6-27b", extra: { reasoning_effort: "none" } },
-      { provider: "gemini", model: GEMINI_LITE, temperature: 1.0, extra: { thinkingConfig: { thinkingLevel: "low" } }, reserve: 1024 },
-      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+      { provider: "groq", model: GPT_OSS_20, extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 256 },
+      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "low", include_reasoning: false }, reserve: 256 },
+      { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: GEMINI_FAST },
     ],
   },
 };
 
-// Images, any tier. If all fail, the tier answers text-only.
+// Pictures stay off the chat prompt. /v1/look and an attached image both use
+// this lineup: the vision model, then Gemini 2.5 Flash, which accepts images.
 const VISION_LINEUP = [
-  { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: { thinkingConfig: { thinkingLevel: "low" } }, reserve: 2048 },
-  { provider: "gemini", model: GEMINI_LITE, temperature: 1.0, extra: { thinkingConfig: { thinkingLevel: "low" } }, reserve: 1024 },
-  { provider: "nvidia", model: NVIDIA_VISION_MODEL },
+  { provider: "nvidia", model: NVIDIA_VISION_MODEL, reserve: 512, firstTokenMs: 20_000 },
+  { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: GEMINI_FAST },
 ];
 // Image tool: a text tier calls this through /v1/look to ask one question about
 // one image. Not a chat tier (not selectable), and never Cloak's persona.
@@ -223,6 +201,9 @@ function clampMaxTokens(v, tierKey, effort) {
 }
 
 function resolveTier(model) {
+  // Logos was the old middle tier. Old clients land on Kairos.
+  if (model === "logos") return "kairos";
+  if (model === "review") return "review";
   return VALID_MODELS.includes(model) ? model : "pneuma";
 }
 

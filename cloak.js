@@ -24,7 +24,7 @@ let _thinkTimer=null, _thinkPhaseIdx=0;
 
 /** Should thoughts run for this model/mode? */
 function _shouldThink(model) {
-  return model === 'logos' || model === 'kairos' || model === 'linus';
+  return model === 'kairos' || model === 'linus';
 }
 /* Voice Mode Variables */
 let voiceMode = false;
@@ -797,7 +797,7 @@ function _csShape(kind, N){
    thinking → squish · searching → scan · streaming → hop · done → settle ·
    error → shake · listening → perk. null = rest. */
 const ORB_STATES=['thinking','searching','streaming','done','error','listening'];
-const BOT_STATE_LABELS={thinking:'Thinking',searching:'Searching for sources'};
+const BOT_STATE_LABELS={thinking:'Thinking',searching:'Searching for sources',agents:'Agents'};
 
 function setOrbState(orb, state){
   if(!orb) return;
@@ -1391,7 +1391,7 @@ async function send(){
 
   const t0=Date.now();
   const hasImages=imgs.length>0;
-  const model=window.cloakModel||'pneuma';
+  const model=window.cloakModel||'kairos';
   const useThoughts=_shouldThink(model);
 
   let userMsg=txt;
@@ -1575,5 +1575,5 @@ whenDomReady().then(()=>{checkAdConsent();syncThemeColor();init();});
 /* ── PWA: register the app-shell service worker (non-blocking) ── */
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('/sw.js?v=20261031ver', { updateViaCache: 'none' }).then(r => r.update()).catch(e=>console.warn('SW registration failed',e));  });
+    navigator.serviceWorker.register('/sw.js?v=20261031plan', { updateViaCache: 'none' }).then(r => r.update()).catch(e=>console.warn('SW registration failed',e));  });
 }
