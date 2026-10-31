@@ -211,6 +211,7 @@
       if (!target) target = await createChat('New chat');
       if (target) { await switchTo(target.id); subscribeList(); }
       log('inf', 'loaded ' + convs.length + ' chat(s)');
+      document.dispatchEvent(new CustomEvent('cloak:thread-ready'));
     } catch (e) {
       log('err', 'load failed: ' + (e.message || e));
       convs = [];
@@ -482,5 +483,6 @@
     newChat, switchTo, removeChat, list: () => convs.slice(),
     jumpToLatest, placeMovedOn,
     receive: onRow,
+    active: () => activeId,
   };
 })();

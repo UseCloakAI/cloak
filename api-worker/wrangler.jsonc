@@ -7,6 +7,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "routes": [{ "pattern": "api.usecloak.org/*", "zone_name": "usecloak.org" }],
+  // Cloud runs: each reply is generated in a ChatRun Durable Object so it
+  // finishes (and is saved) even if the browser closes. See src/run.js.
+  "durable_objects": { "bindings": [{ "name": "CHAT_RUN", "class_name": "ChatRun" }] },
+  "migrations": [{ "tag": "v1-chat-run", "new_sqlite_classes": ["ChatRun"] }],
   "kv_namespaces": [{ "binding": "PROVIDER_KEYS", "id": "0778af1d9ecb491ba397cc9ae0e2b064" }],
   // Keep dashboard-set vars; secrets (ADMIN_TOKEN, optional API_KEY,
   // GOOGLE_CSE_KEY, GOOGLE_CSE_CX) always persist across deploys.

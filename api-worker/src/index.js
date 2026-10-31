@@ -4,6 +4,7 @@
 // /admin/provider-keys. All chat routes support live token streaming.
 // Every upstream call goes through the free-tier governor (./governor.js).
 
+import { makeChatRun, routeRun } from "./run.js";
 import { CLOAK, CODE_PLAYBOOK, REVIEW_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
@@ -816,9 +817,56 @@ function sseResponse(produce) {
 //           SSE data: {delta} … {done, model, response}  |  {error}   (stream: true)
 // ─────────────────────────────────────────────────────────────────────────────
 
+function chatReq(body, ctx) {
+  const tierKey = resolveTier(body.model);
+  const effort = parseEffort(body.effort);
+  return {
+    tierKey, effort,
+    req: {
+      messages: sanitizeMessages(body.messages),
+      system: body.system,
+      effort,
+      maxTokens: clampMaxTokens(body.max_tokens, tierKey, effort),
+      imageBase64: body.imageBase64,
+      mimeType: body.mimeType,
+      ctx,
+    },
+  };
+}
+
+// The /v1/chat stream as plain events: {think} {delta} … {done} | {error}.
+// Opening errors throw (so the plain SSE route can 503); later ones are events.
+async function* chatEvents(env, body, ctx, signal) {
+  const { tierKey, effort, req } = chatReq(body, ctx);
+  const name = MODEL_CONFIG[tierKey].name;
+  const stream = await openStream(env, tierKey, req);
+  let full = "";
+  try {
+    for await (const d of stream.deltas) {
+      if (signal?.aborted) return;
+      if (d.reasoning) yield { think: d.reasoning };
+      if (d.content) { full += d.content; yield { delta: d.content }; }
+    }
+    yield { done: true, model: name, response: full, usage: stream.usage, effort: effort ?? DEFAULT_EFFORT };
+  } catch (e) {
+    console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e?.message || e}`);
+    yield { error: "The response was interrupted. Please try again.", partial: full };
+  }
+}
+
+export const ChatRun = makeChatRun(async function* (env, body, ctx, signal) {
+  try { yield* chatEvents(env, body, ctx, signal); }
+  catch (e) { yield { error: e.message || UNAVAILABLE }; }
+});
+
 async function handleNativeChat(env, request, ctx) {
   const body = await readJson(request);
   if (!body || !Array.isArray(body.messages)) return json({ error: "messages array required" }, 400);
+  if (body.stream === true && body.run && typeof body.run === "object") {
+    const r = await routeRun(env, request, "/v1/chat", body);
+    if (r) return r;
+    delete body.run;
+  }
 
   const tierKey = resolveTier(body.model);
   const effort = parseEffort(body.effort);
@@ -834,27 +882,12 @@ async function handleNativeChat(env, request, ctx) {
   const name = MODEL_CONFIG[tierKey].name;
 
   if (body.stream === true) {
-    let stream;
-    try {
-      stream = await openStream(env, tierKey, req);
-    } catch (e) {
-      return json({ error: e.message }, 503);
-    }
+    let first;
+    const it = chatEvents(env, body, ctx);
+    try { first = await it.next(); } catch (e) { return json({ error: e.message }, 503); }
     return sseResponse(async (send) => {
-      let full = "";
-      try {
-        for await (const d of stream.deltas) {
-          if (d.reasoning) await send({ think: d.reasoning });
-          if (d.content) {
-            full += d.content;
-            await send({ delta: d.content });
-          }
-        }
-        await send({ done: true, model: name, response: full, usage: stream.usage, effort: effort ?? DEFAULT_EFFORT });
-      } catch (e) {
-        console.error(`[cloak-api] mid-stream failure ${stream.provider}: ${e?.message || e}`);
-        await send({ error: "The response was interrupted. Please try again.", partial: full });
-      }
+      if (!first.done) await send(first.value);
+      for await (const e of it) await send(e);
     });
   }
 
@@ -1617,6 +1650,7 @@ export default {
             memory: "POST /v1/memory/extract",
             compress: "POST /v1/context/compress",
             usage: "GET /v1/usage",
+            runs: "GET /v1/runs/:id?from=N · POST /v1/runs/:id/claim|cancel (cloud-run replies: send run:{id} on /v1/chat)",
           },
         });
       }
@@ -1631,6 +1665,11 @@ export default {
           if (request.method === "DELETE") return handleAdminDeleteKey(env, request);
         }
         return json({ error: "Not found" }, 404);
+      }
+
+      if (path.startsWith("/v1/runs/")) {
+        const r = await routeRun(env, request, path);
+        if (r) return r;
       }
 
       if (request.method === "POST") {
