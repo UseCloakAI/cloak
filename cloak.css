@@ -1910,17 +1910,16 @@ html.kb-open .input-area{padding-bottom:14px;}
 .bot-dot.cloak-orb svg { display: block; width: 100%; height: 100%; overflow: visible; }
 /* Design-system agent orbit, in the header while a handoff is working. */
 .agent-orbit {
-  width: 128px; height: 128px; flex-shrink: 0;
+  width: 24px; height: 24px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
 }
 .agent-orbit svg { display: block; overflow: visible; }
 /* Streaming hides the header so the tail orb can hop. Agents keep the
-   header, because the orbit there is the thing the user is watching. */
+   header, at the same size as the chat orb. */
 .msg.agent-on .bot-meta,
 .msg.agent-on.orb-streaming .bot-meta,
 .msg.agent-on.orb-below .bot-meta {
   display: flex;
-  min-height: 128px;
 }
 /* Share the morph-glyph look: accent fill + ink outline */
 .cloak-orb .cs-shape { fill: var(--acc); stroke: var(--ink); stroke-width: 10.8; stroke-linejoin: round; }
