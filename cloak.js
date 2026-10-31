@@ -160,6 +160,33 @@ rend.link=(href,title,text)=>{
 };
 marked.use({renderer:rend,mangle:false,headerIds:false});
 
+// Math: \(…\) and $$…$$ inline, \[…\] and $$…$$ display. Must run before marked's
+// escape rule, which would otherwise eat the backslashes (\( → "(").
+function mathHtml(tex,display){
+  if(window.katex){
+    try{return window.katex.renderToString(tex,{displayMode:display,throwOnError:false,output:'html'});}catch(e){}
+  }
+  return '<code class="math-raw">'+hesc(tex)+'<\/code>';
+}
+marked.use({extensions:[
+  {name:'mathBlock',level:'block',
+    start(src){const i=src.search(/(^|\n)\s*(\\\[|\$\$)/);return i<0?undefined:i;},
+    tokenizer(src){
+      const m=/^[ \t]*(?:\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$)[ \t]*(?:\n|$)/.exec(src);
+      if(m)return{type:'mathBlock',raw:m[0],text:(m[1]||m[2]).trim()};
+    },
+    renderer(t){return '<div class="math-display">'+mathHtml(t.text,true)+'<\/div>';}},
+  {name:'mathInline',level:'inline',
+    start(src){const i=src.search(/\\\(|\\\[|\$\$/);return i<0?undefined:i;},
+    tokenizer(src){
+      let m=/^\\\(([\s\S]+?)\\\)/.exec(src);
+      if(m)return{type:'mathInline',raw:m[0],text:m[1].trim(),display:false};
+      m=/^(?:\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$)/.exec(src);
+      if(m)return{type:'mathInline',raw:m[0],text:(m[1]||m[2]).trim(),display:true};
+    },
+    renderer(t){return mathHtml(t.text,t.display);}}
+]});
+
 // Called when the actual response starts arriving. The scripted step-list UI
 // this used to tear down was removed with the fake thought-delay engine
 // (live "thinking" feedback now comes from statusLog/addStatus, fed by real
