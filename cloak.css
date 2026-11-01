@@ -2269,4 +2269,9 @@ html.kb-open .input-area{padding-bottom:14px;}
 .math-raw { font-family: inherit; background: none; }
 
 /* Agent stage: what the agent is doing (its own brief), quiet so it doesn't read as the reply */
-.bot-content p.agent-line{opacity:.6;font-size:.92em;}
+.bot-content p.agent-line{opacity:.6;font-size:.92em;margin:0;line-height:1.6;}
+/* Agent wait: chip → what the agent is doing → the orbit, on one even rhythm.
+   The empty "Thinking" log isn't shown here (the line under the chip is the status). */
+.msg.agent-wait .status-log{display:none;}
+.msg.agent-wait .mem-chip{margin:0 0 12px;}
+.msg.agent-wait .agent-stage{margin:22px 0 10px 12px;}

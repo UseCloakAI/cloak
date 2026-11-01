@@ -251,6 +251,17 @@
   // load them (or any web file) through RAW_PROXY.
   const RAW_PROXY = 'https://api.usecloak.org/v1/raw?url=';
   const fetched = new Map();
+  // Build file system: file name → URL. Attachments (their uploaded copy, or the
+  // inline text as a data: URL) and web files the agent pulled. Inside a build,
+  // fetch('song.mid'), new Audio('x.mp3'), <img src="logo.png"> resolve here.
+  const vfs = new Map();
+  function vfsAdd(name, url) { if (name && url) vfs.set(baseName(name).toLowerCase(), url); }
+  function vfsMap() {
+    const o = {};
+    fetched.forEach((f) => { if (f.rawUrl) o[baseName(f.name).toLowerCase()] = f.rawUrl; });
+    vfs.forEach((u, k) => { o[k] = u; });
+    return o;
+  }
   function fetchedFile(name) {
     name = String(name || '');
     return fetched.get(name) || [...fetched.values()].find((f) => baseName(f.name) === baseName(name) || f.url === name) || null;
@@ -317,7 +328,7 @@
   const WEB_TOOLS = '\n\n## WEB FILES\nYou can pull exact files from the web — no need to guess their contents:\n' +
     '- <fetch url="https://…"/> gets the exact file (code, JSON, CSV, HTML source, text). It\'s saved as a chat file you can grep/read.\n' +
     '- <repo url="https://github.com/owner/repo"/> lists a public repo\'s files; add path="src/x.js" to get one.\n' +
-    'Reply with only the tag(s) and wait for the results. In a build, load any web file or asset (image, audio, font, data) through ' + RAW_PROXY + '<url-encoded url> — it is CORS-open.';
+    'Reply with only the tag(s) and wait for the results. Files the user attached (and files you pulled) are available INSIDE builds by their plain file name — fetch("song.mid"), new Audio("beat.mp3"), <img src="logo.png"> just work; never paste file bytes or base64 into code. In a build, load any other web file or asset (image, audio, font, data) through ' + RAW_PROXY + '<url-encoded url> — it is CORS-open.';
   // brief: the orchestrator — tools + file names, but no code and no edit
   // instructions (editing is the coding agent's job).
   function filesNote(brief) {
@@ -325,8 +336,10 @@
     const pulled = [...fetched.values()];
     const pulledNote = pulled.length ? '\n\nWeb files pulled in this chat (grep/read them): ' + pulled.map((f) => f.name + ' ← ' + f.url).join(', ') : '';
     const readTools = '\n- <grep file="NAME" q="regex"/> and <read file="NAME" lines="START-END"/> look inside a chat file.';
-    if (brief) return WEB_TOOLS.replace('\nReply with only', readTools + '\nReply with only') + pulledNote;
-    if (!list.length) return WEB_TOOLS + pulledNote;
+    const att = Object.keys(vfsMap());
+    const attNote = att.length ? '\n\nFiles builds can load by name: ' + att.join(', ') : '';
+    if (brief) return WEB_TOOLS + attNote.replace('\nReply with only', readTools + '\nReply with only') + pulledNote;
+    if (!list.length) return WEB_TOOLS + pulledNote + attNote;
     // The build in focus (open in the panel, else the newest) goes in whole,
     // numbered, so the model can edit without asking. Others are listed.
     const focus = (S.cur && !S.cur.transient && S.builds.get(S.cur.id)) || list[list.length - 1];
@@ -341,7 +354,7 @@
       '- <read file="NAME" lines="START-END"/> shows those lines (max 200).\n' +
       'Reply with only the tag(s) and wait for the results. Then answer with one or more edit fences:\n' +
       '```edit title="NAME"\n<<<<<<< SEARCH\n(exact current lines, enough to be unique)\n=======\n(the new lines)\n>>>>>>> REPLACE\n```\n' +
-      'SEARCH must copy the current lines exactly. Keep each pair small. Rewrite the whole file only if most of it changes, or the user asks for a fresh build.' + WEB_TOOLS + pulledNote;
+      'SEARCH must copy the current lines exactly. Keep each pair small. Rewrite the whole file only if most of it changes, or the user asks for a fresh build.' + WEB_TOOLS + pulledNote + attNote;
   }
   const API = 'https://api.usecloak.org';
   async function remote(path, body) {
@@ -879,7 +892,17 @@
 
   // One line, injected right after <head>, so error line numbers stay true.
   function bridge(token, names) {
-    const js = '(function(){var T=' + JSON.stringify(token) + ',N=' + JSON.stringify(names || {}) +
+    const V = vfsMap();
+    const vfsJs = Object.keys(V).length ? '(function(){var V=' + JSON.stringify(V) + ';' +
+      'function r(u){if(typeof u!=="string"||/^(data|blob|https?|about|javascript):/i.test(u))return u;var n;try{n=decodeURIComponent(u.split(/[?#]/)[0].split("/").pop()).toLowerCase()}catch(e){n=u.toLowerCase()}return V[n]||u}' +
+      'var F=window.fetch;if(F)window.fetch=function(i,o){if(typeof i==="string")i=r(i);else if(i&&i.url&&!(i instanceof Request))i=r(i.url);return F.call(this,i,o)};' +
+      'var X=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){arguments[1]=r(u);return X.apply(this,arguments)};' +
+      '[window.HTMLImageElement,window.HTMLMediaElement,window.HTMLSourceElement,window.HTMLScriptElement].forEach(function(C){if(!C)return;var d=Object.getOwnPropertyDescriptor(C.prototype,"src");if(d&&d.set)Object.defineProperty(C.prototype,"src",{get:d.get,set:function(v){d.set.call(this,r(v))},configurable:true})});' +
+      'var SA=Element.prototype.setAttribute;Element.prototype.setAttribute=function(k,v){if(/^(src|href|data)$/i.test(k))v=r(v);return SA.call(this,k,v)};' +
+      'function scan(){document.querySelectorAll("[src],link[href],object[data]").forEach(function(e){["src","href","data"].forEach(function(a){var v=e.getAttribute(a);if(v&&r(v)!==v)SA.call(e,a,r(v))})})}' +
+      'document.addEventListener("DOMContentLoaded",scan);new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});' +
+      '})();' : '';
+    const js = vfsJs + '(function(){var T=' + JSON.stringify(token) + ',N=' + JSON.stringify(names || {}) +
       ';function nm(s){s=String(s||"");for(var k in N)s=s.split(k).join(N[k]);return s.replace(/data:text\\/javascript[^\\s)]*/g,"build")}' +
       'function s(t,a){try{parent.postMessage({__cb:T,type:t,args:a},"*")}catch(e){}}' +
       'function f(v){try{if(v instanceof Error)return nm(v.stack&&v.stack.indexOf(v.message)>-1?v.stack:v.name+": "+v.message+(v.stack?"\\n"+v.stack:""));if(typeof v==="object"&&v!==null){var c=[];return JSON.stringify(v,function(k,x){if(typeof x==="object"&&x!==null){if(c.indexOf(x)>-1)return"[Circular]";c.push(x)}if(typeof x==="function")return"[Function "+(x.name||"anonymous")+"]";if(x===undefined)return"undefined";return x},2)}return String(v)}catch(e){return String(v)}}' +
@@ -1325,6 +1348,7 @@
         entry.text = entry.big && full.length > PREVIEW_CHARS ? full.slice(0, PREVIEW_CHARS) : full;
         entry.cut = full.length > entry.text.length;
         try { entry.url = await r.url; } catch (e) { entry.url = ''; toast('Upload failed for ' + f.name + ' — Cloak can still read it'); }
+        vfsAdd(entry.name, entry.url || (r.kind === 'text' ? 'data:text/plain;charset=utf-8,' + encodeURIComponent(full) : ''));
         // The full readable text stays available to grep/read; the real bytes at entry.url.
         if (entry.big || entry.cut) fetched.set(baseName(entry.name), { name: baseName(entry.name), url: entry.url, code: full, rawUrl: entry.url });
         entry.pending = false;
@@ -1380,6 +1404,12 @@
     if (!bub || !raw || raw.indexOf('[file: ') === -1) return;
     const files = [];
     const text = raw.replace(ATT_RE, (m, name, t, lang, code) => { files.push({ name, lang: lang.trim(), code }); return ''; }).trim();
+    // Reloaded chats: put their attachments back in the build file system.
+    files.forEach((f) => {
+      const u = /Real file \(load it in a build, CORS-open\): (\S+)/.exec(f.code);
+      if (u) vfsAdd(f.name, u[1]);
+      else if (f.code.length < 400000) vfsAdd(f.name, 'data:text/plain;charset=utf-8,' + encodeURIComponent(f.code));
+    });
     if (!files.length) return;
     msgEl._files = files;
     const txtDiv = [...bub.children].find((c) => c.tagName === 'DIV' && !c.querySelector('img'));
