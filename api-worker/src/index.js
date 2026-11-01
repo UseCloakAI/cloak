@@ -6,7 +6,7 @@
 
 import { makeChatRun, routeRun } from "./run.js";
 import { handleRaw, handleFile, handleRepo, handleUpload, handleBlob } from "./files.js";
-import { CLOAK, CODE_PLAYBOOK, REVIEW_PLAYBOOK } from "./prompts.js";
+import { CLOAK, CODE_PLAYBOOK, REVIEW_PLAYBOOK, HOME_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
 import {
@@ -99,6 +99,22 @@ const MODEL_CONFIG = {
     defaultMaxTokens: 8192,
     maxMaxTokens: 16384,
     minOutputTokens: 2000,
+  },
+  // Caden, the home voice agent (github.com/UseCloakAI/caden). NVIDIA key pool
+  // only: Nemotron, then the NVIDIA flash models. Spoken replies are short, so
+  // the budget is small and reasoning stays low for a fast first word.
+  home: {
+    name: "Cloak",
+    systemPrompt: CLOAK,
+    playbook: HOME_PLAYBOOK,
+    temperature: 0.7,
+    lineup: [
+      { provider: "nvidia", model: NEMOTRON, extra: { reasoning_effort: "low" }, reserve: 1024, firstTokenMs: 15_000 },
+      { provider: "nvidia", model: "z-ai/glm-5.3-flash", temperature: 0.6, extra: { reasoning_effort: "low" }, reserve: 1024, firstTokenMs: 12_000 },
+      { provider: "nvidia", model: "poolside/laguna-xs-2.1", temperature: 0.5, firstTokenMs: 12_000 },
+    ],
+    defaultMaxTokens: 400,
+    maxMaxTokens: 1200,
   },
 };
 const VALID_MODELS = Object.keys(MODEL_CONFIG);
