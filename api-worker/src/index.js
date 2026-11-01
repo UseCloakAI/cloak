@@ -1,6 +1,6 @@
 // CloakAPI — Cloudflare Worker serving https://api.usecloak.org
 // Routes: native /v1/chat, OpenAI /v1/chat/completions, Anthropic /v1/messages,
-// /v1/search, /v1/extract, /v1/transcribe, /v1/memory/extract, /v1/context/compress, /v1/usage,
+// /v1/search, /v1/extract, /v1/transcribe, /v1/speech (TTS), /v1/memory/extract, /v1/context/compress, /v1/usage,
 // /admin/provider-keys. All chat routes support live token streaming.
 // Every upstream call goes through the free-tier governor (./governor.js).
 
@@ -9,6 +9,7 @@ import { handleRaw, handleFile, handleRepo, handleUpload, handleBlob } from "./f
 import { CLOAK, CODE_PLAYBOOK, REVIEW_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
+import { handleSpeech } from "./speech.js";
 import {
   EFFORT_LEVELS, DEFAULT_EFFORT, parseEffort, effortFromBudget, effortName,
   reserveScale, tokensScale, patienceScale, effortExtra, effortInstruction,
@@ -1655,6 +1656,7 @@ export default {
       if (path === "/v1/raw" && request.method === "GET") return handleRaw(request);
       if (path.startsWith("/v1/blob/") && request.method === "GET") return handleBlob(env, path);
       if (path === "/v1/upload" && request.method === "POST") return handleUpload(env, request);
+      if (path === "/v1/speech/voices" && request.method === "GET") return handleSpeech(env, request, ctx, { json, cors: CORS_HEADERS });
 
       if (path.startsWith("/v1/runs/")) {
         const r = await routeRun(env, request, path);
@@ -1670,6 +1672,7 @@ export default {
         if (path === "/v1/file") return handleFile(await readJson(request));
         if (path === "/v1/repo") return handleRepo(env, await readJson(request));
         if (path === "/v1/transcribe") return handleTranscribe(env, request, ctx);
+        if (path === "/v1/speech") return handleSpeech(env, request, ctx, { json, cors: CORS_HEADERS });
         if (path === "/v1/memory/extract") return handleUtility(env, request, ctx, handleMemoryExtract);
         if (path === "/v1/context/compress") return handleUtility(env, request, ctx, handleContextCompress);
       }
