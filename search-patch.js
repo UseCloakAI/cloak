@@ -95,11 +95,19 @@ Plain conversation, explanations, opinions, advice with no code: just answer you
 
 One tag per turn. After a specialist returns you get its result: then either hand off a different job that's still missing, or write a short final note for the user. Never redo or rewrite the coding agent's work yourself.`;
 }
-const AGENT_WAIT = {
-  code: "I've started a coding agent. I'll get back to you when it's finished.",
-  search: "I've started a research agent. I'll get back to you when it's finished.",
-  review: "I've started a review agent. I'll get back to you when it's finished.",
-};
+// What the agent is doing, in its own words: the first line of the handoff
+// brief (or the search queries). No canned sentences.
+function agentLine(kind, detail) {
+  let t = String(detail || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (kind === 'search') {
+    try { const j = JSON.parse(t), q = (j.queries || []).filter(Boolean); if (q.length) t = q.join(' · '); else if (j.url) t = j.url.replace(/^https?:\/\/(www\.)?/, ''); } catch (_) {}
+  } else {
+    t = (String(detail || '').split('\n').map(l => l.trim()).find(l => l && !/^```/.test(l)) || t);
+  }
+  t = t.replace(/^(goal|task|what|check)\s*[:—-]\s*/i, '');
+  if (t.length > 140) t = t.slice(0, 137).replace(/\s+\S*$/, '') + '…';
+  return t;
+}
 const AGENT_MOTION = { code: 'snap', search: 'research', review: 'pong' };
 function clearAgentStage(botMsgEl) {
   if (!botMsgEl) return;
@@ -110,16 +118,17 @@ function clearAgentStage(botMsgEl) {
   if (botMsgEl._agentHost) { botMsgEl._agentHost.remove(); botMsgEl._agentHost = null; }
   botMsgEl.classList.remove('agent-wait', 'agent-on');
 }
-function showAgentWait(botMsgEl, kind) {
+function showAgentWait(botMsgEl, kind, detail) {
+  const line = agentLine(kind, detail);
   dropTailOrb(botMsgEl);
   setBotState(botMsgEl, null);
-  addStatus(botMsgEl, AGENT_WAIT[kind]);
+  if (line) addStatus(botMsgEl, line);
   const bc = botMsgEl.querySelector('.bot-content');
   if (!bc) return;
   // Already on stage (next handoff): swap the sentence, blend the motion.
   if (botMsgEl._agentOrbit && botMsgEl._agentHost && bc.contains(botMsgEl._agentHost)) {
     const p = bc.querySelector('p');
-    if (p) p.textContent = AGENT_WAIT[kind];
+    if (p) p.textContent = line;
     agentPhase(botMsgEl, AGENT_MOTION[kind] || 'orbit');
     return;
   }
@@ -127,7 +136,8 @@ function showAgentWait(botMsgEl, kind) {
   bc._tk = null;
   bc.textContent = '';
   const p = document.createElement('p');
-  p.textContent = AGENT_WAIT[kind];
+  p.className = 'agent-line';
+  p.textContent = line;
   bc.appendChild(p);
   const host = document.createElement('div');
   host.className = 'agent-stage';
@@ -963,7 +973,7 @@ window.send = async function () {
         const hasSearch = searchOn() && window.CLOAK_SEARCH && CLOAK_SEARCH.hasToolCalls(pending);
         if (hasSearch && searchRuns < 2 && !codeTag && !modelWroteBuild(pending)) {
           searchRuns++;
-          showAgentWait(botMsgEl, 'search');
+          showAgentWait(botMsgEl, 'search', (String(pending).match(/<search>([\s\S]*?)<\/search>/i) || [])[1] || (String(pending).match(/<fetch>([\s\S]*?)<\/fetch>/i) || [])[1]);
           const calls = CLOAK_SEARCH.parseToolCalls(pending);
           let all = [];
           for (const call of calls) {
@@ -991,7 +1001,7 @@ window.send = async function () {
         }
         if ((codeTag || modelWroteBuild(pending) || (turn === 0 && !hasSearch && !reviewTag && looksLikeBuildChange(txt))) && codeRuns < 1) {
           codeRuns++;
-          showAgentWait(botMsgEl, 'code');
+          showAgentWait(botMsgEl, 'code', (codeTag && codeTag.body) || txt);
           const brief = (codeTag && codeTag.body) || txt;
           const task = researchNotes ? brief + '\n\nResearch to use. Do not invent past it.\n' + researchNotes.slice(0, 4000) : brief;
           _fetchController = new AbortController();
@@ -1020,7 +1030,7 @@ window.send = async function () {
         }
         if (reviewTag && reviewRuns < 1) {
           reviewRuns++;
-          showAgentWait(botMsgEl, 'review');
+          showAgentWait(botMsgEl, 'review', reviewTag.body);
           _fetchController = new AbortController();
           // The reviewer can open sources / files to check against (fetch, repo, grep, read).
           const reviewSys = window.CloakBuilds && CloakBuilds.filesNote ? CloakBuilds.filesNote(true) : '';

@@ -2267,3 +2267,6 @@ html.kb-open .input-area{padding-bottom:14px;}
 .math-display .katex-display { margin: 0; }
 .katex { font-size: 1.05em; }
 .math-raw { font-family: inherit; background: none; }
+
+/* Agent stage: what the agent is doing (its own brief), quiet so it doesn't read as the reply */
+.bot-content p.agent-line{opacity:.6;font-size:.92em;}
