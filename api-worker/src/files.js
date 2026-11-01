@@ -129,8 +129,14 @@ export async function handleRepo(env, body) {
     const tree = (await t.json()).tree || [];
     return list(`${owner}/${repo}`, ref, tree.filter((x) => x.type === "blob").map((x) => ({ path: x.path, size: x.size })));
   } catch (e0) {
-    // …then jsDelivr's GitHub mirror (no key, no shared rate limit).
-    for (const ref of ref0 ? [ref0] : ["main", "master"]) {
+    // A single file: raw.githubusercontent isn't rate-limited — just try the usual branches.
+    if (path) {
+      let last;
+      for (const ref of ref0 ? [ref0] : ["main", "master"]) { last = await fileAt(ref); if (last.ok) return last; }
+      return last;
+    }
+    // A listing: jsDelivr's GitHub mirror (no key, no shared rate limit), retried once.
+    for (const ref of ref0 ? [ref0, ref0] : ["main", "main", "master"]) {
       const r = await fetch(`https://data.jsdelivr.com/v1/packages/gh/${owner}/${repo}@${encodeURIComponent(ref)}?structure=flat`, { headers: { "User-Agent": UA } }).catch(() => null);
       if (!r || !r.ok) continue;
       if (path) return fileAt(ref);
