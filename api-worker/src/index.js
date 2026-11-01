@@ -5,6 +5,7 @@
 // Every upstream call goes through the free-tier governor (./governor.js).
 
 import { makeChatRun, routeRun } from "./run.js";
+import { handleRaw, handleFile, handleRepo } from "./files.js";
 import { CLOAK, CODE_PLAYBOOK, REVIEW_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
@@ -1626,6 +1627,9 @@ export default {
             anthropic: "POST /v1/messages",
             search: "POST /v1/search",
             extract: "POST /v1/extract",
+            file: "POST /v1/file {url} → exact text file (or binary info)",
+            repo: "POST /v1/repo {url, path?} → public GitHub tree / file",
+            raw: "GET /v1/raw?url= → exact bytes, CORS-open (for builds)",
             transcribe: "POST /v1/transcribe",
             memory: "POST /v1/memory/extract",
             compress: "POST /v1/context/compress",
@@ -1647,6 +1651,8 @@ export default {
         return json({ error: "Not found" }, 404);
       }
 
+      if (path === "/v1/raw" && request.method === "GET") return handleRaw(request);
+
       if (path.startsWith("/v1/runs/")) {
         const r = await routeRun(env, request, path);
         if (r) return r;
@@ -1658,6 +1664,8 @@ export default {
         if (path === "/v1/messages") return handleAnthropicMessages(env, request);
         if (path === "/v1/search") return handleSearch(env, request);
         if (path === "/v1/extract") return handleExtract(env, request);
+        if (path === "/v1/file") return handleFile(await readJson(request));
+        if (path === "/v1/repo") return handleRepo(env, await readJson(request));
         if (path === "/v1/transcribe") return handleTranscribe(env, request, ctx);
         if (path === "/v1/memory/extract") return handleUtility(env, request, ctx, handleMemoryExtract);
         if (path === "/v1/context/compress") return handleUtility(env, request, ctx, handleContextCompress);

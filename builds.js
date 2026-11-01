@@ -244,6 +244,15 @@
     return hit;
   }
   function latest(b) { return b.versions[b.versions.length - 1].code; }
+  // Files the agent pulled from the web (<fetch>/<repo>): name → { name, url, code, rawUrl }.
+  // They live in RAM for this chat; the agent can grep/read them and builds can
+  // load them (or any web file) through RAW_PROXY.
+  const RAW_PROXY = 'https://api.usecloak.org/v1/raw?url=';
+  const fetched = new Map();
+  function fetchedFile(name) {
+    name = String(name || '');
+    return fetched.get(name) || [...fetched.values()].find((f) => baseName(f.name) === baseName(name) || f.url === name) || null;
+  }
 
   function parseEdits(text) {
     const out = [];
@@ -303,9 +312,15 @@
   }
 
   // Search tools for the model: grep / read over the latest version of a build.
+  const WEB_TOOLS = '\n\n## WEB FILES\nYou can pull exact files from the web — no need to guess their contents:\n' +
+    '- <fetch url="https://…"/> gets the exact file (code, JSON, CSV, HTML source, text). It\'s saved as a chat file you can grep/read.\n' +
+    '- <repo url="https://github.com/owner/repo"/> lists a public repo\'s files; add path="src/x.js" to get one.\n' +
+    'Reply with only the tag(s) and wait for the results. In a build, load any web file or asset (image, audio, font, data) through ' + RAW_PROXY + '<url-encoded url> — it is CORS-open.';
   function filesNote() {
     const list = [...S.builds.values()].filter((b) => b.versions.length && !b.transient);
-    if (!list.length) return '';
+    const pulled = [...fetched.values()];
+    const pulledNote = pulled.length ? '\n\nWeb files pulled in this chat (grep/read them): ' + pulled.map((f) => f.name + ' ← ' + f.url).join(', ') : '';
+    if (!list.length) return WEB_TOOLS + pulledNote;
     // The build in focus (open in the panel, else the newest) goes in whole,
     // numbered, so the model can edit without asking. Others are listed.
     const focus = (S.cur && !S.cur.transient && S.builds.get(S.cur.id)) || list[list.length - 1];
@@ -320,12 +335,46 @@
       '- <read file="NAME" lines="START-END"/> shows those lines (max 200).\n' +
       'Reply with only the tag(s) and wait for the results. Then answer with one or more edit fences:\n' +
       '```edit title="NAME"\n<<<<<<< SEARCH\n(exact current lines, enough to be unique)\n=======\n(the new lines)\n>>>>>>> REPLACE\n```\n' +
-      'SEARCH must copy the current lines exactly. Keep each pair small. Rewrite the whole file only if most of it changes, or the user asks for a fresh build.';
+      'SEARCH must copy the current lines exactly. Keep each pair small. Rewrite the whole file only if most of it changes, or the user asks for a fresh build.' + WEB_TOOLS + pulledNote;
+  }
+  const API = 'https://api.usecloak.org';
+  async function remote(path, body) {
+    const r = await fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error(d.error || 'HTTP ' + r.status);
+    return d;
+  }
+  function keepFile(d, name) {
+    const f = { name: name || d.name, url: d.url, code: d.content || '', rawUrl: d.rawUrl, truncated: d.truncated };
+    fetched.set(f.name, f);
+    return f;
+  }
+  function preview(f) {
+    const lines = f.code.split('\n');
+    const head = lines.slice(0, 120).map((l, i) => String(i + 1).padStart(4) + '  ' + l).join('\n');
+    return 'Saved as file "' + f.name + '" (' + lines.length + ' lines' + (f.truncated ? ', truncated' : '') + '). grep/read it for more. In a build, load it from ' + f.rawUrl + '\n' + head + (lines.length > 120 ? '\n… ' + (lines.length - 120) + ' more lines' : '');
+  }
+  async function toolReplyAsync(c) {
+    try {
+      if (c.kind === 'fetch') {
+        const d = await remote('/v1/file', { url: c.file });
+        if (d.binary) return 'Binary file (' + (d.type || '?') + ', ' + Math.round(d.bytes / 1024) + 'KB) — not readable as text. Use it in a build via ' + d.rawUrl;
+        return preview(keepFile(d));
+      }
+      if (c.kind === 'repo') {
+        const d = await remote('/v1/repo', { url: c.file, path: c.arg || '' });
+        if (d.files) return d.repo + '@' + d.ref + ' — ' + d.total + ' files' + (d.total > d.files.length ? ' (first ' + d.files.length + ')' : '') + ':\n' + d.files.map((x) => x.path + '  ' + x.size + 'B').join('\n') + '\n\nGet one with <repo url="' + c.file + '" path="PATH"/>.';
+        if (d.binary) return 'Binary file — use via ' + d.rawUrl;
+        return preview(keepFile(d, (c.arg || d.name)));
+      }
+    } catch (e) { return 'Failed: ' + e.message; }
+    return toolReply(c.kind, c.file, c.arg);
   }
   function toolReply(kind, file, arg) {
     const b = findBuild(file);
-    if (!b) return 'No file named "' + file + '". Files: ' + [...S.builds.values()].map(fileOf).join(', ');
-    const lines = latest(b).split('\n');
+    const f = !b || (file && fileOf(b) !== file && baseName(fileOf(b)) !== baseName(file) && b.title !== file) ? fetchedFile(file) : null;
+    if (!b && !f) return 'No file named "' + file + '". Files: ' + [...[...S.builds.values()].map(fileOf), ...fetched.keys()].join(', ');
+    const lines = (f ? f.code : latest(b)).split('\n');
     const num = (i) => String(i + 1).padStart(4) + '  ' + lines[i];
     if (kind === 'grep') {
       let re;
@@ -340,16 +389,25 @@
     for (let i = a - 1; i < z; i++) out.push(num(i));
     return out.join('\n') || '(empty range — file has ' + lines.length + ' lines)';
   }
-  const TOOL_RE = /<(grep|read)\s+file="([^"]*)"\s+(?:q|lines)="([^"]*)"\s*\/?>(?:\s*<\/\1>)?/gi;
+  // <grep file q/> <read file lines/> <fetch url/> <repo url path?/> — any attribute order.
+  const TOOL_RE = /<(grep|read|fetch|repo)\b([^<>]*?)\/?>(?:\s*<\/\1>)?/gi;
+  const attr = (a, k) => ((new RegExp('\\b' + k + '\\s*=\\s*"([^"]*)"', 'i').exec(a)) || [])[1];
   function codeTools(text) {
     const calls = [];
     let m;
     TOOL_RE.lastIndex = 0;
-    while ((m = TOOL_RE.exec(String(text || ''))) && calls.length < 6) calls.push({ kind: m[1].toLowerCase(), file: m[2], arg: m[3] });
+    while ((m = TOOL_RE.exec(String(text || ''))) && calls.length < 6) {
+      const kind = m[1].toLowerCase(), a = m[2];
+      if (kind === 'fetch' || kind === 'repo') { const url = attr(a, 'url'); if (url) calls.push({ kind, file: url, arg: attr(a, 'path') || '' }); continue; }
+      const file = attr(a, 'file'), arg = attr(a, kind === 'grep' ? 'q' : 'lines');
+      if (file != null && arg != null) calls.push({ kind, file, arg });
+    }
     return calls;
   }
-  function runTools(calls) {
-    return calls.map((c) => '<' + c.kind + ' file="' + c.file + '" ' + (c.kind === 'grep' ? 'q' : 'lines') + '="' + c.arg + '">\n' + toolReply(c.kind, c.file, c.arg)).join('\n\n');
+  async function runTools(calls) {
+    const out = [];
+    for (const c of calls) out.push('<' + c.kind + ' ' + (c.kind === 'fetch' || c.kind === 'repo' ? 'url="' + c.file + '"' + (c.arg ? ' path="' + c.arg + '"' : '') : 'file="' + c.file + '" ' + (c.kind === 'grep' ? 'q' : 'lines') + '="' + c.arg + '"') + '>\n' + await toolReplyAsync(c));
+    return out.join('\n\n');
   }
 
   if (window.marked) marked.use({ renderer: { code: (code, info) => /^edit\b/i.test(String(info || '').trim()) ? editHtml(String(code || '').replace(/\n$/, ''), info) : codeBlockHtml(String(code || '').replace(/\n$/, ''), info) } });
