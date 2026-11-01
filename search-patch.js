@@ -474,7 +474,7 @@ async function streamChat(bodyObj, botMsgEl, signal, opts = {}) {
       headers: { 'Content-Type': 'application/json' },
       signal,
       // Effort (0–100) rides on every chat call, including research rounds.
-      body: JSON.stringify({ ...bodyObj, ...(window.CloakEffort ? { effort: CloakEffort.value() } : {}), stream: true, run }),
+      body: JSON.stringify({ ...bodyObj, ...(window.cloakWireModel && bodyObj.model ? { model: window.cloakWireModel(bodyObj.model) } : {}), ...(window.CloakEffort ? { effort: CloakEffort.value() } : {}), stream: true, run }),
     });
   }
   if (signal) signal.addEventListener('abort', () => { _runPost(runId, 'cancel'); _runForget(runId); }, { once: true });

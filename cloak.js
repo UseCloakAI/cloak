@@ -1428,7 +1428,7 @@ async function send(){
   }
 
   const trimmedMessages=apiMessages.slice(-20);
-  const bodyObj={model,messages:trimmedMessages,imageBase64:imageBase64||undefined,mimeType:mimeType||undefined};
+  const bodyObj={model:window.cloakWireModel?window.cloakWireModel(model):model,messages:trimmedMessages,imageBase64:imageBase64||undefined,mimeType:mimeType||undefined};
 
   log('inf',`→ ${CLOAK_API}/v1/chat model=${model} turns=${trimmedMessages.length} thoughts=${useThoughts}`);
 

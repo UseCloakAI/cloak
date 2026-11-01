@@ -25,6 +25,7 @@ const LIMITS = {
   "groq:*": { rpm: 30, rpd: 1000, tpm: 6000, ctx: 32768 },
   "nvidia:z-ai/glm-5.3-flash": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:poolside/laguna-xs-2.1": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
+  "nvidia:nvidia/nemotron-3-ultra-550b-a55b": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:nvidia/nemotron-3-super-120b-a12b": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:magpie-tts-multilingual": { rpm: 40, rpd: 0, tpm: 0, ctx: 0 }, // TTS (/v1/speech): requests, not tokens
   "nvidia:*": { rpm: 40, rpd: 0, tpm: 0, ctx: 65536 },

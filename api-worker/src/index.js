@@ -36,6 +36,9 @@ const SSE_HEADERS = {
 // 3.5, 3.8, and 3.5 Flash-Lite are not in the lineup. Logos is retired.
 const GEMINI_MODEL = "gemini-2.5-flash";
 const NVIDIA_VISION_MODEL = "meta/llama-3.2-90b-vision-instruct";
+// Nemotron 3: Ultra answers Kairos Smart, Super answers Kairos Fast and backs
+// up Ultra (and Linus) when Ultra is slow or busy.
+const NEMOTRON_ULTRA = "nvidia/nemotron-3-ultra-550b-a55b";
 const NEMOTRON = "nvidia/nemotron-3-super-120b-a12b";
 const GPT_OSS = "openai/gpt-oss-120b";
 const GPT_OSS_20 = "openai/gpt-oss-20b";
@@ -70,8 +73,21 @@ const MODEL_CONFIG = {
       ...LAST_RESORT,
     ],
   },
-  // Default. Nemotron answers. Groq and Gemini only if NVIDIA returns nothing.
+  // Default (Kairos Smart). Nemotron Ultra answers; Super takes over if Ultra
+  // misses its first token. Groq and Gemini only if NVIDIA returns nothing.
   kairos: {
+    name: "Cloak",
+    systemPrompt: CLOAK,
+    temperature: 0.8,
+    lineup: [
+      { provider: "nvidia", model: NEMOTRON_ULTRA, reserve: 2048, firstTokenMs: 30_000 },
+      { provider: "nvidia", model: NEMOTRON, reserve: 2048 },
+      { provider: "groq", model: GPT_OSS, temperature: 1.0, extra: { reasoning_effort: "medium" }, reserve: 1024 },
+      { provider: "gemini", model: GEMINI_MODEL, temperature: 1.0, extra: GEMINI_FAST },
+    ],
+  },
+  // Kairos Fast. Same Kairos on Nemotron Super, no Ultra wait.
+  "kairos-fast": {
     name: "Cloak",
     systemPrompt: CLOAK,
     temperature: 0.8,
