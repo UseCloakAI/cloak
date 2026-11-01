@@ -61,9 +61,9 @@ export function makeChatRun(produceEvents) {
       const url = new URL(request.url);
       const tail = url.pathname.split("/").pop();
       if (request.method === "POST" && tail === "start") return this.start(await request.json());
-      if (request.method === "POST" && tail === "claim") { this.claimed = true; return J({ ok: true }); }
+      if (request.method === "POST" && tail === "claim") { await this.claim(); return J({ ok: true }); }
       if (request.method === "POST" && tail === "cancel") {
-        this.claimed = true;
+        await this.claim();
         if (this.status === "running") { this.status = "cancelled"; this.ctrl?.abort(); }
         return J({ ok: true });
       }
@@ -123,6 +123,9 @@ export function makeChatRun(produceEvents) {
       this.state.storage.setAlarm(Date.now() + (watched ? CLAIM_MS : 0));
     }
 
+    // On disk too: an evicted/restarted object must still know the browser has it.
+    async claim() { this.claimed = true; await this.state.storage.put("claimed", true).catch(() => {}); }
+
     push(e) {
       this.events.push(e);
       const chunk = line(e);
@@ -153,6 +156,7 @@ export function makeChatRun(produceEvents) {
           const d = await this.state.storage.get("done").catch(() => null);
           if (d) { this.meta = d.meta; this.final = d.final; this.status = d.status; }
         }
+        if (!this.claimed) this.claimed = !!(await this.state.storage.get("claimed").catch(() => false));
         if (!this.claimed && this.status !== "cancelled") {
           try { await this.persist(); this.note = this.note || "saved"; }
           catch (e) { this.note = "save failed: " + (e?.message || e); console.error("[cloak-api] run persist:", this.note); }
@@ -173,7 +177,15 @@ export function makeChatRun(produceEvents) {
       if (!text) { this.note = "not saved: empty reply"; return; }
       const uid = jwtSub(m.token);
       if (!uid) { this.note = "not saved: bad token"; return; }
-      const r = await fetch(m.sb.url.replace(/\/$/, "") + "/rest/v1/thread_messages", {
+      const base = m.sb.url.replace(/\/$/, "") + "/rest/v1/thread_messages";
+      const auth = { apikey: m.sb.key, Authorization: "Bearer " + m.token };
+      // Belt and braces: if the browser already saved this reply, don't add it twice.
+      const q = await fetch(base + "?select=content&chat_id=eq." + encodeURIComponent(m.chat_id) + "&role=eq.assistant&order=id.desc&limit=3", { headers: auth }).catch(() => null);
+      if (q && q.ok) {
+        const rows = await q.json().catch(() => []);
+        if (Array.isArray(rows) && rows.some((r) => String(r.content || "").trim() === text.slice(0, 60000).trim())) { this.note = "not saved: browser already saved it"; return; }
+      }
+      const r = await fetch(base, {
         method: "POST",
         headers: {
           apikey: m.sb.key,

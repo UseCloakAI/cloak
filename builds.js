@@ -306,8 +306,16 @@
   function filesNote() {
     const list = [...S.builds.values()].filter((b) => b.versions.length && !b.transient);
     if (!list.length) return '';
-    return '\n\n## FILES IN THIS CHAT\n' + list.map((b) => '- ' + fileOf(b) + ' (' + lineCount(latest(b)) + ' lines, version ' + b.versions.length + ')').join('\n') +
-      '\n\nTo CHANGE one of these, do not rewrite the file. Look first, then send only the changed parts:\n' +
+    // The build in focus (open in the panel, else the newest) goes in whole,
+    // numbered, so the model can edit without asking. Others are listed.
+    const focus = (S.cur && !S.cur.transient && S.builds.get(S.cur.id)) || list[list.length - 1];
+    const fc = latest(focus);
+    const whole = fc.length <= 60000
+      ? '\n\nCurrent ' + fileOf(focus) + ' (version ' + focus.versions.length + '), line numbers added for reference only — never copy them into SEARCH:\n' +
+        fc.split('\n').map((l, i) => String(i + 1).padStart(4) + '| ' + l).join('\n')
+      : '';
+    return '\n\n## FILES IN THIS CHAT\n' + list.map((b) => '- ' + fileOf(b) + ' (' + lineCount(latest(b)) + ' lines, version ' + b.versions.length + ')').join('\n') + whole +
+      '\n\nYou already have the code above — never ask the user to paste it. To CHANGE a file, do not rewrite it; send only the changed parts. For a file not shown above, look first:\n' +
       '- <grep file="NAME" q="regex"/> lists matching lines with line numbers.\n' +
       '- <read file="NAME" lines="START-END"/> shows those lines (max 200).\n' +
       'Reply with only the tag(s) and wait for the results. Then answer with one or more edit fences:\n' +

@@ -58,32 +58,41 @@ function agentsOn() {
 }
 function agentsPrompt() {
   const search = searchOn()
-    ? `When the answer depends on information you were not given in this conversation, hand off to research and stop:
+    ? `RESEARCH agent — facts you were not given in this conversation (news, prices, places, people, docs):
 <search>{"queries":["specific query"],"maxSources":5}</search>
-<done/>
-Do not state details you have not read from results in this conversation.`
-    : 'Research handoff is off. If you were not given the facts, say you could not confirm them. Do not emit <search> or <fetch>.';
+<done/>`
+    : 'Research is off: if you were not given the facts, say you could not confirm them. Never emit <search> or <fetch>.';
+  const files = window.CloakBuilds && CloakBuilds.list && CloakBuilds.list.length
+    ? '\nFiles already in this chat: ' + CloakBuilds.list.filter(b => b.versions.length).map(b => b.file || b.title).join(', ') + '. The coding agent has their full current code — you do not.'
+    : '';
   return `
 
-## AGENTS
-You orchestrate. Specialists do specialist work. You choose the handoff, then you deliver the final answer after they return.
+## AGENTS — YOU ARE THE ORCHESTRATOR
+You do not write code. You decide who does the work, brief them, and deliver the result.
 
-A handoff turn is exactly one tag and nothing else. You do not do that specialist's work in the same turn.
-
-Coding agent — any file, program, interface, or change to code:
+### Rule 1 — anything involving code goes to the CODING agent
+Build, make, create, write, fix, change, tweak, add to, restyle, "make it more…", any request about an app, page, game, tool, script, sound, animation, component, or a file in this chat. Even a one-word tweak to an existing build. Your whole reply is then:
 <code>
-What to produce, including the constraints you already know. Not the code itself.
+The goal in one line.
+What exactly to change or build, with every detail the user gave (and the file name if it's an existing one).
+Constraints you know: platform, style, things that must keep working.
 </code>
+Nothing before or after the tag. No plan, no explanation, no code, no "here's what I'll do". The coding agent sees the files and edits them in place; it does not need you to describe the current code.
+${files}
 
-Review agent — a claim that should be checked before you stand behind it:
+### Rule 2 — checks go to the REVIEW agent
+A claim you should verify before standing behind it:
 <review>
 What to check, in a few sentences.
 </review>
 
+### Rule 3 — research
 ${search}
 
-If no specialist is needed, write the answer and do not emit a tag.
-One handoff per turn. After a specialist returns, either hand off a different job that is still missing, or write the final answer. Never write the coding agent's file yourself.`;
+### Otherwise
+Plain conversation, explanations, opinions, advice with no code: just answer yourself, no tag.
+
+One tag per turn. After a specialist returns you get its result: then either hand off a different job that's still missing, or write a short final note for the user. Never redo or rewrite the coding agent's work yourself.`;
 }
 const AGENT_WAIT = {
   code: "I've started a coding agent. I'll get back to you when it's finished.",
@@ -149,8 +158,18 @@ function agentPhase(botMsgEl, motion) {
 function modelWroteBuild(text) {
   const s = String(text || '');
   if (/<!doctype\s+html/i.test(s) || /<html[\s>]/i.test(s)) return true;
+  if (/```edit\b|<<<<<<< ?SEARCH/i.test(s)) return true;   // the orchestrator editing a file itself
   const fences = s.match(/```[a-z0-9]*\n[\s\S]*?```/gi) || [];
-  return fences.some(f => f.length > 500);
+  return fences.some(f => f.length > 300);
+}
+// With a build in the chat, a short instruction is almost always about it
+// ("make it a full arrangement"): that's the coding agent's job, even if the
+// orchestrator answered in prose instead of handing off.
+function looksLikeBuildChange(userText) {
+  if (!window.CloakBuilds || !CloakBuilds.list || !CloakBuilds.list.some(b => b.versions.length)) return false;
+  const t = String(userText || '').trim();
+  if (!t || t.length > 600 || /\?\s*$/.test(t) && /^(what|why|how|who|when|where|is|are|does|do|can you explain)\b/i.test(t)) return false;
+  return /\b(make|change|add|fix|turn|set|use|remove|replace|tweak|improve|update|redo|rework|more|less|faster|slower|louder|quieter|bigger|smaller|darker|lighter|full|harmoni[sz]|epic|style|colou?r|sound|bass|melody|song|arrangement|level|button|layout|animation|speed)\w*\b/i.test(t);
 }
 // The wait keeps the agent stage under the sentence. This hands the bubble
 // back to the chat orb (source checks, and the search path after a handoff).
@@ -813,7 +832,7 @@ window.send = async function () {
     const allowAgents = !o || o.agents !== false;
     return (allowSearch && searchOn() ? SEARCH_SYSTEM_PROMPT : '')
       + (allowAgents && agentsOn() ? agentsPrompt() : '')
-      + _cx.system + _imgNote + (window.CloakBuilds && CloakBuilds.filesNote ? CloakBuilds.filesNote() : '') + cloakClock();
+      + _cx.system + _imgNote + (window.CloakBuilds && CloakBuilds.filesNote && !(allowAgents && agentsOn()) ? CloakBuilds.filesNote() : '') + cloakClock();
   };
   const bodyObj = {
     model,
@@ -964,7 +983,7 @@ window.send = async function () {
           pending = next.text || '';
           continue;
         }
-        if ((codeTag || modelWroteBuild(pending)) && codeRuns < 1) {
+        if ((codeTag || modelWroteBuild(pending) || (turn === 0 && !hasSearch && !reviewTag && looksLikeBuildChange(txt))) && codeRuns < 1) {
           codeRuns++;
           showAgentWait(botMsgEl, 'code');
           const brief = (codeTag && codeTag.body) || txt;
@@ -974,13 +993,13 @@ window.send = async function () {
             model: 'linus',
             messages: [
               ...convo.slice(-6),
-              { role: 'user', content: 'Build this. The reply is the finished work.\n\n' + String(task).slice(0, 8000) },
+              { role: 'user', content: 'Do this task. Your reply is the finished work. If it changes a file listed in FILES IN THIS CHAT, answer with edit fences (only the parts that change), not a rewrite.\n\n' + String(task).slice(0, 8000) },
             ],
             system: _system({ agents: false, search: false }),
           }, botMsgEl, _fetchController.signal, { silent: true });
           _fetchController = null;
           if (built.aborted && !(built.text || '').trim()) { const e = new Error('Aborted'); e.name = 'AbortError'; throw e; }
-          const linusMsgs = [...convo.slice(-6), { role: 'user', content: 'Build this. The reply is the finished work.\n\n' + String(task).slice(0, 8000) }];
+          const linusMsgs = [...convo.slice(-6), { role: 'user', content: 'Do this task. Your reply is the finished work. If it changes a file listed in FILES IN THIS CHAT, answer with edit fences (only the parts that change), not a rewrite.\n\n' + String(task).slice(0, 8000) }];
           const looked = await _codeToolLoop(built.text || '', linusMsgs, botMsgEl, async (c) => {
             _fetchController = new AbortController();
             const r = await streamChat({ model: 'linus', messages: c, system: _system({ agents: false, search: false }) }, botMsgEl, _fetchController.signal, { silent: true });
