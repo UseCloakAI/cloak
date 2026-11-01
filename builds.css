@@ -256,3 +256,8 @@
   .bld,.bp.bp-in,.bp.bp-in>*,.bp.bp-out,.bp-view,.bp-err,.fchip.is-new{animation:none!important;}
   .bld:not(.ready) .bld-ic svg,.bld-dots i,.bp-spin{animation:none!important;}
 }
+
+/* Targeted edit: a one-line note above the patched build card */
+.bld-edit{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.6;margin:10px 0 -4px;}
+.bld-edit-warn{color:var(--acc);opacity:1;}
+.bld-edit-err{opacity:1;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500;border-left:3px solid var(--acc);padding:6px 10px;background:var(--p2);margin-bottom:6px;}

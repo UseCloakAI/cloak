@@ -217,7 +217,134 @@
       '</div></div><code class="hljs">' + hl + '</code></pre>';
   }
 
-  if (window.marked) marked.use({ renderer: { code: (code, info) => codeBlockHtml(String(code || '').replace(/\n$/, ''), info) } });
+
+  /* ── TARGETED EDITS (Claude Code style) ─────────────────────
+     To change a build, Cloak doesn't rewrite it. It sends
+       ```edit title="name.html"
+       <<<<<<< SEARCH
+       exact lines from the current version
+       =======
+       the new lines
+       >>>>>>> REPLACE
+       ```
+     (one or more pairs). The renderer applies them to the latest version of
+     that build and shows the result as the next version — a normal build card.
+     To find what to change it can <grep file="…" q="regex"/> and
+     <read file="…" lines="40-80"/>; search-patch.js answers those from here. */
+  function fileOf(b) { const v = b.versions[b.versions.length - 1]; return fileNameFor({ file: b.file, kind: b.kind, lang: b.lang, title: b.title, code: v ? v.code : '' }); }
+  function findBuild(name) {
+    name = String(name || '').trim();
+    let hit = null;
+    S.builds.forEach((b) => {
+      if (!b.versions.length) return;
+      const f = fileOf(b);
+      if (!name || f === name || baseName(f) === baseName(name) || b.title === name) hit = b;   // newest wins
+    });
+    if (!hit && S.cur && !S.cur.transient && S.builds.has(S.cur.id)) hit = S.builds.get(S.cur.id);
+    return hit;
+  }
+  function latest(b) { return b.versions[b.versions.length - 1].code; }
+
+  function parseEdits(text) {
+    const out = [];
+    const re = /<{5,9} ?SEARCH[^\n]*\n([\s\S]*?)\n?={5,9}[^\n]*\n([\s\S]*?)\n?>{5,9} ?REPLACE/g;
+    let m;
+    while ((m = re.exec(text))) out.push({ find: m[1], repl: m[2] });
+    return out;
+  }
+  // Exact match first; then line-by-line ignoring indentation / trailing spaces.
+  function applyOne(code, find, repl) {
+    if (!find.trim()) return null;
+    // Exact, but only from a line start (a mid-line hit would keep stale indent).
+    for (let i = code.indexOf(find); i !== -1; i = code.indexOf(find, i + 1)) {
+      if (i === 0 || code[i - 1] === '\n') return code.slice(0, i) + repl + code.slice(i + find.length);
+    }
+    const lines = code.split('\n'), want = find.split('\n').map((l) => l.trim());
+    while (want.length && !want[want.length - 1]) want.pop();
+    while (want.length && !want[0]) want.shift();
+    if (!want.length) return null;
+    for (let a = 0; a + want.length <= lines.length; a++) {
+      let ok = true;
+      for (let k = 0; k < want.length; k++) if (lines[a + k].trim() !== want[k]) { ok = false; break; }
+      if (!ok) continue;
+      // Re-indent the replacement by however far the model's indent was off.
+      const ind = (l) => (/^\s*/.exec(l) || [''])[0];
+      const have = ind(lines[a]), had = ind(repl.split('\n').find((l) => l.trim()) || '');
+      const fixed = repl.split('\n').map((l) => !l.trim() || !l.startsWith(had) ? l : have + l.slice(had.length));
+      return [...lines.slice(0, a), ...fixed, ...lines.slice(a + want.length)].join('\n');
+    }
+    return null;
+  }
+  function applyEdits(file, text) {
+    const b = findBuild(file);
+    if (!b) return { error: 'No build named "' + (file || '?') + '" in this chat.' };
+    const edits = parseEdits(text);
+    if (!edits.length) return { error: 'No complete SEARCH/REPLACE blocks.', b };
+    let code = latest(b), failed = [];
+    edits.forEach((e, i) => { const r = applyOne(code, e.find, e.repl); if (r == null) failed.push(i + 1); else code = r; });
+    return { b, code, n: edits.length, failed };
+  }
+  // Re-renders of the same message must not re-apply on top of their own result.
+  const editMemo = new Map();
+  function editHtml(code, info) {
+    const file = parseInfo(String(info || '').replace(/^edit\b/, 'x')).file;
+    const key = hash(file + '\n' + code);
+    const r = editMemo.get(key) || applyEdits(file, code);
+    if (!r.error && r.failed.length < r.n) editMemo.set(key, r);
+    if (r.error || r.failed.length === r.n) {
+      const why = r.error || 'The part' + (r.n > 1 ? 's' : '') + ' to replace weren\'t found in the current version.';
+      return '<div class="bld-edit bld-edit-err"><b>Edit to ' + esc(file || 'build') + ' not applied</b> — ' + esc(why) + '</div>' +
+        codeBlockHtml(code, 'diff');
+    }
+    const b = r.b;
+    const note = '<div class="bld-edit">Edited ' + r.n + ' part' + (r.n > 1 ? 's' : '') + ' of ' + esc(fileOf(b)) +
+      (r.failed.length ? ' · <span class="bld-edit-warn">couldn\'t place part ' + r.failed.join(', ') + '</span>' : '') + '</div>';
+    return note + codeBlockHtml(r.code, b.lang + ' title="' + fileOf(b) + '"').replace('<div class="bld"', '<div class="bld" data-edit-of="' + b.id + '"');
+  }
+
+  // Search tools for the model: grep / read over the latest version of a build.
+  function filesNote() {
+    const list = [...S.builds.values()].filter((b) => b.versions.length && !b.transient);
+    if (!list.length) return '';
+    return '\n\n## FILES IN THIS CHAT\n' + list.map((b) => '- ' + fileOf(b) + ' (' + lineCount(latest(b)) + ' lines, version ' + b.versions.length + ')').join('\n') +
+      '\n\nTo CHANGE one of these, do not rewrite the file. Look first, then send only the changed parts:\n' +
+      '- <grep file="NAME" q="regex"/> lists matching lines with line numbers.\n' +
+      '- <read file="NAME" lines="START-END"/> shows those lines (max 200).\n' +
+      'Reply with only the tag(s) and wait for the results. Then answer with one or more edit fences:\n' +
+      '```edit title="NAME"\n<<<<<<< SEARCH\n(exact current lines, enough to be unique)\n=======\n(the new lines)\n>>>>>>> REPLACE\n```\n' +
+      'SEARCH must copy the current lines exactly. Keep each pair small. Rewrite the whole file only if most of it changes, or the user asks for a fresh build.';
+  }
+  function toolReply(kind, file, arg) {
+    const b = findBuild(file);
+    if (!b) return 'No file named "' + file + '". Files: ' + [...S.builds.values()].map(fileOf).join(', ');
+    const lines = latest(b).split('\n');
+    const num = (i) => String(i + 1).padStart(4) + '  ' + lines[i];
+    if (kind === 'grep') {
+      let re;
+      try { re = new RegExp(arg, 'i'); } catch (_) { re = new RegExp(String(arg).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'); }
+      const hits = [];
+      lines.forEach((l, i) => { if (re.test(l)) hits.push(num(i)); });
+      return hits.length ? hits.slice(0, 60).join('\n') + (hits.length > 60 ? '\n… ' + (hits.length - 60) + ' more' : '') : '(no matches)';
+    }
+    const m = /(\d+)\s*-\s*(\d+)/.exec(arg || '') || [0, 1, 200];
+    const a = Math.max(1, +m[1]), z = Math.min(lines.length, +m[2], a + 199);
+    const out = [];
+    for (let i = a - 1; i < z; i++) out.push(num(i));
+    return out.join('\n') || '(empty range — file has ' + lines.length + ' lines)';
+  }
+  const TOOL_RE = /<(grep|read)\s+file="([^"]*)"\s+(?:q|lines)="([^"]*)"\s*\/?>(?:\s*<\/\1>)?/gi;
+  function codeTools(text) {
+    const calls = [];
+    let m;
+    TOOL_RE.lastIndex = 0;
+    while ((m = TOOL_RE.exec(String(text || ''))) && calls.length < 6) calls.push({ kind: m[1].toLowerCase(), file: m[2], arg: m[3] });
+    return calls;
+  }
+  function runTools(calls) {
+    return calls.map((c) => '<' + c.kind + ' file="' + c.file + '" ' + (c.kind === 'grep' ? 'q' : 'lines') + '="' + c.arg + '">\n' + toolReply(c.kind, c.file, c.arg)).join('\n\n');
+  }
+
+  if (window.marked) marked.use({ renderer: { code: (code, info) => /^edit\b/i.test(String(info || '').trim()) ? editHtml(String(code || '').replace(/\n$/, ''), info) : codeBlockHtml(String(code || '').replace(/\n$/, ''), info) } });
 
   // Block → { code, lang, file, kind } from its rendered element.
   function blockData(el) {
@@ -258,7 +385,7 @@
       const title = titleFor(d.kind, d.code, d.file);
       let ref = seen.get(key);
       if (!ref) {
-        let b = findLineage(d.kind, d.file, title);
+        let b = (el.dataset.editOf && S.builds.get(el.dataset.editOf)) || findLineage(d.kind, d.file, title);
         if (!b && live && S.pending && S.builds.has(S.pending) && S.builds.get(S.pending).kind === d.kind) b = S.builds.get(S.pending);
         if (!b) {
           b = { id: newId(), kind: d.kind, lang: d.lang, file: d.file, title, versions: [], autoFix: 0 };
@@ -1026,7 +1153,7 @@
     if (!b || !S.errs.length) return;
     const v = curVer();
     const errs = S.errs.slice(0, 4).map((e) => e.text + (e.stack && !e.stack.includes(e.text) ? '\n' + e.stack.split('\n').slice(0, 6).join('\n') : '')).join('\n\n');
-    let msg = 'The build threw ' + (S.errs.length > 1 ? S.errs.length + ' errors' : 'an error') + ' in "' + b.title + '"' + (auto ? ' (auto-reported)' : '') + ':\n\n' + fence(errs, 'text') + '\n\nFind the root cause and return the full corrected build.';
+    let msg = 'The build threw ' + (S.errs.length > 1 ? S.errs.length + ' errors' : 'an error') + ' in "' + b.title + '"' + (auto ? ' (auto-reported)' : '') + ':\n\n' + fence(errs, 'text') + '\n\nFind the root cause (grep/read the file if you need to) and fix it with edit blocks — only the parts that change.';
     if (b.transient || v.src === 'edit') msg += '\n\nThe code that ran:\n' + fence(curCode(), b.lang, b.file);
     P.errH.textContent = auto ? 'Auto-fixing…' : 'Asking Cloak to fix it…';
     if (sendToChat(msg) && !b.transient) { S.pending = b.id; S.fixing = true; }
@@ -1312,6 +1439,7 @@
   window.CloakBuilds = {
     open, openLoose, close, run, scan, addFiles,
     get list() { return [...S.builds.values()]; },
+    filesNote, codeTools, runTools, stripTools: (t) => String(t || '').replace(TOOL_RE, '').trim(),
     get current() { return cur(); },
     _state: S, _parseInfo: parseInfo, _buildKind: buildKind,
   };

@@ -31,7 +31,7 @@ const line = (e) => enc.encode(`data: ${JSON.stringify(e)}\n\n`);
 function cleanFinal(t) {
   return String(t || "")
     .replace(/<(search|fetch|code|review)(\s[^>]*)?>[\s\S]*?<\/\1>/gi, "")
-    .replace(/<look\b[^>]*\/>|<done\s*\/?>/gi, "")
+    .replace(/<(look|grep|read)\b[^>]*\/?>|<done\s*\/?>/gi, "")
     .trim();
 }
 function jwtSub(token) {
