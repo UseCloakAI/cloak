@@ -838,7 +838,7 @@ window.send = async function () {
     const allowAgents = !o || o.agents !== false;
     return (allowSearch && searchOn() ? SEARCH_SYSTEM_PROMPT : '')
       + (allowAgents && agentsOn() ? agentsPrompt() : '')
-      + _cx.system + _imgNote + (window.CloakBuilds && CloakBuilds.filesNote && !(allowAgents && agentsOn()) ? CloakBuilds.filesNote() : '') + cloakClock();
+      + _cx.system + _imgNote + (window.CloakBuilds && CloakBuilds.filesNote ? CloakBuilds.filesNote(allowAgents && agentsOn()) : '') + cloakClock();
   };
   const bodyObj = {
     model,
@@ -1022,12 +1022,17 @@ window.send = async function () {
           reviewRuns++;
           showAgentWait(botMsgEl, 'review');
           _fetchController = new AbortController();
-          const note = await streamChat({
-            model: 'review',
-            messages: [{ role: 'user', content: reviewTag.body.slice(0, 3500) }],
-            max_tokens: 400,
-          }, botMsgEl, _fetchController.signal, { silent: true, persist: false });
-          _fetchController = null;
+          // The reviewer can open sources / files to check against (fetch, repo, grep, read).
+          const reviewSys = window.CloakBuilds && CloakBuilds.filesNote ? CloakBuilds.filesNote(true) : '';
+          const reviewMsgs = [{ role: 'user', content: reviewTag.body.slice(0, 3500) }];
+          const reviewCall = async (c) => {
+            _fetchController = new AbortController();
+            const r = await streamChat({ model: 'review', messages: c, max_tokens: 600, system: reviewSys }, botMsgEl, _fetchController.signal, { silent: true, persist: false });
+            _fetchController = null;
+            return r;
+          };
+          const first = await reviewCall(reviewMsgs);
+          const note = await _codeToolLoop(first.text || '', reviewMsgs, botMsgEl, reviewCall);
           const verdict = (note.text || '').trim().slice(0, 1200);
           agentPhase(botMsgEl, 'orbit');
           convo = [

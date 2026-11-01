@@ -109,21 +109,34 @@ export async function handleRepo(env, body) {
   if (!m) return J({ error: "github.com/owner/repo url required" }, 400);
   const [, owner, repo, ref0, sub] = m;
   const h = { "User-Agent": UA, Accept: "application/vnd.github+json", ...(env.GITHUB_TOKEN ? { Authorization: "Bearer " + env.GITHUB_TOKEN } : {}) };
+  const path = String(body?.path || "").replace(/^\/+/, "");
+  const fileAt = (ref) => handleFile({ url: `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`, maxChars: body?.maxChars });
+  const list = (repoName, ref, all) => {
+    const files = all.filter((f) => !sub || f.path.startsWith(sub));
+    return J({ repo: repoName, ref, files: files.slice(0, 800), total: files.length });
+  };
   try {
+    // GitHub's API first (it rate-limits Cloudflare's shared IPs without a token)…
     let ref = ref0;
     if (!ref) {
       const r = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: h });
       if (!r.ok) throw new Error("repo " + r.status);
       ref = (await r.json()).default_branch || "main";
     }
-    const path = String(body?.path || "").replace(/^\/+/, "");
-    if (path) return handleFile({ url: `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`, maxChars: body?.maxChars });
+    if (path) return fileAt(ref);
     const t = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`, { headers: h });
     if (!t.ok) throw new Error("tree " + t.status);
     const tree = (await t.json()).tree || [];
-    const files = tree.filter((x) => x.type === "blob" && (!sub || x.path.startsWith(sub))).map((x) => ({ path: x.path, size: x.size }));
-    return J({ repo: `${owner}/${repo}`, ref, files: files.slice(0, 800), total: files.length });
-  } catch (e) {
-    return J({ error: "GitHub: " + e.message }, 502);
+    return list(`${owner}/${repo}`, ref, tree.filter((x) => x.type === "blob").map((x) => ({ path: x.path, size: x.size })));
+  } catch (e0) {
+    // …then jsDelivr's GitHub mirror (no key, no shared rate limit).
+    for (const ref of ref0 ? [ref0] : ["main", "master"]) {
+      const r = await fetch(`https://data.jsdelivr.com/v1/packages/gh/${owner}/${repo}@${encodeURIComponent(ref)}?structure=flat`, { headers: { "User-Agent": UA } }).catch(() => null);
+      if (!r || !r.ok) continue;
+      if (path) return fileAt(ref);
+      const d = await r.json().catch(() => ({}));
+      return list(`${owner}/${repo}`, ref, (d.files || []).map((f) => ({ path: String(f.name).replace(/^\//, ""), size: f.size })));
+    }
+    return J({ error: "GitHub: " + e0.message + " (and no main/master on the mirror — pass the branch in the url: /tree/BRANCH)" }, 502);
   }
 }

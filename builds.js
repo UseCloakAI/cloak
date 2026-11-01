@@ -316,10 +316,14 @@
     '- <fetch url="https://…"/> gets the exact file (code, JSON, CSV, HTML source, text). It\'s saved as a chat file you can grep/read.\n' +
     '- <repo url="https://github.com/owner/repo"/> lists a public repo\'s files; add path="src/x.js" to get one.\n' +
     'Reply with only the tag(s) and wait for the results. In a build, load any web file or asset (image, audio, font, data) through ' + RAW_PROXY + '<url-encoded url> — it is CORS-open.';
-  function filesNote() {
+  // brief: the orchestrator — tools + file names, but no code and no edit
+  // instructions (editing is the coding agent's job).
+  function filesNote(brief) {
     const list = [...S.builds.values()].filter((b) => b.versions.length && !b.transient);
     const pulled = [...fetched.values()];
     const pulledNote = pulled.length ? '\n\nWeb files pulled in this chat (grep/read them): ' + pulled.map((f) => f.name + ' ← ' + f.url).join(', ') : '';
+    const readTools = '\n- <grep file="NAME" q="regex"/> and <read file="NAME" lines="START-END"/> look inside a chat file.';
+    if (brief) return WEB_TOOLS.replace('\nReply with only', readTools + '\nReply with only') + pulledNote;
     if (!list.length) return WEB_TOOLS + pulledNote;
     // The build in focus (open in the panel, else the newest) goes in whole,
     // numbered, so the model can edit without asking. Others are listed.
