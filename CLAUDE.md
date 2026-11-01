@@ -121,6 +121,7 @@ No automated tests.
 - Chat history is no longer capped at 20 messages — `chats.context` holds chunk summaries + digest; don't reintroduce `hist.slice(-N)` in the send path.
 - Background model calls (extraction, compression) must use the worker's `utility` tier, never a chat tier.
 - New provider/model? Add its free-tier numbers to `LIMITS` in `api-worker/src/governor.js`.
+- **Speech** (`api-worker/src/speech.js`): `POST /v1/speech` → WAV from NVIDIA Magpie TTS Multilingual, `GET /v1/speech/voices`. Riva is gRPC-only; the worker sends plain gRPC over `fetch` (NVIDIA's front door accepts it over HTTP/1.1; gRPC-Web is refused), protobuf by hand. Keys: the `nvidia` pool through the governor. Used by Caden (UseCloakAI/caden).
 - Asset versions: `scripts/bump-version.sh` rewrites every `.js`/`.css` `?v=` in `chat.html` + `sw.js` and `CACHE_VERSION` to the build version on each commit — never hand-set a fixed tag. Add new shell files to `SHELL`.
 
 ## Known follow-ups

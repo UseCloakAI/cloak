@@ -26,6 +26,7 @@ const LIMITS = {
   "nvidia:z-ai/glm-5.3-flash": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:poolside/laguna-xs-2.1": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
   "nvidia:nvidia/nemotron-3-super-120b-a12b": { rpm: 40, rpd: 0, tpm: 0, ctx: 131072 },
+  "nvidia:magpie-tts-multilingual": { rpm: 40, rpd: 0, tpm: 0, ctx: 0 }, // TTS (/v1/speech): requests, not tokens
   "nvidia:*": { rpm: 40, rpd: 0, tpm: 0, ctx: 65536 },
   // 2.5 Flash free tier: 10 RPM, 250 RPD, 250k TPM. Kept as the last resort.
   "gemini:gemini-2.5-flash": { rpm: 10, rpd: 250, tpm: 250000, ctx: 1048576 },
