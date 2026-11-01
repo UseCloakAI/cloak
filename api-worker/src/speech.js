@@ -10,6 +10,7 @@
 // Keys come from PROVIDER_KEYS (`nvidia`) through the governor: round-robin,
 // cooldowns on 429 / bad keys, shared like every other upstream call.
 import * as gov from "./governor.js";
+import { connect } from "cloudflare:sockets";
 
 const HOST = "https://grpc.nvcf.nvidia.com";
 const SERVICE = "/nvidia.riva.tts.RivaSpeechSynthesis";
@@ -115,6 +116,77 @@ async function call(method, msg, key) {
   return { ok: true, status: 200, msgs, headers: res.headers };
 }
 
+// Plain gRPC over a raw TLS socket, HTTP/1.1 written by hand. fetch() can't
+// send `te: trailers` from Cloudflare's edge (it's stripped), and NVIDIA's
+// gateway wants it once a real key passes auth. A socket sends what we write.
+async function callSocket(method, msg, key) {
+  const frame = new Uint8Array(5 + msg.length);
+  new DataView(frame.buffer).setUint32(1, msg.length);
+  frame.set(msg, 5);
+  const head = [
+    `POST ${SERVICE}/${method} HTTP/1.1`, "Host: grpc.nvcf.nvidia.com", "Content-Type: application/grpc", "TE: trailers",
+    `function-id: ${FUNCTION_ID}`, `Authorization: Bearer ${key}`, `Content-Length: ${frame.length}`, "Connection: close", "", "",
+  ].join("\r\n");
+  const sock = connect({ hostname: "grpc.nvcf.nvidia.com", port: 443 }, { secureTransport: "on" });
+  const w = sock.writable.getWriter();
+  await w.write(new TextEncoder().encode(head));
+  await w.write(frame);
+  w.releaseLock();
+  const chunks = [];
+  const r = sock.readable.getReader();
+  for (;;) { const { value, done } = await r.read(); if (done) break; chunks.push(value); }
+  sock.close().catch(() => {});
+  const raw = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  { let o = 0; for (const c of chunks) { raw.set(c, o); o += c.length; } }
+  // headers
+  let he = -1;
+  for (let i = 0; i + 3 < raw.length; i++) if (raw[i] === 13 && raw[i + 1] === 10 && raw[i + 2] === 13 && raw[i + 3] === 10) { he = i; break; }
+  if (he < 0) return { ok: false, status: 502, error: "bad HTTP response" };
+  const lines = td.decode(raw.subarray(0, he)).split("\r\n");
+  const code = Number(lines[0].split(" ")[1]) || 502;
+  const hdr = new Headers();
+  for (const l of lines.slice(1)) { const k = l.indexOf(":"); if (k > 0) hdr.append(l.slice(0, k).trim(), l.slice(k + 1).trim()); }
+  let body = raw.subarray(he + 4);
+  if (/chunked/i.test(hdr.get("transfer-encoding") || "")) {
+    const parts = [];
+    let i = 0;
+    for (;;) {
+      let e = i; while (e + 1 < body.length && !(body[e] === 13 && body[e + 1] === 10)) e++;
+      const n = parseInt(td.decode(body.subarray(i, e)), 16);
+      i = e + 2;
+      if (!n) { // trailers
+        for (const l of td.decode(body.subarray(i)).split("\r\n")) { const k = l.indexOf(":"); if (k > 0) hdr.set(l.slice(0, k).trim(), l.slice(k + 1).trim()); }
+        break;
+      }
+      parts.push(body.subarray(i, i + n)); i += n + 2;
+    }
+    const joined = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let o = 0; for (const p of parts) { joined.set(p, o); o += p.length; }
+    body = joined;
+  }
+  const g = hdr.get("grpc-status");
+  if (code !== 200 || (g && g !== "0")) {
+    const error = decodeURIComponent(hdr.get("grpc-message") || "") || td.decode(body.subarray(0, 200)) || `http ${code}`;
+    return { ok: false, status: g ? AS_HTTP[Number(g)] || 502 : code, error, headers: hdr };
+  }
+  const msgs = [];
+  for (let i = 0; i + 5 <= body.length;) {
+    const n = new DataView(body.buffer, body.byteOffset + i + 1, 4).getUint32(0);
+    msgs.push(body.subarray(i + 5, i + 5 + n)); i += 5 + n;
+  }
+  if (!msgs.length) return { ok: false, status: 502, error: "empty gRPC response", headers: hdr };
+  return { ok: true, status: 200, msgs, headers: hdr };
+}
+
+// Socket first; gRPC-Web over fetch if sockets fail outright.
+async function callAny(method, msg, key) {
+  try { return await callSocket(method, msg, key); } catch (e) {
+    const r = await call(method, msg, key);
+    if (!r.ok) r.error = `${r.error} (socket: ${e?.message || e})`;
+    return r;
+  }
+}
+
 // Try keys from the pool (healthy first) until one answers.
 async function withKeys(env, ctx, method, msg) {
   const keys = (await gov.readKeyring(env)).nvidia || [];
@@ -126,7 +198,7 @@ async function withKeys(env, ctx, method, msg) {
   for (const c of [...healthy, ...cold].slice(0, 4)) {
     gov.noteCall(c.slot);
     let r;
-    try { r = await call(method, msg, c.key); } catch (e) { last = { status: 502, error: String(e?.message || e) }; continue; }
+    try { r = await callAny(method, msg, c.key); } catch (e) { last = { status: 502, error: String(e?.message || e) }; continue; }
     gov.observe({ provider: "nvidia", model: SPEECH_MODEL, key: c.key, res: { status: r.status, headers: r.headers || new Headers() }, bodyText: r.error || "", ctx });
     if (r.ok) return r.msgs;
     last = r;
