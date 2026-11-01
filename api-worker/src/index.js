@@ -5,7 +5,7 @@
 // Every upstream call goes through the free-tier governor (./governor.js).
 
 import { makeChatRun, routeRun } from "./run.js";
-import { handleRaw, handleFile, handleRepo } from "./files.js";
+import { handleRaw, handleFile, handleRepo, handleUpload, handleBlob } from "./files.js";
 import { CLOAK, CODE_PLAYBOOK, REVIEW_PLAYBOOK } from "./prompts.js";
 import * as gov from "./governor.js";
 import { handleMemoryExtract, handleContextCompress } from "./memory.js";
@@ -20,7 +20,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers":
-    "Content-Type, X-Admin-Token, Authorization, x-api-key, anthropic-version",
+    "Content-Type, X-Admin-Token, Authorization, x-api-key, anthropic-version, X-File-Name",
 };
 const JSON_HEADERS = { ...CORS_HEADERS, "Content-Type": "application/json" };
 const SSE_HEADERS = {
@@ -1630,6 +1630,7 @@ export default {
             file: "POST /v1/file {url} → exact text file (or binary info)",
             repo: "POST /v1/repo {url, path?} → public GitHub tree / file",
             raw: "GET /v1/raw?url= → exact bytes, CORS-open (for builds)",
+            upload: "POST /v1/upload (bytes, X-File-Name) → {url}; GET /v1/blob/:id/:name",
             transcribe: "POST /v1/transcribe",
             memory: "POST /v1/memory/extract",
             compress: "POST /v1/context/compress",
@@ -1652,6 +1653,8 @@ export default {
       }
 
       if (path === "/v1/raw" && request.method === "GET") return handleRaw(request);
+      if (path.startsWith("/v1/blob/") && request.method === "GET") return handleBlob(env, path);
+      if (path === "/v1/upload" && request.method === "POST") return handleUpload(env, request);
 
       if (path.startsWith("/v1/runs/")) {
         const r = await routeRun(env, request, path);

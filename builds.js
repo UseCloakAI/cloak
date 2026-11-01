@@ -42,7 +42,9 @@
   };
   const REACT = '18.3.1';
   const MAX_AUTOFIX = 2;
-  const FILE_MAX = 80 * 1024, FILES_TOTAL = 160 * 1024, FILES_N = 6;
+  // Any file up to 25MB (attach.js). Text up to INLINE goes into the message whole;
+  // bigger text and every binary go in as a readable summary/preview + a URL.
+  const FILE_MAX = 25 * 1024 * 1024, INLINE = 200 * 1024, PREVIEW_CHARS = 12000, FILES_N = 8;
 
   /* ── LANGUAGES ─────────────────────────────────────────── */
   const ALIAS = {
@@ -1310,19 +1312,28 @@
       r.readAsDataURL(f);
     });
     texts.forEach((f) => {
-      if (!isTextFile(f)) return toast(f.name + ' isn\'t a text/code file');
       if (S.files.length >= FILES_N) return toast('Up to ' + FILES_N + ' files per message');
-      if (f.size > FILE_MAX) return toast(f.name + ' is over ' + Math.round(FILE_MAX / 1024) + ' KB');
-      const total = S.files.reduce((n, x) => n + x.text.length, 0);
-      if (total + f.size > FILES_TOTAL) return toast('Attachments are limited to ' + Math.round(FILES_TOTAL / 1024) + ' KB per message');
-      const r = new FileReader();
-      r.onload = (ev) => {
-        const text = String(ev.target.result || '');
-        if (/\u0000/.test(text.slice(0, 4000))) return toast(f.name + ' looks binary');
-        S.files.push({ name: f.webkitRelativePath || f.name, text: text.replace(/\r\n/g, '\n') });
+      if (f.size > FILE_MAX) return toast(f.name + ' is over 25 MB');
+      if (!window.CloakAttach) return toast('Attachments are still loading — try again');
+      const entry = { name: f.webkitRelativePath || f.name, text: '', pending: true, size: f.size };
+      S.files.push(entry);
+      renderFiles();
+      CloakAttach.read(f).then(async (r) => {
+        entry.kind = r.kind; entry.type = r.type;
+        const full = r.text || '';
+        entry.big = !(r.kind === 'text' && f.size <= INLINE);
+        entry.text = entry.big && full.length > PREVIEW_CHARS ? full.slice(0, PREVIEW_CHARS) : full;
+        entry.cut = full.length > entry.text.length;
+        try { entry.url = await r.url; } catch (e) { entry.url = ''; toast('Upload failed for ' + f.name + ' — Cloak can still read it'); }
+        // The full readable text stays available to grep/read; the real bytes at entry.url.
+        if (entry.big || entry.cut) fetched.set(baseName(entry.name), { name: baseName(entry.name), url: entry.url, code: full, rawUrl: entry.url });
+        entry.pending = false;
+        renderFiles(); syncSend();
+      }).catch((e) => {
+        S.files.splice(S.files.indexOf(entry), 1);
         renderFiles();
-      };
-      r.readAsText(f);
+        toast(e.message || ('Couldn\'t read ' + f.name));
+      });
     });
   }
 
@@ -1352,7 +1363,13 @@
   }
 
   function filesToText() {
-    return S.files.map((f) => '[file: ' + f.name + ']\n' + fence(f.text, EXT[extLang(f.name)] ? extLang(f.name) : '', '')).join('\n\n');
+    return S.files.map((f) => {
+      if (!f.big) return '[file: ' + f.name + ']\n' + fence(f.text, EXT[extLang(f.name)] ? extLang(f.name) : '', '');
+      const head = 'File: ' + f.name + ' · ' + (f.type || '?') + ' · ' + CloakAttach.kb(f.size) +
+        (f.url ? '\nReal file (load it in a build, CORS-open): ' + f.url : '') +
+        '\nWhat\'s inside' + (f.kind && f.kind !== 'file' ? ' (' + f.kind + ')' : '') + (f.cut ? ' — preview; grep/read file "' + baseName(f.name) + '" for the rest' : '') + ':\n';
+      return '[file: ' + f.name + ']\n' + fence(head + f.text, 'text', '');
+    }).join('\n\n');
   }
 
   // User bubbles: "[file: x]" + fence → a clickable chip.
@@ -1441,6 +1458,7 @@
     const sd = window.send;
     window.send = function () {
       const inp = $('#chat-input');
+      if (S.files.some((f) => f.pending)) { toast('Still reading your file — one sec'); return; }
       if (S.files.length && inp && (typeof busy === 'undefined' || !busy)) {
         const typed = inp.value.trim();
         inp.value = (typed || 'Here are my files.') + '\n\n' + filesToText();

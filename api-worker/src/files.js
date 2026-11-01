@@ -146,3 +146,31 @@ export async function handleRepo(env, body) {
     return J({ error: "GitHub: " + e0.message + " (and no main/master on the mirror — pass the branch in the url: /tree/BRANCH)" }, 502);
   }
 }
+
+// ── Uploads: any file the user attaches, so builds/agents can load it by URL ──
+//   POST /v1/upload   body = the bytes, X-File-Name header → { id, url }
+//   GET  /v1/blob/:id/:name   the bytes back, CORS-open
+// Stored in KV under "blob:" (30-day TTL, 25MB max — KV's value limit).
+const UPLOAD_MAX = 25 * 1024 * 1024;
+export async function handleUpload(env, request) {
+  const kv = env.FILES || env.PROVIDER_KEYS;
+  if (!kv) return J({ error: "no storage bound" }, 500);
+  const len = Number(request.headers.get("content-length") || 0);
+  if (len > UPLOAD_MAX) return J({ error: "file over 25MB" }, 413);
+  const buf = await request.arrayBuffer();
+  if (!buf.byteLength) return J({ error: "empty file" }, 400);
+  if (buf.byteLength > UPLOAD_MAX) return J({ error: "file over 25MB" }, 413);
+  const name = String(request.headers.get("x-file-name") || "file").replace(/[^\w.\- ()]+/g, "_").slice(0, 120) || "file";
+  const type = String(request.headers.get("content-type") || "application/octet-stream").slice(0, 120);
+  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
+  await kv.put("blob:" + id, buf, { expirationTtl: 30 * 86400, metadata: { name, type } });
+  return J({ id, name, type, bytes: buf.byteLength, url: "https://api.usecloak.org/v1/blob/" + id + "/" + encodeURIComponent(name) });
+}
+export async function handleBlob(env, path) {
+  const kv = env.FILES || env.PROVIDER_KEYS;
+  const m = path.match(/^\/v1\/blob\/([a-f0-9]{20})(?:\/.*)?$/);
+  if (!m || !kv) return J({ error: "not found" }, 404);
+  const { value, metadata } = await kv.getWithMetadata("blob:" + m[1], { type: "arrayBuffer" });
+  if (!value) return J({ error: "expired or not found" }, 404);
+  return new Response(value, { headers: { ...CORS, "Content-Type": metadata?.type || "application/octet-stream", "Content-Disposition": `inline; filename="${(metadata?.name || "file").replace(/"/g, "")}"`, "Cache-Control": "public, max-age=86400" } });
+}
