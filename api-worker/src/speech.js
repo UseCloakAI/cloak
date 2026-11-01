@@ -3,9 +3,10 @@
 //   POST /v1/speech         {text, voice?, lang?} → audio/wav (16-bit mono, 22.05 kHz)
 //   GET  /v1/speech/voices  → {voices:[{name, lang}]}
 //
-// Riva is gRPC-only. NVIDIA's front door also takes plain gRPC over HTTP/1.1
-// (checked 2026-11-01: a bad key gets a proper grpc-status 7), so a Worker's
-// fetch can call it directly: protobuf encoded by hand, gRPC framing, no deps.
+// Riva is gRPC-only, and Cloudflare's edge strips the `te: trailers` header
+// plain gRPC needs ("Missing :te header" in production). NVIDIA's front door
+// also speaks gRPC-Web (HTTP/1.1, no te, trailers in the body), so the Worker
+// uses that: protobuf encoded by hand, gRPC-Web framing, no deps.
 // Keys come from PROVIDER_KEYS (`nvidia`) through the governor: round-robin,
 // cooldowns on 429 / bad keys, shared like every other upstream call.
 import * as gov from "./governor.js";
@@ -68,27 +69,47 @@ export function wav(pcm, rate = RATE) {
 // gRPC status → the HTTP status the governor understands.
 const AS_HTTP = { 3: 400, 5: 404, 7: 403, 8: 429, 14: 503, 16: 401 };
 
-// One gRPC call with one key. Resolves to {ok, status, msgs?, error?}.
+// One gRPC-Web call with one key. Resolves to {ok, status, msgs?, error?}.
+// Body = frames: [flag][len:4][bytes]; flag 0x00 is a message, 0x80 the trailers
+// ("grpc-status: 0\r\ngrpc-message: …"). Errors can also come back as a plain
+// HTTP status with a text body (auth failures arrive as 403 text).
 async function call(method, msg, key) {
   const frame = new Uint8Array(5 + msg.length);
   new DataView(frame.buffer).setUint32(1, msg.length);
   frame.set(msg, 5);
   const res = await fetch(HOST + SERVICE + "/" + method, {
     method: "POST",
-    headers: { "content-type": "application/grpc", te: "trailers", "function-id": FUNCTION_ID, authorization: `Bearer ${key}` },
+    headers: {
+      "content-type": "application/grpc-web+proto",
+      accept: "application/grpc-web+proto",
+      "x-grpc-web": "1",
+      "function-id": FUNCTION_ID,
+      authorization: `Bearer ${key}`,
+    },
     body: frame,
   });
-  const g = res.headers.get("grpc-status");
-  if (!res.ok || (g && g !== "0")) {
-    const error = decodeURIComponent(res.headers.get("grpc-message") || "") || `grpc ${g ?? res.status}`;
-    return { ok: false, status: g ? AS_HTTP[Number(g)] || 502 : res.status, error, headers: res.headers };
-  }
   const body = new Uint8Array(await res.arrayBuffer());
+  const isGrpc = /grpc/.test(res.headers.get("content-type") || "");
+  if (!isGrpc) return { ok: false, status: res.ok ? 502 : res.status, error: td.decode(body.subarray(0, 300)) || `http ${res.status}`, headers: res.headers };
   const msgs = [];
+  let status = res.headers.get("grpc-status"), message = res.headers.get("grpc-message");
   for (let i = 0; i + 5 <= body.length;) {
-    const n = new DataView(body.buffer, body.byteOffset + i + 1, 4).getUint32(0);
-    msgs.push(body.subarray(i + 5, i + 5 + n));
+    const flag = body[i], n = new DataView(body.buffer, body.byteOffset + i + 1, 4).getUint32(0);
+    const chunk = body.subarray(i + 5, i + 5 + n);
+    if (flag & 0x80) {
+      for (const line of td.decode(chunk).split("\r\n")) {
+        const k = line.indexOf(":");
+        if (k < 0) continue;
+        const name = line.slice(0, k).trim().toLowerCase(), val = line.slice(k + 1).trim();
+        if (name === "grpc-status") status = val;
+        if (name === "grpc-message") message = val;
+      }
+    } else msgs.push(chunk);
     i += 5 + n;
+  }
+  if (status && status !== "0") {
+    const error = decodeURIComponent(message || "") || `grpc ${status}`;
+    return { ok: false, status: AS_HTTP[Number(status)] || 502, error, headers: res.headers };
   }
   if (!msgs.length) return { ok: false, status: 502, error: "empty gRPC response", headers: res.headers };
   return { ok: true, status: 200, msgs, headers: res.headers };
