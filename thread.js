@@ -169,14 +169,14 @@
       lbl.className = 'conv-label';
       lbl.innerHTML = '<svg class="conv-icon" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>' + esc(c.title) + '</span>';
       lbl.title = c.title;
-      lbl.onclick = () => { if (chatBusy()) return; switchTo(c.id); if (typeof closeMobileSidebar === 'function') closeMobileSidebar(); };
+      lbl.onclick = () => { switchTo(c.id); if (typeof closeMobileSidebar === 'function') closeMobileSidebar(); };
       const del = document.createElement('button');
       del.className = 'conv-del';
       del.type = 'button';
       del.title = 'Delete';
       del.setAttribute('aria-label', 'Delete chat');
       del.innerHTML = '<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
-      del.onclick = (e) => { e.stopPropagation(); if (!chatBusy()) removeChat(c.id); };
+      del.onclick = (e) => { e.stopPropagation(); if (!(window.CloakTurns && CloakTurns.running(c.id))) removeChat(c.id); };
       d.appendChild(lbl);
       d.appendChild(del);
       list.appendChild(d);
@@ -254,8 +254,12 @@
   }
 
   /* ── switching chats ── */
+  // A reply still running here keeps going in the background (search-patch.js
+  // CloakTurns); it saves into its own chat and reappears if you come back.
+  const shown = (id) => document.dispatchEvent(new CustomEvent('cloak:chat-shown', { detail: { id } }));
   async function switchTo(id) {
     if (id === activeId) return;
+    if (window.CloakTurns) CloakTurns.background();
     stopMessages();
     activeId = id;
     chatId = id;
@@ -279,6 +283,7 @@
       if (boundary > 0) olderHidden = true;
       hist = rows.map(toEntry);
       renderAll();
+      shown(id);
       subscribeMessages(id);
     } catch (e) {
       log('err', 'switch failed: ' + (e.message || e));
@@ -288,7 +293,7 @@
   }
 
   async function newChat() {
-    if (chatBusy()) return;
+    if (window.CloakTurns) CloakTurns.background();
     if (window.CloakMemory) CloakMemory.flush();
     if (!persisted()) { activeId = 'guest'; chatId = 'guest'; hist = []; if (window.CloakContext) CloakContext.reset(); renderAll(); return; }
     const c = await createChat('New chat');
@@ -403,8 +408,17 @@
       .then(({ error }) => { if (error) log('err', 'title save failed: ' + error.message); });
   }
 
-  // Adds a message to the active chat (and the DB when signed in). `el` is its bubble.
-  function push(role, message, el) {
+  // Adds a message to a chat (the open one unless `forChat` says otherwise) and
+  // the DB when signed in. `el` is its bubble. A reply that finished after you
+  // left its chat is saved there without touching the chat you're in now.
+  function push(role, message, el, forChat) {
+    if (forChat != null && persisted() && String(forChat) !== String(activeId)) {
+      const c0 = cid();
+      owner.sb.from('thread_messages')
+        .insert({ user_id: owner.uid, chat_id: forChat, role: role === 'CHATBOT' ? 'assistant' : 'user', content: String(message || '').slice(0, 60000), source: 'web', client_id: c0 })
+        .then(({ error }) => { if (error) log('err', 'background save failed: ' + error.message); });
+      return { id: null, role, message, at: Date.now(), source: 'web' };
+    }
     const entry = { id: null, role, message, at: Date.now(), source: 'web' };
     const prev = hist[hist.length - 1];
     if (el && prev && prev.at) {
@@ -417,10 +431,10 @@
     if (isFirst && persisted()) titleFromFirst(message);
     if (!persisted()) { entry.id = ++localId; if (el) el.dataset.mid = entry.id; return entry; }
     const c = cid();
-    const forChat = activeId;
+    const intoChat = activeId;
     pendingCids.set(c, entry);
     entry.saved = owner.sb.from('thread_messages')
-      .insert({ user_id: owner.uid, chat_id: forChat, role: role === 'CHATBOT' ? 'assistant' : 'user', content: String(message || '').slice(0, 60000), source: 'web', client_id: c })
+      .insert({ user_id: owner.uid, chat_id: intoChat, role: role === 'CHATBOT' ? 'assistant' : 'user', content: String(message || '').slice(0, 60000), source: 'web', client_id: c })
       .select('id,created_at').single()
       .then(({ data, error }) => {
         pendingCids.delete(c);

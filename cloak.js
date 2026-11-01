@@ -961,7 +961,7 @@ function restOrbBelow(botMsgEl, state){
   }
   if(state) setOrbState(end.querySelector('.cloak-orb'),state);
   // One orb per chat — only the newest reply keeps it.
-  document.querySelectorAll('.bot-end-orb').forEach(e=>{if(e!==end)e.remove();});
+  if(botMsgEl.isConnected)document.querySelectorAll('#messages .bot-end-orb').forEach(e=>{if(e!==end)e.remove();});  // a reply finishing in the background leaves this chat's orb alone
 }
 
 // Fly the resting orb from the previous reply into the new bubble's header.
