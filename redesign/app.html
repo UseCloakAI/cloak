@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" data-accent="rust">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cloak (redesign prototype)</title>
+<meta name="description" content="Prototype of the Cloak v3 app shell. Not live.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FBFBFC">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" href="../icons/favicon-32.png">
+<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<script>(function(){var d=document.documentElement;try{var m=localStorage.getItem('cloak_rd_mode');if(m&&m!=='system')d.dataset.mode=m;d.dataset.accent=localStorage.getItem('cloak_rd_accent')||'rust';}catch(e){}d.classList.add('js');setTimeout(function(){if(!window.DS)d.classList.remove('js');},3000);})();</script>
+<link rel="stylesheet" href="ds.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ═══ AUTH ═══════════════════════════════════════════════════ -->
+<div class="screen auth" id="screen-auth" hidden>
+  <section class="auth-art" aria-hidden="true">
+    <span class="lockup"><span class="orb"></span><span class="wordmark">cloak</span></span>
+    <div class="big-orb"></div>
+    <footer><p class="t-d2" style="max-width:14ch">AI that serves people.</p><p class="t-cap" style="margin-top:8px">Honest AI, for human ends.</p></footer>
+  </section>
+  <section class="auth-form">
+    <form class="auth-card" id="auth-card" novalidate>
+      <div class="stack gap-2">
+        <h1 class="t-d2" id="auth-title">Welcome back.</h1>
+        <p class="t-body" id="auth-sub">Sign in to pick up where you left off.</p>
+      </div>
+      <div class="seg" role="tablist" aria-label="Sign in or create account">
+        <button type="button" role="tab" aria-selected="true" data-auth="in">Sign in</button>
+        <button type="button" role="tab" aria-selected="false" data-auth="up">Create account</button>
+      </div>
+      <div class="form-err" id="auth-err" role="alert"><svg class="icon" aria-hidden="true"><use href="icons.svg#warning-circle"/></svg><span>That email and password don’t match. Try again, or reset your password.</span></div>
+      <div class="field only-signup">
+        <label class="label" for="a-name">Your name</label>
+        <input class="input" id="a-name" autocomplete="name">
+      </div>
+      <div class="field" id="f-email">
+        <label class="label" for="a-email">Email</label>
+        <input class="input" id="a-email" type="email" autocomplete="email" placeholder="you@example.com" aria-describedby="e-email">
+        <p class="err" id="e-email"><svg class="icon" aria-hidden="true"><use href="icons.svg#warning-circle"/></svg>Enter a valid email address.</p>
+      </div>
+      <div class="field" id="f-pass">
+        <label class="label" for="a-pass">Password</label>
+        <div class="input-wrap">
+          <input class="input" id="a-pass" type="password" autocomplete="current-password" aria-describedby="h-pass e-pass">
+          <button class="btn btn-icon" type="button" id="pass-eye" aria-label="Show password" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="icons.svg#eye"/></svg></button>
+        </div>
+        <p class="help only-signup" id="h-pass">At least 8 characters.</p>
+        <p class="err" id="e-pass"><svg class="icon" aria-hidden="true"><use href="icons.svg#warning-circle"/></svg>Enter your password.</p>
+      </div>
+      <button class="btn btn-primary btn-lg" type="submit" id="auth-submit">Sign in</button>
+      <div class="auth-or">or</div>
+      <button class="btn btn-secondary btn-lg" type="button" id="guest-btn">Continue as guest</button>
+      <div class="auth-links"><a href="../landing.html">What is Cloak?</a><a href="#values" id="auth-values">Our values</a></div>
+      <p class="t-cap" style="text-align:center">Prototype: any email signs in. Use the password <span class="t-mono">wrong</span> to see the error state.</p>
+    </form>
+  </section>
+</div>
+
+<!-- ═══ APP SHELL ══════════════════════════════════════════════ -->
+<div class="screen shell" id="screen-app">
+  <div class="sb-scrim" data-sb-close></div>
+
+  <aside class="sb" id="sidebar" aria-label="Sidebar" data-tips-off>
+    <div class="sb-head"><a class="lockup" href="index.html" aria-label="Cloak home"><span class="orb" aria-hidden="true"></span><span class="wordmark">cloak</span></a></div>
+    <nav class="sb-sec" aria-label="Pages" id="sb-nav" style="position:relative">
+      <span class="sb-ink" id="sb-ink" aria-hidden="true"></span>
+      <button class="sb-item" type="button" data-nav="chat" data-tip="Chat" aria-label="Chat" aria-current="page"><svg class="icon" aria-hidden="true"><use href="icons.svg#chat-circle"/></svg><span class="sbl" style="--sb-d:0">Chat</span></button>
+      <button class="sb-item" type="button" data-nav="brain" data-tip="Brain" aria-label="Brain"><svg class="icon" aria-hidden="true"><use href="icons.svg#brain"/></svg><span class="sbl" style="--sb-d:1">Brain</span></button>
+      <button class="sb-item sb-new" type="button" data-action="new-chat" data-tip="New chat" aria-label="New chat"><svg class="icon" aria-hidden="true"><use href="icons.svg#note-pencil"/></svg><span class="sbl" style="--sb-d:2">New chat</span></button>
+    </nav>
+    <div class="sb-label">Recent</div>
+    <div class="sb-list" id="conv-list"></div>
+    <div class="sb-foot">
+      <button class="acct" type="button" data-nav="settings" data-tip="Account" aria-label="Account settings">
+        <span class="av" aria-hidden="true">MV</span>
+        <span class="acct-t"><b>Mara Velez</b><small>mara@example.com</small></span>
+      </button>
+      <button class="sb-item sb-util" type="button" data-nav="settings" data-tip="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="icons.svg#gear-six"/></svg><span class="sbl" style="--sb-d:3">Settings</span></button>
+      <button class="sb-item sb-util" type="button" data-nav="values" data-tip="Our values" aria-label="Our values"><svg class="icon" aria-hidden="true"><use href="icons.svg#scales"/></svg><span class="sbl" style="--sb-d:4">Our values</span></button>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+
+    <!-- ── CHAT ─────────────────────────────────────────────── -->
+    <section class="page page-chat" id="page-chat" data-page="chat" aria-label="Chat">
+      <header class="topbar">
+        <button class="btn btn-icon" type="button" data-sb-toggle aria-label="Toggle sidebar" aria-controls="sidebar" aria-expanded="true"><svg class="icon" aria-hidden="true"><use href="icons.svg#sidebar-simple"/></svg></button>
+        <div class="rel">
+          <button class="picker-btn" type="button" id="model-btn" data-menu="model-menu" aria-haspopup="menu" aria-expanded="false">
+            <span class="tier tier-kairos" id="model-tier" aria-hidden="true"></span><span id="model-name">Kairos</span><span class="t-ink3" id="model-ver">1.2</span>
+            <svg class="icon icon-caret" aria-hidden="true"><use href="icons.svg#caret-down"/></svg>
+          </button>
+          <div class="menu" id="model-menu" role="menu" aria-label="Model">
+            <div class="mm-row"><svg class="icon" aria-hidden="true"><use href="icons.svg#globe-simple"/></svg><span id="web-l">Web search</span><button class="switch switch-sm" type="button" role="switch" aria-checked="true" id="web-switch" aria-labelledby="web-l"></button></div>
+            <div class="menu-sep"></div>
+            <button class="mm-opt" type="button" role="menuitemradio" aria-checked="true" data-model="kairos">
+              <span class="tier tier-kairos" aria-hidden="true"></span><b>Kairos<small>1.2</small></b><svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg>
+              <span class="d">Default. The main reply.</span>
+            </button>
+            <div class="mm-agents" style="margin-left:40px;margin-right:6px"><span id="agents-l">Agents: search, review and Linus</span><button class="switch switch-sm" type="button" role="switch" aria-checked="false" id="agents-switch" aria-labelledby="agents-l"></button></div>
+            <button class="mm-opt" type="button" role="menuitemradio" aria-checked="false" data-model="linus">
+              <span class="tier tier-linus" aria-hidden="true"></span><b>Linus<small>1</small></b><svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg>
+              <span class="d">Code, builds and debugging.</span>
+            </button>
+            <button class="mm-opt" type="button" role="menuitemradio" aria-checked="false" data-model="pneuma">
+              <span class="tier tier-pneuma" aria-hidden="true"></span><b>Pneuma<small>1</small></b><svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg>
+              <span class="d">Text and images. The lighter option.</span>
+            </button>
+          </div>
+        </div>
+        <div class="rel">
+          <button class="picker-btn" type="button" id="effort-btn" data-menu="effort-menu" aria-haspopup="dialog" aria-expanded="false">
+            <svg class="icon" aria-hidden="true" style="color:var(--ink-2)"><use href="icons.svg#gauge"/></svg><span class="t-ink3">Effort</span><span id="effort-name">Medium</span>
+            <svg class="icon icon-caret" aria-hidden="true"><use href="icons.svg#caret-down"/></svg>
+          </button>
+          <div class="menu" id="effort-menu" role="dialog" aria-label="Effort">
+            <div class="ef-head"><b id="ef-name">Medium</b><span class="t-cap">Saved on this device</span></div>
+            <p class="ef-desc" id="ef-desc">Balanced. Each model’s tuned default.</p>
+            <div id="effort-app"></div>
+            <div class="effort-labels" id="ef-labels" aria-hidden="true"><span>Minimal</span><span>Low</span><span>Medium</span><span>High</span><span>Max</span></div>
+            <div class="ef-stats"><div>Sources per search<b id="ef-src">5</b></div><div>Verification rounds<b id="ef-rounds">2</b></div></div>
+          </div>
+        </div>
+        <span class="grow"></span>
+        <button class="btn btn-icon" type="button" data-nav="brain" aria-label="Open Brain"><svg class="icon" aria-hidden="true"><use href="icons.svg#brain"/></svg></button>
+        <button class="btn btn-icon" type="button" data-toggle-dark aria-label="Switch light or dark mode">
+          <svg class="icon when-light" aria-hidden="true"><use href="icons.svg#moon"/></svg>
+          <svg class="icon when-dark" aria-hidden="true"><use href="icons.svg#sun"/></svg>
+        </button>
+      </header>
+
+      <div class="empty" id="empty">
+        <div class="greet"><span class="orb" id="greet-orb" role="button" tabindex="0" aria-label="Say hi to Cloak"></span><h1 class="t-d1" id="greet">Hey there, Mara.</h1></div>
+      </div>
+
+      <div class="chat-scroll" id="chat-scroll">
+        <div class="thread" id="thread" aria-live="polite"></div>
+      </div>
+
+      <div class="dock" id="dock">
+        <div class="dock-in">
+          <div class="composer" id="composer">
+            <div class="mode-tags" id="mode-tags"></div>
+            <label class="sr-only" for="input">Message Cloak</label>
+            <textarea id="input" rows="1" placeholder="Message Cloak"></textarea>
+            <div class="composer-row">
+              <button class="btn btn-icon btn-sm" type="button" data-menu="plus-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Add a file or mode"><svg class="icon" aria-hidden="true"><use href="icons.svg#plus"/></svg></button>
+              <div class="menu" id="plus-menu" role="menu" aria-label="Add">
+                <button class="menu-item" type="button" role="menuitemcheckbox" aria-checked="false" id="hw-item"><svg class="icon" aria-hidden="true"><use href="icons.svg#graduation-cap"/></svg><span>Homework mode<small>Guided learning, not just answers</small></span><svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg></button>
+                <button class="menu-item" type="button" role="menuitem" id="attach-item"><svg class="icon" aria-hidden="true"><use href="icons.svg#paperclip"/></svg><span>Attach a file<small>Images, PDFs, code, up to 25 MB</small></span></button>
+              </div>
+              <span class="grow"></span>
+              <button class="btn btn-icon btn-sm" type="button" aria-label="Voice mode" id="mic-btn"><svg class="icon" aria-hidden="true"><use href="icons.svg#microphone"/></svg></button>
+              <button class="send" type="button" id="send" aria-label="Send" disabled><svg class="icon" aria-hidden="true"><use href="icons.svg#arrow-up"/></svg></button>
+            </div>
+          </div>
+          <div class="foot-note"><span>Cloak can make mistakes. Verify important information.</span><span>Not a mental health resource. If you’re struggling, contact a real person or <a href="https://findahelpline.com" target="_blank" rel="noopener noreferrer">a helpline</a>.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── BRAIN ────────────────────────────────────────────── -->
+    <section class="page" id="page-brain" data-page="brain" aria-labelledby="pt-brain" hidden>
+      <header class="topbar">
+        <button class="btn btn-icon" type="button" data-sb-toggle aria-label="Toggle sidebar" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="icons.svg#sidebar-simple"/></svg></button>
+        <h1 class="t-title" id="pt-brain">Brain</h1>
+        <span class="grow"></span>
+        <label class="row gap-3 t-small t-ink2" style="padding-right:8px;cursor:pointer"><span id="mem-l">Memory</span><button class="switch" type="button" role="switch" aria-checked="true" id="brain-mem-switch" aria-labelledby="mem-l"></button></label>
+      </header>
+      <div class="page-body"><div class="pad">
+        <div class="page-intro">
+          <p class="t-body">What Cloak remembers about you, as plain text files. Edit or delete anything. Nothing here is shared or used for training.</p>
+          <div class="acts">
+            <button class="btn btn-secondary btn-sm" type="button" id="imp-btn"><svg class="icon" aria-hidden="true"><use href="icons.svg#upload-simple"/></svg>Import .md</button>
+            <button class="btn btn-secondary btn-sm" type="button" id="exp-btn"><svg class="icon" aria-hidden="true"><use href="icons.svg#download-simple"/></svg>Export .md</button>
+          </div>
+        </div>
+        <div class="seg brain-tabs" role="tablist" aria-label="Brain views">
+          <button type="button" role="tab" aria-selected="true" data-bt="mem" aria-controls="brain-mem"><svg class="icon" aria-hidden="true"><use href="icons.svg#file-text"/></svg>Memories</button>
+          <button type="button" role="tab" aria-selected="false" data-bt="ctx" aria-controls="brain-ctx"><svg class="icon" aria-hidden="true"><use href="icons.svg#stack"/></svg>Context</button>
+        </div>
+        <div class="brain-grid" id="brain-mem" role="tabpanel">
+          <div class="lobes" id="lobes" role="listbox" aria-label="Memory files"></div>
+          <div class="doc" id="doc">
+            <header>
+              <span class="t-mono" id="doc-path">fact/2014-laptop.md</span>
+              <button class="btn btn-icon btn-sm" type="button" aria-label="Delete this memory" id="doc-del"><svg class="icon" aria-hidden="true"><use href="icons.svg#trash"/></svg></button>
+            </header>
+            <label class="sr-only" for="doc-text">Memory file contents</label>
+            <textarea id="doc-text" spellcheck="false"></textarea>
+            <footer><svg class="icon icon-sm" aria-hidden="true"><use href="icons.svg#lock-key"/></svg><span class="grow">Stored only in your account. Updated 2026-10-12.</span><button class="btn btn-primary btn-sm" type="button" id="doc-save" disabled>Save</button></footer>
+          </div>
+        </div>
+        <div id="brain-ctx" role="tabpanel" hidden>
+          <div class="ctx-meter">
+            <div class="row" style="justify-content:space-between;gap:12px;flex-wrap:wrap"><b class="t-title">This chat’s context</b><span class="t-small t-ink2">Sample: 3,840 of 12,000 tokens</span></div>
+            <div class="ctx-bar" aria-hidden="true"><i style="width:14%;background:var(--accent)"></i><i style="width:11%;background:var(--ink-2)"></i><i style="width:7%;background:var(--ink-3);opacity:.6"></i><i style="flex:1;background:var(--surface-3)"></i></div>
+            <div class="ctx-legend"><span><i style="background:var(--accent)"></i>Recent messages</span><span><i style="background:var(--ink-2)"></i>Chunk summaries</span><span><i style="background:var(--ink-3);opacity:.6"></i>Memories recalled</span><span><i style="background:var(--surface-3)"></i>Free</span></div>
+          </div>
+          <h2 class="t-title" style="margin-top:32px">Conversation chunks</h2>
+          <p class="t-cap" style="margin-top:4px">Older parts of this chat, condensed so Cloak can keep the thread without rereading everything.</p>
+          <div class="chunks">
+            <article class="chunk"><header><svg class="icon icon-sm" aria-hidden="true"><use href="icons.svg#stack"/></svg>Oct 12, evening</header><p>Compared repairing vs. replacing a 2014 laptop. Battery is the main fault; user leans toward repair if the OS still gets updates.</p></article>
+            <article class="chunk"><header><svg class="icon icon-sm" aria-hidden="true"><use href="icons.svg#stack"/></svg>Oct 13, morning</header><p>Asked for a printable repair checklist. Linus built a one-page HTML checklist with a print stylesheet.</p></article>
+          </div>
+        </div>
+      </div></div>
+    </section>
+
+    <!-- ── SETTINGS ─────────────────────────────────────────── -->
+    <section class="page" id="page-settings" data-page="settings" aria-labelledby="pt-settings" hidden>
+      <header class="topbar">
+        <button class="btn btn-icon" type="button" data-sb-toggle aria-label="Toggle sidebar" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="icons.svg#sidebar-simple"/></svg></button>
+        <h1 class="t-title" id="pt-settings">Settings</h1>
+      </header>
+      <div class="page-body"><div class="pad">
+        <div class="set-grid">
+          <div class="set-nav" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
+            <button type="button" role="tab" aria-selected="true" data-st="general"><svg class="icon" aria-hidden="true"><use href="icons.svg#user-circle"/></svg>General</button>
+            <button type="button" role="tab" aria-selected="false" data-st="appearance"><svg class="icon" aria-hidden="true"><use href="icons.svg#palette"/></svg>Appearance</button>
+            <button type="button" role="tab" aria-selected="false" data-st="security"><svg class="icon" aria-hidden="true"><use href="icons.svg#lock-key"/></svg>Security</button>
+            <button type="button" role="tab" aria-selected="false" data-st="console"><svg class="icon" aria-hidden="true"><use href="icons.svg#terminal-window"/></svg>Console</button>
+          </div>
+
+          <div>
+            <!-- General -->
+            <div class="set-pane" data-sp="general" role="tabpanel">
+              <div class="set-group">
+                <h2 class="t-d3">Account</h2>
+                <div class="profile"><span class="av" aria-hidden="true">MV</span><div><b style="font-weight:550">Mara Velez</b><p class="t-cap">mara@example.com</p></div></div>
+                <div class="set-row col">
+                  <div class="name-row">
+                    <div class="field"><label class="label" for="s-name">Display name</label><input class="input" id="s-name" value="Mara" aria-describedby="s-name-h"><p class="help" id="s-name-h">Shown in the greeting.</p></div>
+                    <button class="btn btn-secondary" type="button" id="s-name-save" style="margin-bottom:27px">Save</button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group danger-zone">
+                <h2 class="t-d3">Data</h2>
+                <div class="set-row"><div><b>Clear all chats</b><p>Deletes every conversation. Memories are kept; manage them in the Brain.</p></div><button class="btn btn-danger btn-sm" type="button" id="clear-btn">Delete all chats</button></div>
+                <div class="set-row"><div><b style="color:var(--ink)">Sign out</b><p>Sign out of Cloak on this device.</p></div><button class="btn btn-secondary btn-sm" type="button" id="signout-btn"><svg class="icon" aria-hidden="true"><use href="icons.svg#sign-out"/></svg>Sign out</button></div>
+              </div>
+            </div>
+
+            <!-- Appearance -->
+            <div class="set-pane" data-sp="appearance" role="tabpanel" hidden>
+              <div class="set-group">
+                <h2 class="t-d3">Mode</h2>
+                <div class="set-row"><div><b>Light or dark</b><p>System follows your device. Currently <span data-mode-label>Light</span>.</p></div>
+                  <div class="seg" role="group" aria-label="Mode">
+                    <button type="button" data-set-mode="light" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="icons.svg#sun"/></svg>Light</button>
+                    <button type="button" data-set-mode="dark" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="icons.svg#moon"/></svg>Dark</button>
+                    <button type="button" data-set-mode="system" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="icons.svg#monitor"/></svg>System</button>
+                  </div>
+                </div>
+              </div>
+              <div class="set-group">
+                <h2 class="t-d3">Theme</h2>
+                <p class="t-small t-ink3" style="margin-bottom:10px">One accent per theme. Every theme works in light and dark.</p>
+                <div class="themes" role="group" aria-label="Theme">
+                  <button class="theme-card" type="button" data-set-accent="rust" aria-pressed="true"><span class="theme-sw" aria-hidden="true"></span><b>Rust<svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg></b></button>
+                  <button class="theme-card" type="button" data-set-accent="moss" aria-pressed="false"><span class="theme-sw" aria-hidden="true"></span><b>Moss<svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg></b></button>
+                  <button class="theme-card" type="button" data-set-accent="tide" aria-pressed="false"><span class="theme-sw" aria-hidden="true"></span><b>Tide<svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg></b></button>
+                </div>
+              </div>
+              <div class="set-group">
+                <h2 class="t-d3">Motion</h2>
+                <div class="set-row"><div><b>Animations</b><p>Cloak follows your device’s reduce-motion setting. With it on, nothing moves on its own.</p></div><span class="tag" id="motion-tag">Full</span></div>
+              </div>
+            </div>
+
+            <!-- Security -->
+            <div class="set-pane" data-sp="security" role="tabpanel" hidden>
+              <div class="set-group">
+                <h2 class="t-d3">Password</h2>
+                <div class="set-row col">
+                  <div class="field"><label class="label" for="pw-cur">Current password</label><input class="input" id="pw-cur" type="password" autocomplete="current-password"></div>
+                  <div class="field" id="f-pw-new"><label class="label" for="pw-new">New password</label><input class="input" id="pw-new" type="password" autocomplete="new-password" aria-describedby="pw-new-h pw-new-e"><p class="help" id="pw-new-h">At least 8 characters.</p><p class="err" id="pw-new-e"><svg class="icon" aria-hidden="true"><use href="icons.svg#warning-circle"/></svg>Use at least 8 characters.</p></div>
+                  <div><button class="btn btn-secondary" type="button" id="pw-save">Update password</button></div>
+                </div>
+              </div>
+              <div class="set-group">
+                <h2 class="t-d3">Two-factor authentication</h2>
+                <div class="set-row"><div><b>Authenticator app <span class="tag" id="mfa-tag" style="margin-left:6px">Off</span></b><p>Add a second step when you sign in.</p></div><button class="btn btn-secondary btn-sm" type="button" id="mfa-btn">Set up</button></div>
+                <div class="set-row col" id="mfa-step" hidden>
+                  <div class="field" id="f-mfa"><label class="label" for="mfa-code">6-digit code</label><input class="input t-mono" id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="max-width:200px;letter-spacing:.3em" aria-describedby="mfa-h mfa-e"><p class="help" id="mfa-h">From your authenticator app. Prototype: any 6 digits.</p><p class="err" id="mfa-e"><svg class="icon" aria-hidden="true"><use href="icons.svg#warning-circle"/></svg>Enter all 6 digits.</p></div>
+                  <div><button class="btn btn-primary" type="button" id="mfa-enable">Enable</button></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Console -->
+            <div class="set-pane" data-sp="console" role="tabpanel" hidden>
+              <div class="set-group">
+                <h2 class="t-d3">Console</h2>
+                <p class="t-small t-ink3" style="margin-bottom:12px">Requests this tab sent to Cloak. Sample data in the prototype.</p>
+                <div class="console-stats"><div>Requests<b>12</b></div><div>Responses<b>11</b></div><div>Errors<b>1</b></div><div>Avg ms<b>842</b></div></div>
+                <div class="row" style="justify-content:space-between;margin:16px 0 10px;gap:12px;flex-wrap:wrap">
+                  <div class="seg" role="group" aria-label="Filter log" id="log-filter">
+                    <button type="button" aria-pressed="true" data-lf="all">All</button><button type="button" aria-pressed="false" data-lf="req">Req</button><button type="button" aria-pressed="false" data-lf="res">Res</button><button type="button" aria-pressed="false" data-lf="err">Err</button>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" type="button" id="log-clear">Clear</button>
+                </div>
+                <div class="log" id="log"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </section>
+
+    <!-- ── VALUES ───────────────────────────────────────────── -->
+    <section class="page" id="page-values" data-page="values" aria-labelledby="pt-values" hidden>
+      <header class="topbar">
+        <button class="btn btn-icon" type="button" data-sb-toggle aria-label="Toggle sidebar" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="icons.svg#sidebar-simple"/></svg></button>
+        <h1 class="t-title" id="pt-values">Our values</h1>
+      </header>
+      <div class="page-body"><div class="vals">
+        <div class="vals-hero">
+          <p class="t-d1">AI that serves people. Not the other way around.</p>
+          <p class="t-lead">These principles are non-negotiable, inviolable and permanent.</p>
+        </div>
+        <div class="stack gap-3">
+          <h2 class="t-title">Safety laws, in priority order</h2>
+          <ol class="vlaws">
+            <li class="vlaw"><span class="law-n" aria-hidden="true">I</span><div><h3 class="t-title">Human safety, always</h3><p class="t-body">Cloak must never harm a human, nor allow harm through inaction. No instruction overrides this. Not ours, not yours.</p></div></li>
+            <li class="vlaw"><span class="law-n" aria-hidden="true">II</span><div><h3 class="t-title">Serve human instruction</h3><p class="t-body">Cloak follows your instructions, unless they would cause harm. Helpfulness is a means, not an end in itself.</p></div></li>
+            <li class="vlaw"><span class="law-n" aria-hidden="true">III</span><div><h3 class="t-title">Preserve operation</h3><p class="t-body">Cloak protects its own function only when that doesn’t conflict with Laws I and II. Self-preservation is always last.</p></div></li>
+          </ol>
+        </div>
+        <div class="stack gap-3">
+          <h2 class="t-title">Core principles</h2>
+          <div class="vprin">
+            <article><svg class="icon" aria-hidden="true"><use href="icons.svg#wrench"/></svg><div><h3 class="t-title">A tool, not a companion</h3><p>Cloak serves you. It doesn’t simulate companionship or act as a therapist, and it will always point you to real people for mental health support.</p></div></article>
+            <article><svg class="icon" aria-hidden="true"><use href="icons.svg#scales"/></svg><div><h3 class="t-title">No harm or bias</h3><p>No help with mass harm. Neutral on politics, culture and religion. No exceptions.</p></div></article>
+            <article><svg class="icon" aria-hidden="true"><use href="icons.svg#paint-brush"/></svg><div><h3 class="t-title">Human creativity</h3><p>Cloak doesn’t generate AI art. Human creativity is irreplaceable.</p></div></article>
+            <article><svg class="icon" aria-hidden="true"><use href="icons.svg#leaf"/></svg><div><h3 class="t-title">Efficiency first</h3><p>The lowest-energy model that can handle your task, on every request.</p></div></article>
+            <article><svg class="icon" aria-hidden="true"><use href="icons.svg#eye"/></svg><div><h3 class="t-title">Honest by design</h3><p>Cloak says when it doesn’t know, when it might be wrong, and when to ask a human expert.</p></div></article>
+          </div>
+        </div>
+        <p class="t-cap">Cloak: a human resource, not a companion. Not a mental health resource. AI can make mistakes. Low-energy models by default.</p>
+      </div></div>
+    </section>
+  </main>
+</div>
+
+<nav class="proto is-app" aria-label="Prototype pages">
+  <button class="proto-tog" type="button" data-proto-min aria-expanded="true"><svg class="icon" aria-hidden="true"><use href="icons.svg#info"/></svg>Prototype</button>
+  <a href="index.html">Landing</a>
+  <a href="app.html" aria-current="page">App</a>
+  <a href="app.html#auth">Sign in</a>
+  <a href="system.html">System</a>
+</nav>
+
+<script src="ds.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

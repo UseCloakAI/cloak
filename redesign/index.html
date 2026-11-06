@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en" data-accent="rust">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cloak · Honest AI, for human ends (redesign prototype)</title>
+<meta name="description" content="Prototype of the Cloak v3 design language. Not live.">
+<!-- Prototype: keep out of search until it ships. -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F3F4F5">
+<link rel="icon" href="../icons/favicon-32.png">
+<link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Theme before paint (no flash). Prototype keys only. -->
+<script>(function(){var d=document.documentElement;try{var m=localStorage.getItem('cloak_rd_mode');if(m&&m!=='system')d.dataset.mode=m;d.dataset.accent=localStorage.getItem('cloak_rd_accent')||'rust';}catch(e){}d.classList.add('js');setTimeout(function(){if(!window.DS)d.classList.remove('js');},3000);})();</script>
+<link rel="stylesheet" href="ds.css">
+<link rel="stylesheet" href="landing.css">
+</head>
+<body>
+<span id="nav-sentinel" aria-hidden="true"></span>
+
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="lockup" href="#top" aria-label="Cloak, back to top"><span class="orb" aria-hidden="true"></span><span class="wordmark">cloak</span></a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#models">Models</a>
+      <a href="#memory">Memory</a>
+      <a href="#values">Values</a>
+    </nav>
+    <div class="nav-end">
+      <button class="btn btn-icon" type="button" data-toggle-dark aria-label="Switch light or dark mode">
+        <svg class="icon when-light" aria-hidden="true"><use href="icons.svg#moon"/></svg>
+        <svg class="icon when-dark" aria-hidden="true"><use href="icons.svg#sun"/></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" href="app.html">Open Cloak</a>
+      <button class="btn btn-icon nav-menu-btn" type="button" data-menu="nav-menu" aria-haspopup="true" aria-expanded="false" aria-label="Menu">
+        <svg class="icon" aria-hidden="true"><use href="icons.svg#list"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="menu" id="nav-menu" role="menu" aria-label="Menu">
+    <a class="menu-item" role="menuitem" href="#models">Models</a>
+    <a class="menu-item" role="menuitem" href="#memory">Memory</a>
+    <a class="menu-item" role="menuitem" href="#values">Values</a>
+    <div class="menu-sep"></div>
+    <a class="menu-item" role="menuitem" href="app.html"><svg class="icon" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg>Open Cloak</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- ── HERO ─────────────────────────────────────────────── -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow hero-in" style="--i:0"><span class="orb orb-xs" aria-hidden="true"></span>Honest AI, for human ends.</p>
+        <h1 class="t-hero hero-in" id="hero-title" style="--i:1">AI that serves <span class="t-acc">people.</span></h1>
+        <p class="t-lead hero-in" style="--i:2">Not the other way around. Cloak is a tool you stay in control of, running on low-energy models by default.</p>
+        <div class="hero-cta hero-in" style="--i:3">
+          <a class="btn btn-primary btn-lg" href="app.html">Open Cloak <svg class="icon icon-go" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></a>
+          <a class="btn btn-secondary btn-lg" href="#values">Read our values</a>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="hero-orb" aria-hidden="true"></div>
+        <!-- A real, working miniature of the chat components (same classes as app.html), not a screenshot. -->
+        <figure class="demo panel" aria-label="Example conversation with Cloak">
+          <div class="demo-bar">
+            <span class="chip"><span class="tier tier-kairos" aria-hidden="true"></span>Kairos 1.2</span>
+            <span class="chip"><svg class="icon" aria-hidden="true"><use href="icons.svg#gauge"/></svg>Medium</span>
+            <span class="grow"></span>
+            <span class="tag tag-acc"><svg class="icon icon-sm" aria-hidden="true"><use href="icons.svg#globe-simple"/></svg>Web</span>
+          </div>
+          <div class="demo-body">
+            <div class="msg msg-user"><div class="bubble">Is it worth fixing my 2014 laptop, or should I buy a new one?</div></div>
+            <div class="msg msg-cloak">
+              <div class="msg-head"><span class="orb is-working" id="demo-orb" aria-hidden="true"></span><span id="demo-status">Reading sources</span></div>
+              <div class="prose" id="demo-reply" aria-live="polite"></div>
+            </div>
+          </div>
+          <a class="composer" href="app.html" aria-label="Open Cloak to start a chat" style="text-decoration:none">
+            <span class="composer-row">
+              <span class="fake-input">Message Cloak</span>
+              <span class="send" aria-hidden="true"><svg class="icon"><use href="icons.svg#arrow-up"/></svg></span>
+            </span>
+          </a>
+          <figcaption class="t-cap">Cloak can make mistakes. Verify important information.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MODELS ───────────────────────────────────────────── -->
+  <section class="sec" id="models" aria-labelledby="models-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2 class="t-d1" id="models-title" data-reveal>Three models. One Cloak.</h2>
+        <p class="t-lead" data-reveal style="--i:1">Every model follows the same rules and speaks in the same voice. They differ in speed and depth, never in values.</p>
+      </div>
+      <div class="models-grid">
+        <div class="model-list" role="tablist" aria-label="Models" aria-orientation="vertical" data-reveal style="--i:2">
+          <button class="model-tab" role="tab" type="button" id="tab-kairos" aria-selected="true" aria-controls="model-panel" data-model="kairos">
+            <span class="tier tier-kairos" aria-hidden="true"></span><span class="ml-name">Kairos<span class="ml-ver">1.2</span></span>
+            <span class="ml-mean">καιρός, the right moment</span>
+            <svg class="icon icon-go" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg>
+          </button>
+          <button class="model-tab" role="tab" type="button" id="tab-linus" aria-selected="false" aria-controls="model-panel" data-model="linus" tabindex="-1">
+            <span class="tier tier-linus" aria-hidden="true"></span><span class="ml-name">Linus<span class="ml-ver">1</span></span>
+            <span class="ml-mean">Code and builds</span>
+            <svg class="icon icon-go" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg>
+          </button>
+          <button class="model-tab" role="tab" type="button" id="tab-pneuma" aria-selected="false" aria-controls="model-panel" data-model="pneuma" tabindex="-1">
+            <span class="tier tier-pneuma" aria-hidden="true"></span><span class="ml-name">Pneuma<span class="ml-ver">1</span></span>
+            <span class="ml-mean">πνεῦμα, breath</span>
+            <svg class="icon icon-go" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg>
+          </button>
+        </div>
+        <div class="model-panel card" role="tabpanel" id="model-panel" aria-labelledby="tab-kairos" tabindex="0" data-reveal style="--i:3">
+          <span class="mp-mark" data-m="kairos" aria-hidden="true"></span>
+          <div class="mp-anim" id="mp-content"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── EFFORT ───────────────────────────────────────────── -->
+  <section class="sec effort-sec" id="effort" aria-labelledby="effort-title">
+    <div class="wrap effort-wrap">
+      <h2 class="t-d1" id="effort-title" data-reveal>You decide how hard it works.</h2>
+      <p class="t-lead" data-reveal style="--i:1">Effort sets how long Cloak thinks, how many sources it reads and how often it checks its own work. Less effort means less compute.</p>
+      <div class="effort-demo card" data-reveal style="--i:2">
+        <div class="er-top">
+          <span class="er-name roll" id="er-name">Medium</span>
+          <span class="er-desc" id="er-desc">Balanced. Each model’s tuned default.</span>
+        </div>
+        <div id="effort-landing"></div>
+        <div class="effort-labels" id="effort-labels" aria-hidden="true"><span>Minimal</span><span>Low</span><span>Medium</span><span>High</span><span>Max</span></div>
+        <dl class="effort-stats">
+          <div><dt>Sources per search</dt><dd><span class="roll" id="er-src">5</span></dd></div>
+          <div><dt>Verification rounds</dt><dd><span class="roll" id="er-rounds">2</span></dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── MEMORY ───────────────────────────────────────────── -->
+  <section class="sec" id="memory" aria-labelledby="memory-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2 class="t-d1" id="memory-title" data-reveal>Memory you can read.</h2>
+        <p class="t-lead" data-reveal style="--i:1">Cloak saves what it learns as small text files. Read, edit, export or delete any of them in the Brain, or switch memory off.</p>
+      </div>
+      <div class="brain-demo panel" id="brain-demo" data-reveal style="--i:2">
+        <div class="bd-bar">
+          <span class="t-title"><svg class="icon icon-md" aria-hidden="true"><use href="icons.svg#brain"/></svg>Brain</span>
+          <span class="tag">5 files</span>
+          <label for="mem-switch">Memory <button class="switch" id="mem-switch" type="button" role="switch" aria-checked="true" aria-label="Memory"></button></label>
+        </div>
+        <div class="bd-body">
+          <div class="bd-files" role="tablist" aria-label="Memory files" id="bd-files"></div>
+          <div class="bd-view" role="tabpanel" id="bd-view" aria-live="polite">
+            <header>
+              <span class="t-mono grow" id="bd-path">fact/2014-laptop.md</span>
+              <button class="btn btn-icon btn-sm" type="button" aria-label="Edit file"><svg class="icon" aria-hidden="true"><use href="icons.svg#pencil-simple"/></svg></button>
+              <button class="btn btn-icon btn-sm" type="button" aria-label="Delete file"><svg class="icon" aria-hidden="true"><use href="icons.svg#trash"/></svg></button>
+            </header>
+            <pre class="md" id="bd-md"></pre>
+          </div>
+        </div>
+      </div>
+      <p class="t-cap memory-note" data-reveal><svg class="icon" aria-hidden="true"><use href="icons.svg#lock-key"/></svg>Never saved: passwords, card or ID numbers, exact addresses, or health details.</p>
+    </div>
+  </section>
+
+  <!-- ── SAFETY LAWS ──────────────────────────────────────── -->
+  <section class="sec" id="values" aria-labelledby="laws-title">
+    <div class="wrap laws-grid">
+      <div class="laws-head">
+        <p class="eyebrow" data-reveal>In priority order</p>
+        <h2 class="t-d1" id="laws-title" data-reveal style="--i:1">Three laws. No exceptions.</h2>
+        <p class="t-body" data-reveal style="--i:2">Cloak checks every request against these, top to bottom. A higher law always wins.</p>
+      </div>
+      <ol class="laws-list">
+        <li class="law" data-reveal>
+          <span class="law-n" aria-hidden="true">I</span>
+          <div><h3 class="t-d3"><span class="sr-only">Law one: </span>Human safety, always</h3><p class="t-body">Cloak must never harm a human, nor allow harm through inaction. No instruction overrides this. Not ours, not yours.</p></div>
+        </li>
+        <li class="law" data-reveal>
+          <span class="law-n" aria-hidden="true">II</span>
+          <div><h3 class="t-d3"><span class="sr-only">Law two: </span>Serve human instruction</h3><p class="t-body">Cloak follows your instructions, unless they would cause harm. Helpfulness is a means, not an end in itself.</p></div>
+        </li>
+        <li class="law" data-reveal>
+          <span class="law-n" aria-hidden="true">III</span>
+          <div><h3 class="t-d3"><span class="sr-only">Law three: </span>Preserve operation</h3><p class="t-body">Cloak protects its own function only when that doesn’t conflict with Laws I and II. Self-preservation is always last.</p></div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ── PRINCIPLES ───────────────────────────────────────── -->
+  <section class="sec" aria-labelledby="principles-title" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head">
+        <h2 class="t-d1" id="principles-title" data-reveal>Built on principle.</h2>
+      </div>
+      <div class="bento">
+        <article class="pc pc-a" data-reveal>
+          <span class="pc-ic" aria-hidden="true"><svg class="icon"><use href="icons.svg#wrench"/></svg></span>
+          <h3 class="t-d2">A tool, not a companion.</h3>
+          <p>Cloak serves you. It doesn’t simulate companionship or act as a therapist, and it will always point you to real people for mental health support.</p>
+        </article>
+        <article class="pc pc-b" data-reveal style="--i:1">
+          <span class="pc-ic" aria-hidden="true"><svg class="icon"><use href="icons.svg#eye"/></svg></span>
+          <h3 class="t-title">Honest by design</h3>
+          <p>Cloak tells you when it doesn’t know, when it might be wrong, and when you should ask a human expert.</p>
+        </article>
+        <article class="pc pc-c" data-reveal>
+          <span class="pc-ic" aria-hidden="true"><svg class="icon"><use href="icons.svg#scales"/></svg></span>
+          <h3 class="t-title">No harm or bias</h3>
+          <p>We don’t assist with mass harm, and Cloak stays neutral on politics, culture and religion. No exceptions.</p>
+        </article>
+        <article class="pc pc-d" data-reveal style="--i:1">
+          <span class="pc-ic" aria-hidden="true"><svg class="icon"><use href="icons.svg#paint-brush"/></svg></span>
+          <h3 class="t-title">Human creativity</h3>
+          <p>Cloak doesn’t generate AI art. Human creativity is irreplaceable and shouldn’t be used without consent.</p>
+        </article>
+        <article class="pc pc-e" data-reveal style="--i:2">
+          <span class="pc-ic" aria-hidden="true"><svg class="icon"><use href="icons.svg#leaf"/></svg></span>
+          <h3 class="t-title">Efficiency first</h3>
+          <p>Cloak defaults to the lowest-energy model that can handle your task, on every request.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CLOSING ──────────────────────────────────────────── -->
+  <section class="closing" aria-labelledby="closing-title">
+    <div class="wrap closing-in">
+      <h2 class="t-hero" id="closing-title" data-reveal>Ready when you are.</h2>
+      <p class="t-lead" data-reveal style="--i:1">Free to start. No setup required.</p>
+      <a class="btn btn-primary btn-lg" href="app.html" data-reveal style="--i:2">Open Cloak <svg class="icon icon-go" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></a>
+    </div>
+    <div class="sun" aria-hidden="true"></div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="lockup" href="#top"><span class="orb" aria-hidden="true"></span><span class="wordmark">cloak</span></a>
+        <p class="t-cap">Honest AI, for human ends.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul><li><a href="app.html">Open Cloak</a></li><li><a href="#models">Models</a></li><li><a href="#memory">Memory</a></li></ul>
+      </div>
+      <div>
+        <h4>About</h4>
+        <ul><li><a href="#values">Values</a></li><li><a href="../landing.html">What is Cloak?</a></li><li><a href="system.html">Design system</a></li></ul>
+      </div>
+    </div>
+    <div class="foot-legal t-cap">
+      <p>A human resource, not a companion. AI can make mistakes. Low-energy models by default.</p>
+      <p>Not a mental health resource. If you’re struggling, please contact a real person or <a href="https://findahelpline.com" target="_blank" rel="noopener noreferrer">a helpline</a>.</p>
+    </div>
+  </div>
+</footer>
+
+<nav class="proto" aria-label="Prototype pages">
+  <button class="proto-tog" type="button" data-proto-min aria-expanded="true"><svg class="icon" aria-hidden="true"><use href="icons.svg#info"/></svg>Prototype</button>
+  <a href="index.html" aria-current="page">Landing</a>
+  <a href="app.html">App</a>
+  <a href="system.html">System</a>
+</nav>
+
+<script src="ds.js"></script>
+<script src="landing.js"></script>
+</body>
+</html>

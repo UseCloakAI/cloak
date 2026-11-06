@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en" data-accent="rust">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cloak design system v3 (prototype)</title>
+<meta name="description" content="Tokens, type, motion and components for the Cloak v3 redesign. Prototype, not live.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F3F4F5">
+<link rel="icon" href="../icons/favicon-32.png">
+<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<script>(function(){var d=document.documentElement;try{var m=localStorage.getItem('cloak_rd_mode');if(m&&m!=='system')d.dataset.mode=m;d.dataset.accent=localStorage.getItem('cloak_rd_accent')||'rust';}catch(e){}d.classList.add('js');setTimeout(function(){if(!window.DS)d.classList.remove('js');},3000);})();</script>
+<link rel="stylesheet" href="ds.css">
+<style>
+  .sys{display:grid;grid-template-columns:220px minmax(0,1fr);gap:56px;max-width:1240px;margin:0 auto;padding:0 var(--gutter) 120px;}
+  .sys-top{position:sticky;top:0;z-index:20;background:color-mix(in oklab,var(--bg) 82%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 1px 0 var(--line);}
+  .sys-top .in{max-width:1240px;margin:0 auto;padding:12px var(--gutter);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .sys-top .grow{flex:1;}
+  .toc{position:sticky;top:96px;align-self:start;display:flex;flex-direction:column;gap:2px;padding-top:48px;}
+  .toc a{padding:7px 12px;border-radius:var(--r-ctl);font-size:.875rem;color:var(--ink-2);text-decoration:none;}
+  .toc a:hover{background:var(--surface-2);color:var(--ink);}
+  .toc a.is-on{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);}
+  .doc-main{padding-top:48px;min-width:0;}
+  .doc-main>section{padding:56px 0;box-shadow:0 -1px 0 var(--line);scroll-margin-top:72px;}
+  .doc-main>section:first-child{padding-top:0;box-shadow:none;}
+  .doc-main h2{margin-bottom:12px;}
+  .doc-main h3{margin:36px 0 14px;}
+  .lede{display:flex;flex-direction:column;gap:18px;max-width:760px;}
+  .tenets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:28px;}
+  .tenet{padding:22px;border-radius:var(--r-card);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);}
+  .tenet:first-child{grid-column:span 2;background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent-line);}
+  .tenet h3{margin:0 0 6px;}
+  .tenet p{color:var(--ink-2);font-size:.9375rem;}
+  .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .sw{border-radius:var(--r-card);overflow:hidden;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);}
+  .sw{padding:4px;}
+  .sw i{display:block;height:80px;border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);}
+  .t-body .t-mono{white-space:nowrap;}
+  .sw div{padding:10px 12px 12px;display:flex;flex-direction:column;gap:2px;}
+  .sw b{font-weight:550;font-size:.875rem;}
+  .sw code{font:.75rem var(--fm);color:var(--ink-3);}
+  .sw small{font-size:.75rem;color:var(--ink-3);}
+  .spec{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
+  .spec>div{padding:18px 20px;border-radius:var(--r-card);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;gap:10px;}
+  .spec code,.t-code{font:.8125rem var(--fm);color:var(--ink-2);}
+  .type-row{display:grid;grid-template-columns:160px minmax(0,1fr);gap:24px;align-items:baseline;padding:18px 0;box-shadow:0 1px 0 var(--line);}
+  .type-row code{font:.75rem var(--fm);color:var(--ink-3);display:block;margin-top:4px;}
+  .specimen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px;}
+  .specimen>div{padding:22px;border-radius:var(--r-card);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);}
+  .specimen .big{font-size:3.5rem;line-height:1;margin:6px 0 10px;}
+  .shape-demo{display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
+  .shape-demo .card{padding:18px;width:220px;}
+  .shape-demo .card .well{padding:12px;margin-top:10px;font-size:.8125rem;color:var(--ink-2);}
+  .elev{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;}
+  .elev>div{height:110px;border-radius:var(--r-card);background:var(--surface);display:flex;align-items:flex-end;padding:14px;font:.75rem var(--fm);color:var(--ink-3);}
+  .space{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+  .space div{display:flex;flex-direction:column;align-items:center;gap:6px;font:.6875rem var(--fm);color:var(--ink-3);}
+  .space i{display:block;background:var(--accent);border-radius:3px;width:var(--s);height:var(--s);}
+  .motion-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .motion-grid>div{padding:20px;border-radius:var(--r-card);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);display:flex;flex-direction:column;gap:12px;}
+  .motion-grid .stage{height:96px;border-radius:var(--r-in);background:var(--surface-2);display:grid;place-items:center;overflow:hidden;}
+  .focus-word{font:620 1.75rem/1 var(--fd);letter-spacing:-.025em;}
+  .focus-word.play{animation:fw 1s var(--ease-out) both;}
+  @keyframes fw{from{opacity:0;translate:0 14px;filter:blur(8px);}}
+  .grow-dot{width:28px;height:28px;border-radius:50%;background:var(--accent);}
+  .grow-dot.play{animation:gd .9s var(--ease-io) both;}
+  @keyframes gd{0%{scale:.2;}100%{scale:1;}}
+  .comp{display:flex;flex-direction:column;gap:14px;padding:24px;border-radius:var(--r-card);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);}
+  .comp-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .comps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+  .comps .wide{grid-column:span 2;}
+  .comp>.t-cap:first-child{margin-bottom:-4px;}
+  .demo-menu{position:relative;height:200px;}
+  .demo-menu .menu{position:static;opacity:1;scale:1;translate:none;visibility:visible;}
+  .dodont{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .dodont>div{padding:20px 22px;border-radius:var(--r-card);box-shadow:inset 0 0 0 1px var(--line);background:var(--surface);}
+  .dodont h3{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
+  .dodont ul{display:grid;gap:8px;color:var(--ink-2);font-size:.9375rem;}
+  .dodont li{padding-left:16px;position:relative;}
+  .dodont li::before{content:"";position:absolute;left:0;top:.68em;width:6px;height:6px;border-radius:50%;background:var(--ink-3);}
+  .changes{display:grid;gap:10px;}
+  .change{display:grid;grid-template-columns:150px 1fr 1fr;gap:20px;padding:16px 20px;border-radius:var(--r-in);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);font-size:.9375rem;}
+  .change b{font-weight:550;}
+  .change span:nth-child(2){color:var(--ink-3);text-decoration:line-through;text-decoration-color:var(--line-2);}
+  .change-h{display:grid;grid-template-columns:150px 1fr 1fr;gap:20px;padding:0 20px 4px;font-size:.75rem;color:var(--ink-3);}
+  @media (max-width:960px){
+    .sys{grid-template-columns:1fr;gap:0;}
+    .toc{position:static;flex-direction:row;overflow-x:auto;padding-top:20px;scrollbar-width:none;}
+    .toc a{flex:0 0 auto;}
+    .doc-main{padding-top:24px;}
+    .specimen,.motion-grid,.elev{grid-template-columns:1fr;}
+    .comps{grid-template-columns:1fr;}.comps .wide{grid-column:auto;}
+    .tenets,.dodont{grid-template-columns:1fr;}.tenet:first-child{grid-column:auto;}
+    .type-row{grid-template-columns:1fr;gap:6px;}
+    .change,.change-h{grid-template-columns:1fr;gap:4px;}
+    .change-h{display:none;}
+  }
+</style>
+</head>
+<body>
+<header class="sys-top">
+  <div class="in">
+    <a class="lockup" href="index.html"><span class="orb" aria-hidden="true"></span><span class="wordmark">cloak</span></a>
+    <span class="tag">Design system v3</span>
+    <span class="grow"></span>
+    <div class="seg" role="group" aria-label="Theme">
+      <button type="button" data-set-accent="rust" aria-pressed="true">Rust</button>
+      <button type="button" data-set-accent="moss" aria-pressed="false">Moss</button>
+      <button type="button" data-set-accent="tide" aria-pressed="false">Tide</button>
+    </div>
+    <div class="seg" role="group" aria-label="Mode">
+      <button type="button" data-set-mode="light" aria-pressed="false" aria-label="Light"><svg class="icon" aria-hidden="true"><use href="icons.svg#sun"/></svg></button>
+      <button type="button" data-set-mode="dark" aria-pressed="false" aria-label="Dark"><svg class="icon" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
+      <button type="button" data-set-mode="system" aria-pressed="true" aria-label="System"><svg class="icon" aria-hidden="true"><use href="icons.svg#monitor"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<div class="sys">
+  <nav class="toc" aria-label="On this page" id="toc">
+    <a href="#intro">Plain Sight</a>
+    <a href="#color">Color</a>
+    <a href="#type">Type</a>
+    <a href="#shape">Shape and depth</a>
+    <a href="#space">Spacing</a>
+    <a href="#motion">Motion</a>
+    <a href="#components">Components</a>
+    <a href="#brand">Brand and voice</a>
+    <a href="#changes">What changed</a>
+  </nav>
+
+  <main class="doc-main">
+    <section id="intro">
+      <div class="lede">
+        <h1 class="t-d1">Plain Sight.</h1>
+        <p class="t-lead">The Cloak v3 design language. Cloak is honest AI, so the interface hides nothing: calm surfaces, one accent, real hierarchy and motion that only moves when something changed.</p>
+      </div>
+      <div class="tenets">
+        <div class="tenet"><h3 class="t-d3">Calm, then clear.</h3><p>Nothing moves on its own. Things come into focus when they arrive, the orb breathes only while Cloak is working, and every animation answers a change you made.</p></div>
+        <div class="tenet"><h3 class="t-title">One accent</h3><p>Slate neutrals and a single accent per theme. Models differ by shape, not by color.</p></div>
+        <div class="tenet"><h3 class="t-title">Press round, hold square</h3><p>Things you press are pills and circles. Things that hold content are soft squares. Nested corners shrink by the padding.</p></div>
+        <div class="tenet"><h3 class="t-title">Real contrast</h3><p>Muted text is a real ink step, AA on every surface, in both modes. No opacity tricks.</p></div>
+        <div class="tenet"><h3 class="t-title">Same parts, everywhere</h3><p>The landing page uses the app’s own components. If it is on the marketing site, it exists in the product.</p></div>
+      </div>
+    </section>
+
+    <section id="color">
+      <h2 class="t-d2">Color</h2>
+      <p class="t-body">Values update live with the theme and mode switches above. Contrast is measured against <span class="t-mono">--bg</span>.</p>
+      <h3 class="t-title">Neutrals</h3>
+      <div class="swatches" id="sw-neutral"></div>
+      <h3 class="t-title">Ink</h3>
+      <div class="swatches" id="sw-ink"></div>
+      <h3 class="t-title">Accent and status</h3>
+      <div class="swatches" id="sw-acc"></div>
+      <h3 class="t-title">Themes</h3>
+      <div class="spec">
+        <div><b>Rust (default)</b><code>light #C2421F · dark #F06A42</code><p class="t-cap">The brand color. Text on rust: off-white in light, ink in dark.</p></div>
+        <div><b>Moss (was Eco)</b><code>light #2F6F3A · dark #5DBB6A</code><p class="t-cap">Same neutrals. Only the accent changes.</p></div>
+        <div><b>Tide (was Aqua)</b><code>light #0A6F93 · dark #38B3DB</code><p class="t-cap">Same neutrals. Only the accent changes.</p></div>
+      </div>
+    </section>
+
+    <section id="type">
+      <h2 class="t-d2">Type</h2>
+      <p class="t-body">Two families, self-hosted, variable. Sentence case everywhere; no all-caps headings.</p>
+      <div class="specimen" style="margin-top:24px">
+        <div><p class="t-cap">Display</p><p class="big" style="font-family:var(--fd);font-weight:650;letter-spacing:-.035em">Aa</p><b>Bricolage Grotesque</b><p class="t-cap">Headlines, numerals, page titles. 600 to 650, tight tracking. Optical sizing on.</p></div>
+        <div><p class="t-cap">Text and UI</p><p class="big" style="font-weight:500;letter-spacing:-.02em">Aa</p><b>Geist</b><p class="t-cap">Everything else. 400 body, 500 to 550 for labels and buttons.</p></div>
+        <div><p class="t-cap">Mono</p><p class="big" style="font-family:var(--fm)">Aa</p><b>Geist Mono</b><p class="t-cap">Code, file paths, memory files, logs.</p></div>
+      </div>
+      <div class="type-row"><div><b>Hero</b><code>.t-hero · 44 to 80px / 1.02</code></div><p class="t-hero" style="font-size:clamp(2.25rem,1.4rem + 3vw,4rem)">Honest AI.</p></div>
+      <div class="type-row"><div><b>Display 1</b><code>.t-d1 · 36 to 56px / 1.05</code></div><p class="t-d1">Built on principle.</p></div>
+      <div class="type-row"><div><b>Display 2</b><code>.t-d2 · 28 to 40px / 1.1</code></div><p class="t-d2">Memory you can read.</p></div>
+      <div class="type-row"><div><b>Display 3</b><code>.t-d3 · 24px / 1.2</code></div><p class="t-d3">Human safety, always</p></div>
+      <div class="type-row"><div><b>Title</b><code>.t-title · 18px / 1.35</code></div><p class="t-title">This chat’s context</p></div>
+      <div class="type-row"><div><b>Lead</b><code>.t-lead · 18px / 1.6</code></div><p class="t-lead">Cloak is a tool you stay in control of.</p></div>
+      <div class="type-row"><div><b>Body</b><code>.t-body · 16px / 1.6 (app 15px)</code></div><p class="t-body">Cloak tells you when it doesn’t know, when it might be wrong, and when you should ask a human expert.</p></div>
+      <div class="type-row"><div><b>Caption</b><code>.t-cap · 13px / 1.5</code></div><p class="t-cap">Cloak can make mistakes. Verify important information.</p></div>
+      <div class="type-row"><div><b>Label</b><code>.eyebrow · 13px / 500</code></div><p class="eyebrow">In priority order</p></div>
+    </section>
+
+    <section id="shape">
+      <h2 class="t-d2">Shape and depth</h2>
+      <p class="t-body">One rule: things you press are round, things that hold content are soft-square. A corner inside a card is the card’s corner minus its padding.</p>
+      <h3 class="t-title">Radius</h3>
+      <div class="shape-demo">
+        <button class="btn btn-primary" type="button">--r-ctl 999px</button>
+        <button class="btn btn-icon btn-secondary" type="button" aria-label="Circle icon button"><svg class="icon" aria-hidden="true"><use href="icons.svg#plus"/></svg></button>
+        <div class="card"><b>--r-card 20px</b><div class="well">--r-in 12px, nested</div></div>
+        <span class="kbd">--r-xs 8px</span>
+      </div>
+      <h3 class="t-title">Elevation</h3>
+      <div class="elev">
+        <div style="box-shadow:inset 0 0 0 1px var(--line),var(--sh-1)">--sh-1 · rest</div>
+        <div style="box-shadow:inset 0 0 0 1px var(--line),var(--sh-2)">--sh-2 · hover, composer</div>
+        <div style="box-shadow:inset 0 0 0 1px var(--line),var(--sh-3)">--sh-3 · menus, panels</div>
+      </div>
+      <p class="t-cap" style="margin-top:14px">Shadows are tinted to the neutral, never pure black. Every surface also carries a 1px inner line so edges hold up in dark mode.</p>
+    </section>
+
+    <section id="space">
+      <h2 class="t-d2">Spacing</h2>
+      <p class="t-body">A 4px grid. Sections breathe at 64 to 112px; controls sit at 36, 44 and 52px.</p>
+      <div class="space" style="margin-top:24px">
+        <div><i style="--s:4px"></i>4</div><div><i style="--s:8px"></i>8</div><div><i style="--s:12px"></i>12</div><div><i style="--s:16px"></i>16</div><div><i style="--s:20px"></i>20</div><div><i style="--s:24px"></i>24</div><div><i style="--s:32px"></i>32</div><div><i style="--s:40px"></i>40</div><div><i style="--s:48px"></i>48</div><div><i style="--s:64px"></i>64</div><div><i style="--s:80px"></i>80</div><div><i style="--s:96px"></i>96</div>
+      </div>
+      <div class="spec" style="margin-top:24px">
+        <div><b>Controls</b><code>36 sm · 44 default · 52 lg</code></div>
+        <div><b>Layout</b><code>max 1200 · reading 760 · gutter 16 to 40</code></div>
+        <div><b>App shell</b><code>sidebar 272 · rail 72 · topbar 60</code></div>
+      </div>
+    </section>
+
+    <section id="motion">
+      <h2 class="t-d2">Motion</h2>
+      <p class="t-body">Calm, then clear. Every animation answers a change: something arrived, something was pressed, a state moved. Under reduce-motion everything is instant.</p>
+      <div class="motion-grid" style="margin-top:24px">
+        <div><div class="stage"><span class="focus-word" id="mv-focus">Clear.</span></div><b>Focus</b><p class="t-cap">Arrivals come into focus: fade, 14px rise, 8px blur to sharp. <span class="t-mono">--ease-out</span>, 420 to 760ms.</p><button class="btn btn-secondary btn-sm" type="button" data-play="mv-focus">Play</button></div>
+        <div><div class="stage"><span class="orb orb-lg" id="mv-breath"></span></div><b>Breath</b><p class="t-cap">The orb breathes only while Cloak works. It stops the moment the reply is done.</p><button class="btn btn-secondary btn-sm" type="button" id="mv-breath-btn">Start working</button></div>
+        <div><div class="stage"><span class="grow-dot" id="mv-grow"></span></div><b>Grow</b><p class="t-cap">Theme and mode changes grow out of the control as a circle, the orb’s shape. 600ms <span class="t-mono">--ease-io</span>.</p><button class="btn btn-secondary btn-sm" type="button" data-toggle-dark>Try it</button></div>
+      </div>
+      <div class="spec" style="margin-top:12px">
+        <div><b>Durations</b><code>--d-1 120 · --d-2 220 · --d-3 420 · --d-4 760</code><p class="t-cap">Color, press, panels, reveals.</p></div>
+        <div><b>Curves</b><code>--ease-out · --ease-io · --ease-in · --spring</code><p class="t-cap">The spring is a real <span class="t-mono">linear()</span> curve with a cubic-bezier fallback. Toggles, thumbs and menus use it.</p></div>
+        <div><b>Press</b><code>scale .97 · 60ms</code><p class="t-cap">Hover lifts 1px with one shadow step. No hard-offset slams.</p></div>
+      </div>
+    </section>
+
+    <section id="components">
+      <h2 class="t-d2">Components</h2>
+      <p class="t-body">Live, from <span class="t-mono">ds.css</span>. The same classes run the landing page and the app.</p>
+      <div class="comps" style="margin-top:24px">
+        <div class="comp wide">
+          <p class="t-cap">Buttons</p>
+          <div class="comp-row">
+            <button class="btn btn-primary" type="button">Open Cloak <svg class="icon icon-go" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></button>
+            <button class="btn btn-secondary" type="button">Read our values</button>
+            <button class="btn btn-ink" type="button">Ink</button>
+            <button class="btn btn-ghost" type="button">Ghost</button>
+            <button class="btn btn-danger" type="button">Delete all chats</button>
+            <button class="btn btn-primary is-loading" type="button" aria-label="Loading">Loading</button>
+            <button class="btn btn-primary" type="button" disabled>Disabled</button>
+          </div>
+          <div class="comp-row">
+            <button class="btn btn-primary btn-sm" type="button">Small</button>
+            <button class="btn btn-primary btn-lg" type="button">Large</button>
+            <button class="btn btn-icon" type="button" aria-label="Copy"><svg class="icon" aria-hidden="true"><use href="icons.svg#copy"/></svg></button>
+            <button class="btn btn-icon btn-secondary" type="button" aria-label="Add"><svg class="icon" aria-hidden="true"><use href="icons.svg#plus"/></svg></button>
+            <button class="send" type="button" aria-label="Send"><svg class="icon" aria-hidden="true"><use href="icons.svg#arrow-up"/></svg></button>
+            <button class="send is-stop" type="button" aria-label="Stop"><svg class="icon" aria-hidden="true"><use href="icons.svg#x"/></svg></button>
+          </div>
+        </div>
+        <div class="comp">
+          <p class="t-cap">Chips, tags, keys</p>
+          <div class="comp-row">
+            <button class="chip" type="button"><span class="tier tier-kairos" aria-hidden="true"></span>Kairos 1.2</button>
+            <button class="chip is-on" type="button"><svg class="icon" aria-hidden="true"><use href="icons.svg#graduation-cap"/></svg>Homework mode</button>
+          </div>
+          <div class="comp-row"><span class="tag">project</span><span class="tag tag-acc">Default</span><span class="kbd">Enter</span><span class="kbd">Shift</span><a class="cite" href="#components">2</a></div>
+        </div>
+        <div class="comp">
+          <p class="t-cap">Tier marks: shape, not color</p>
+          <div class="comp-row"><span class="chip"><span class="tier tier-kairos" aria-hidden="true"></span>Kairos</span><span class="chip"><span class="tier tier-linus" aria-hidden="true"></span>Linus</span><span class="chip"><span class="tier tier-pneuma" aria-hidden="true"></span>Pneuma</span></div>
+          <p class="t-cap">Solid orb for the default, a square for code, a ring for the lightest.</p>
+        </div>
+        <div class="comp">
+          <p class="t-cap">Fields: label above, help and error below</p>
+          <div class="field"><label class="label" for="c-email">Email</label><input class="input" id="c-email" placeholder="you@example.com" aria-describedby="c-email-h"><p class="help" id="c-email-h">We only use it to sign you in.</p></div>
+          <div class="field is-invalid"><label class="label" for="c-pass">New password</label><input class="input" id="c-pass" type="password" value="short" aria-invalid="true" aria-describedby="c-pass-e"><p class="err" id="c-pass-e"><svg class="icon" aria-hidden="true"><use href="icons.svg#warning-circle"/></svg>Use at least 8 characters.</p></div>
+        </div>
+        <div class="comp">
+          <p class="t-cap">Switches and segmented</p>
+          <div class="comp-row"><button class="switch" type="button" role="switch" aria-checked="true" aria-label="Memory" data-flip></button><button class="switch" type="button" role="switch" aria-checked="false" aria-label="Agents" data-flip></button><button class="switch switch-sm" type="button" role="switch" aria-checked="true" aria-label="Web search" data-flip></button></div>
+          <div class="seg" role="tablist" aria-label="Example" id="seg-demo"><button type="button" role="tab" aria-selected="true">Memories</button><button type="button" role="tab" aria-selected="false">Context</button><button type="button" role="tab" aria-selected="false">Files</button></div>
+        </div>
+        <div class="comp">
+          <p class="t-cap">Menu</p>
+          <div class="demo-menu">
+            <div class="menu" role="menu" aria-label="Example menu">
+              <button class="menu-item" type="button" role="menuitemcheckbox" aria-checked="true"><svg class="icon" aria-hidden="true"><use href="icons.svg#globe-simple"/></svg>Web search<svg class="icon mi-check" aria-hidden="true"><use href="icons.svg#check"/></svg></button>
+              <button class="menu-item" type="button" role="menuitem"><svg class="icon" aria-hidden="true"><use href="icons.svg#paperclip"/></svg>Attach a file</button>
+              <div class="menu-sep"></div>
+              <button class="menu-item" type="button" role="menuitem"><svg class="icon" aria-hidden="true"><use href="icons.svg#trash"/></svg>Delete chat</button>
+            </div>
+          </div>
+        </div>
+        <div class="comp">
+          <p class="t-cap">Feedback: toast and skeleton</p>
+          <div class="comp-row"><button class="btn btn-secondary btn-sm" type="button" id="toast-btn">Show a toast</button></div>
+          <div class="stack gap-2" aria-hidden="true"><div class="skel" style="width:40%;height:14px"></div><div class="skel" style="width:92%;height:14px"></div><div class="skel" style="width:76%;height:14px"></div></div>
+          <p class="t-cap">Skeletons take the shape of what is loading. No spinners.</p>
+        </div>
+        <div class="comp wide">
+          <p class="t-cap">Conversation</p>
+          <div class="msg msg-user"><div class="bubble">Make this email shorter and more polite.</div></div>
+          <div class="msg msg-cloak"><div class="msg-head"><span class="orb" aria-hidden="true"></span><span>Pneuma · Low</span></div><div class="prose"><p>“Hi Dana, the heating has been out for two weeks. Could someone come take a look this week? Thanks.” <a class="cite" href="#components">1</a></p></div><div class="msg-actions"><button class="btn btn-icon" type="button" aria-label="Copy"><svg class="icon" aria-hidden="true"><use href="icons.svg#copy"/></svg></button><button class="btn btn-icon" type="button" aria-label="Retry"><svg class="icon" aria-hidden="true"><use href="icons.svg#arrow-clockwise"/></svg></button></div></div>
+          <div class="composer" style="max-width:640px"><label class="sr-only" for="c-in">Message Cloak</label><textarea id="c-in" rows="1" placeholder="Message Cloak"></textarea><div class="composer-row"><button class="btn btn-icon btn-sm" type="button" aria-label="Add"><svg class="icon" aria-hidden="true"><use href="icons.svg#plus"/></svg></button><span class="grow"></span><button class="btn btn-icon btn-sm" type="button" aria-label="Voice mode"><svg class="icon" aria-hidden="true"><use href="icons.svg#microphone"/></svg></button><button class="send" type="button" aria-label="Send"><svg class="icon" aria-hidden="true"><use href="icons.svg#arrow-up"/></svg></button></div></div>
+        </div>
+        <div class="comp wide">
+          <p class="t-cap">Effort: five detents, the thumb is the orb (values mirror <span class="t-mono">effort.js</span>)</p>
+          <div class="row" style="justify-content:space-between;gap:12px;flex-wrap:wrap"><b class="t-d3" id="sys-ef-name">Medium</b><span class="t-small t-ink2" id="sys-ef-read">5 sources per search · 2 verification rounds</span></div>
+          <div id="sys-effort"></div>
+          <div class="effort-labels" id="sys-ef-labels" aria-hidden="true"><span>Minimal</span><span>Low</span><span>Medium</span><span>High</span><span>Max</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="brand">
+      <h2 class="t-d2">Brand and voice</h2>
+      <h3 class="t-title">The orb</h3>
+      <div class="comp-row" style="gap:28px">
+        <a class="lockup" href="index.html" style="transform:scale(1.6);transform-origin:left center;margin-right:60px"><span class="orb" aria-hidden="true"></span><span class="wordmark">cloak</span></a>
+        <span class="orb orb-lg" aria-hidden="true"></span>
+        <span class="orb orb-md" aria-hidden="true"></span>
+        <span class="orb orb-sm" aria-hidden="true"></span>
+      </div>
+      <p class="t-body" style="margin-top:16px">A flat accent disc, no outline. The wordmark is lowercase <b>cloak</b> in Bricolage 700. The orb is also the page’s big shape: the hero sun, the closing sunrise, the auth panel.</p>
+      <h3 class="t-title">Voice</h3>
+      <div class="dodont">
+        <div><h3 class="t-title"><svg class="icon icon-md" aria-hidden="true" style="color:var(--ok)"><use href="icons.svg#check"/></svg>Do</h3><ul><li>Blunt, short, principled. “Instant. Sharp. No filler.”</li><li>“Cloak” in third person for behavior, “we” for commitments, “you” for the user.</li><li>Keep the disclaimers visible. They are part of the brand.</li><li>Specific, modest environmental claims.</li></ul></div>
+        <div><h3 class="t-title"><svg class="icon icon-md" aria-hidden="true" style="color:var(--danger)"><use href="icons.svg#x"/></svg>Don’t</h3><ul><li>Em dashes. Use a period, comma or colon.</li><li>All-caps headings or labels.</li><li>Emoji, AI-generated imagery, purple gradients.</li><li>More than one label above headings per three sections.</li></ul></div>
+      </div>
+    </section>
+
+    <section id="changes">
+      <h2 class="t-d2">What changed from v2</h2>
+      <p class="t-body" style="margin-bottom:20px">Same name, orb, accent, values, IA and copy. New visual language.</p>
+      <div class="change-h"><span>Area</span><span>v2 neobrutalist</span><span>v3 Plain Sight</span></div>
+      <div class="changes">
+        <div class="change"><b>Neutrals</b><span>Warm paper #F2EEE5</span><span>Slate #F3F4F5, dark #0F1114</span></div>
+        <div class="change"><b>Accent</b><span>#D44D2A, white text at 4.0:1</span><span>#C2421F, 5.0:1 (AA)</span></div>
+        <div class="change"><b>Type</b><span>Syne uppercase + Space Grotesk</span><span>Bricolage Grotesque + Geist, sentence case</span></div>
+        <div class="change"><b>Edges</b><span>2px ink borders, 0px radius</span><span>1px inner lines, pill controls, 20px cards</span></div>
+        <div class="change"><b>Depth</b><span>Hard 4px offset shadows</span><span>Soft tinted shadows, three steps</span></div>
+        <div class="change"><b>Muted text</b><span>Ink at .3 to .6 opacity</span><span>Two real ink steps, AA everywhere</span></div>
+        <div class="change"><b>Model colors</b><span>Rust, yellow, blue</span><span>One accent; shape marks</span></div>
+        <div class="change"><b>Motion</b><span>Lift, slam, uncloak bars</span><span>Focus, breath, circular theme grow</span></div>
+        <div class="change"><b>Icons</b><span>Hand-drawn Feather-style SVG</span><span>Phosphor Regular sprite</span></div>
+        <div class="change"><b>Fonts</b><span>Google Fonts link</span><span>Self-hosted woff2</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<nav class="proto" aria-label="Prototype pages">
+  <button class="proto-tog" type="button" data-proto-min aria-expanded="true"><svg class="icon" aria-hidden="true"><use href="icons.svg#info"/></svg>Prototype</button>
+  <a href="index.html">Landing</a>
+  <a href="app.html">App</a>
+  <a href="system.html" aria-current="page">System</a>
+</nav>
+
+<script src="ds.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  // resolve any CSS color (incl. color-mix) to rgb via the browser
+  const probe = document.createElement('i'); probe.style.display = 'none'; document.body.append(probe);
+  const rgb = v => { probe.style.color = `var(${v})`; const m = getComputedStyle(probe).color.match(/[\d.]+/g).map(Number); return m.slice(0, 3); };
+  const lum = c => { const [r, g, b] = c.map(x => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * r + .7152 * g + .0722 * b; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return ((x + .05) / (y + .05)).toFixed(1); };
+  const hex = c => '#' + c.map(x => Math.round(x).toString(16).padStart(2, '0')).join('').toUpperCase();
+  const SW = {
+    'sw-neutral': [['--bg', 'Background'], ['--surface', 'Surface'], ['--raised', 'Raised'], ['--surface-2', 'Sunken'], ['--surface-3', 'Sunken hover']],
+    'sw-ink': [['--ink', 'Ink', 1], ['--ink-2', 'Ink 2', 1], ['--ink-3', 'Ink 3', 1]],
+    'sw-acc': [['--accent', 'Accent'], ['--accent-ink', 'Accent text', 1], ['--accent-soft', 'Accent soft'], ['--danger', 'Danger', 1], ['--ok', 'OK', 1]],
+  };
+  function paint() {
+    const bg = rgb('--bg');
+    for (const id in SW) $('#' + id).innerHTML = SW[id].map(([v, n, txt]) => { const c = rgb(v); return `<div class="sw"><i style="background:var(${v})"></i><div><b>${n}</b><code>${v}</code><small>${hex(c)}${txt ? ` · ${ratio(c, bg)}:1` : ''}</small></div></div>`; }).join('');
+  }
+  paint(); document.addEventListener('ds:theme', () => requestAnimationFrame(paint));
+
+  // motion demos
+  document.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', () => { const el = document.getElementById(b.dataset.play); el.classList.remove('play'); void el.offsetWidth; el.classList.add('play'); }));
+  const br = $('#mv-breath-btn');
+  br.addEventListener('click', () => { const on = $('#mv-breath').classList.toggle('is-working'); br.textContent = on ? 'Done' : 'Start working'; });
+  document.querySelectorAll('[data-flip]').forEach(s => s.addEventListener('click', () => s.setAttribute('aria-checked', String(s.getAttribute('aria-checked') !== 'true'))));
+  $('#seg-demo').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-selected', String(x === b))); DS.placeThumb(b.parentElement); });
+  $('#toast-btn').addEventListener('click', () => DS.toast('Memory saved'));
+  const labels = [...document.querySelectorAll('#sys-ef-labels span')];
+  DS.effort($('#sys-effort'), { onChange: L => { $('#sys-ef-name').textContent = L.name; $('#sys-ef-read').textContent = `${L.sources} sources per search · ${L.rounds} verification round${L.rounds === 1 ? '' : 's'}`; labels.forEach(s => s.classList.toggle('is-on', s.textContent === L.name)); } });
+
+  // table of contents follows the reader (IntersectionObserver, no scroll listener)
+  const links = [...document.querySelectorAll('#toc a')];
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle('is-on', a.hash === '#' + e.target.id)); }), { rootMargin: '-30% 0px -60% 0px' });
+  document.querySelectorAll('.doc-main > section').forEach(s => io.observe(s));
+})();
+</script>
+</body>
+</html>
