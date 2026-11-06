@@ -36,6 +36,7 @@ There is **no build pipeline**. Files are served as-is. Push to `main` and Cloud
 - `supabase/functions/chat-message/` — Edge Function for chat (Groq + NVIDIA). Used by `agents.html`, not the main chat.
 - `supabase/migrations/` — SQL migrations. Apply via Supabase dashboard or CLI.
 - `robots.txt`, `sitemap.xml` — SEO.
+- `redesign/` — **prototype only, not live**: Cloak v3 "Plain Sight" redesign (landing, app shell, design system page, `design-system.md` spec + rollout plan). Self-contained (`ds.css`/`ds.js`, self-hosted fonts, Phosphor sprite), `noindex`, own localStorage keys (`cloak_rd_*`). Nothing in production loads it; don't link it from live pages until it ships.
 
 ## Versioning — MUST be updated on every commit
 
