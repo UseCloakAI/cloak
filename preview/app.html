@@ -31,7 +31,7 @@
         <span>Session <b id="sessWh">0 Wh</b>, removed 10x</span>
       </a>
       <div class="foot-row">
-        <button class="who" id="openSettings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#user-circle"/></svg><span id="whoName">You</span></button>
+        <button class="who" id="openSettings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#user-circle"/></svg><span id="whoName">You</span><b class="badge" id="inboxBadge" hidden></b></button>
         <button class="iconbtn" id="openSettings2" aria-label="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg></button>
       </div>
     </div>
@@ -47,6 +47,8 @@
         <button data-mode="auto" aria-pressed="true" title="Routes each message to the lightest model that fits">Auto</button>
         <button data-mode="swift" aria-pressed="false" title="Smallest, fastest models">Swift</button>
         <button data-mode="deep" aria-pressed="false" title="Largest models. Slower, more energy">Deep</button>
+        <button data-mode="research" aria-pressed="false" title="Plans, searches many sources, reads them and cites">Research</button>
+        <button data-mode="team" aria-pressed="false" title="Several companions work in parallel, then one writes the answer">Team</button>
       </div>
     </header>
 
@@ -100,6 +102,8 @@
       <textarea class="field" id="setAbout" maxlength="600"></textarea>
       <p class="help">How you like answers, what you do, what to skip. Sent with each message, stored on this device.</p>
     </div>
+    <hr>
+    <div id="mind"></div>
     <hr>
     <div id="acct"></div>
     <div class="dlg-row">

@@ -118,7 +118,9 @@ async function open(c, body, signal, ctx) {
 // Yields { start, model, provider, size } once a model is answering, then
 // { delta } chunks, then { done, text, tokensIn, tokensOut, model, provider,
 // size, tried }. Throws only if every model failed before any text went out.
-export async function* streamLane(env, ctx, laneKey, { system, messages, maxTokens, signal }) {
+// With `tools`, the done event also carries toolCalls: [{id, name, arguments}]
+// (arguments is the raw JSON string the model produced).
+export async function* streamLane(env, ctx, laneKey, { system, messages, maxTokens, signal, tools }) {
   const lane = LANES[laneKey] || LANES.smart;
   const ring = await gov.readKeyring(env);
   const groups = lane.lineup.map((a) => ({ ...a, keys: (Array.isArray(ring[a.provider]) ? ring[a.provider] : []).filter(Boolean) })).filter((g) => g.keys.length);
@@ -141,6 +143,11 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
     const budget = Math.floor(ctxFor(c) * 0.9) - want;
     const fitted = gov.trimMessages([{ role: "system", content: system }, ...messages], Math.max(2000, budget)).messages;
     const body = { messages: fitted, max_tokens: want, temperature: c.temperature ?? 0.6 };
+    if (tools?.length) {
+      body.tools = tools;
+      body.tool_choice = "auto";
+    }
+    const calls = [];
 
     const ctrl = new AbortController();
     const onAbort = () => ctrl.abort();
@@ -168,6 +175,20 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
         if (evt.usage) usage = evt.usage;
         const d = evt.choices?.[0]?.delta;
         if (!d) continue;
+        if (Array.isArray(d.tool_calls)) {
+          for (const tc of d.tool_calls) {
+            const i = tc.index ?? calls.length;
+            const cur = (calls[i] = calls[i] || { id: "", name: "", arguments: "" });
+            if (tc.id) cur.id = tc.id;
+            if (tc.function?.name) cur.name += tc.function.name;
+            if (typeof tc.function?.arguments === "string") cur.arguments += tc.function.arguments;
+          }
+          if (!started) {
+            started = true;
+            yield { start: true, model: c.model, provider: c.provider, size: c.size, firstTokenMs: Date.now() - t0 };
+          }
+          bump(STALL_MS);
+        }
         const piece = typeof d.content === "string" && d.content ? strip(d.content) : "";
         if (!piece) {
           // Reasoning keeps the stream alive, but not forever.
@@ -200,7 +221,8 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
         provider: c.provider,
         size: c.size,
         tokensIn: usage?.prompt_tokens || gov.estimateMessages(fitted),
-        tokensOut: usage?.completion_tokens || gov.estimateTokens(text),
+        tokensOut: usage?.completion_tokens || gov.estimateTokens(text) + gov.estimateTokens(calls.map((x) => x.arguments).join("")),
+        toolCalls: calls.filter((x) => x && x.name).map((x, i) => ({ id: x.id || `call_${Date.now().toString(36)}_${i}`, name: x.name, arguments: x.arguments || "{}" })),
         tried,
       };
       return;

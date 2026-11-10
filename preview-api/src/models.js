@@ -121,7 +121,9 @@ export function routeLane({ text = "", hasImage = false, mode = "auto", home = "
   if (isCode) return { lane: "code", why: "looks like code" };
   if (isCreative && !isDeep) return { lane: "creative", why: "creative writing" };
   if (isDeep) return { lane: "deep", why: len > 1400 ? "long, detailed ask" : "needs careful reasoning" };
-  if (SWIFT_RE.test(t) || (len < 40 && turns < 2 && !/\b(why|how|plan|help|should|explain)\b/i.test(t))) return { lane: "swift", why: "quick one" };
+  if (SWIFT_RE.test(t)) return { lane: "swift", why: "quick one" };
+  // Short openers go to the small models, unless this companion is the one people bring hard things to.
+  if (len < 40 && turns < 2 && (home === "swift" || home === "smart") && !/\b(why|how|plan|help|should|explain)\b/i.test(t)) return { lane: "swift", why: "quick one" };
   // Nothing special about the turn: use the companion's home lane.
   return { lane: LANES[home] ? home : "smart", why: "default" };
 }

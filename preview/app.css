@@ -166,3 +166,30 @@ dialog[open]{animation:pop var(--t2) var(--ease-back)}
   .composer{padding-inline:12px}
   .fine{display:none}
 }
+
+/* ── Agent activity: what the companion did before answering ─────── */
+.steps{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:4px}
+.steps li{display:flex;align-items:center;gap:8px;font-size:.86rem;color:var(--ink-2);animation:rise var(--t2) var(--ease) both}
+.steps li.sub{padding-left:22px}
+.steps .ic{width:15px;height:15px;color:var(--ink-3)}
+.steps span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.steps em{font-style:normal;color:var(--ink-3);font-size:.8rem;white-space:nowrap}
+.steps li.run span{background:linear-gradient(90deg,var(--ink-3),var(--ink) 45%,var(--ink-3) 90%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen 1.4s linear infinite}
+.steps li.blocked,.steps li.blocked .ic{color:var(--care)}
+@keyframes sheen{from{background-position:120% 0}to{background-position:-100% 0}}
+.sources{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.sources a{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px 0 4px;border-radius:var(--r-pill);background:var(--sunk);font-size:.8rem;text-decoration:none;color:var(--ink-2);transition:background-color var(--t1) var(--ease),color var(--t1) var(--ease)}
+.sources a:hover{background:var(--ink);color:var(--bg)}
+.sources b{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:var(--r-pill);background:var(--raise);color:var(--ink);font:500 .72rem var(--fm)}
+.mind{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:2px;max-height:190px;overflow-y:auto}
+.mind li{display:flex;align-items:center;gap:8px;padding:7px 4px 7px 10px;border-radius:var(--r-sm);font-size:.9rem}
+.mind li[data-open]{cursor:pointer}
+.mind li:hover{background:var(--sunk)}
+.mind li div{flex:1;min-width:0}
+.mind small{display:block;color:var(--ink-3);font-size:.78rem}
+.mind .iconbtn{width:30px;height:30px}
+.dlg .lbl{margin-top:4px}
+dialog{max-height:calc(100dvh - 28px);overflow-y:auto}
+.badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);background:var(--accent);color:var(--accent-ink);font:600 .72rem var(--fm)}
+.seg{max-width:100%;overflow-x:auto}
+@media (max-width:780px){.top-who span{display:none}}

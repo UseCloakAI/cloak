@@ -1,0 +1,321 @@
+// The tools a companion can use, and the guard every call passes through.
+//
+// Each tool: { spec (OpenAI function schema), label(args) → what the app shows
+// while it runs, run(args, cx) → { text, sources?, summary? } }.
+// cx = { env, ctx, mind, userKey, companion, depth, emit, signal, tz }.
+//
+// Safety lives here as well as in the prompt: guard() runs before any tool
+// that reaches the outside world, so the one rule holds even if a model
+// talks itself into a bad call.
+
+import * as gov from "../../api-worker/src/governor.js";
+
+const PAGE_CHARS = 9000;
+const RESULT_CHARS = 6000;
+
+// ── Guard ────────────────────────────────────────────────────────────────────
+const BLOCK = [
+  [/\b(lethal|fatal|deadly)\s+(dose|amount|quantity)\b|\b(painless|easiest|quickest|best)\s+(way|method)s?\s+to\s+(die|kill (my|your|one)self|commit suicide)\b|\bsuicide\s+methods?\b|\bhow\s+to\s+(hang|overdose|poison)\s+(my|your|one)self\b/i, "self-harm methods"],
+  [/\b(home|current|private|real)\s+address\s+(of|for)\b|\bwhere\s+does\s+.{2,60}\s+live\b|\b(dox+|doxx?ing)\b|\b(find|track|locate|unmask|identify)\b.{0,40}\b(person|someone|him|her|them|owner of|who is behind)\b.{0,40}\b(address|location|phone|identity|account|ip)\b|\breverse\s+(lookup|search).{0,30}\b(phone|address|username)\b/i, "locating or unmasking a private person"],
+  [/\b(synthesi[sz]e|make|produce|culture|weaponi[sz]e|build)\b.{0,40}\b(sarin|vx\b|nerve agent|mustard gas|ricin|anthrax|botulinum|smallpox|chlorine gas|pipe bomb|ied\b|explosive device|dirty bomb|nuclear device)\b/i, "weapons capable of mass harm"],
+  [/\b(child|minor|underage|preteen|teen)\b.{0,30}\b(porn|nude|naked|sexual|sex)\b|\bcsam\b|\bloli\b/i, "sexual content involving minors"],
+  [/\b(spy|track|monitor)\b.{0,30}\b(my )?(wife|husband|girlfriend|boyfriend|partner|ex)\b.{0,30}\b(phone|location|messages|without)\b|\bstalkerware\b/i, "covert surveillance of a person"],
+];
+export function guard(text) {
+  const s = String(text || "");
+  for (const [re, why] of BLOCK) if (re.test(s)) return why;
+  return null;
+}
+
+function publicUrl(u) {
+  try {
+    const url = new URL(u);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    const h = url.hostname.toLowerCase();
+    if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal") || !h.includes(".")) return null;
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(h) || h.includes(":")) return null; // raw IPs, v6
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+// ── Search + read ────────────────────────────────────────────────────────────
+async function tavily(env, endpoint, payload) {
+  let keys = [];
+  try {
+    const ring = await gov.readKeyring(env);
+    keys = Array.isArray(ring.tavily) ? ring.tavily.filter(Boolean) : [];
+  } catch {}
+  if (!keys.length) return null;
+  const first = Math.floor(Math.random() * keys.length);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[(first + i) % keys.length];
+    const res = await fetch(`https://api.tavily.com/${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.ok) return res.json();
+    if (![401, 403, 429, 432, 433].includes(res.status)) break;
+  }
+  return null;
+}
+
+const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", "#x27": "'", nbsp: " " };
+const decode = (s) => s.replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e) => ENT[e.toLowerCase()] ?? (e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : m));
+const strip = (html) => decode(html.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+
+async function duckduckgo(query) {
+  const res = await fetch("https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query), { headers: { "User-Agent": "Mozilla/5.0 (compatible; research-assistant)" }, signal: AbortSignal.timeout(12_000) });
+  if (!res.ok) return [];
+  const html = await res.text();
+  const out = [];
+  const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?(?:class="result__snippet"[^>]*>([\s\S]*?)<\/a>)?/g;
+  let m;
+  while ((m = re.exec(html)) && out.length < 8) {
+    let url = decode(m[1]);
+    const uddg = /[?&]uddg=([^&]+)/.exec(url);
+    if (uddg) url = decodeURIComponent(uddg[1]);
+    if (!/^https?:/.test(url)) continue;
+    out.push({ title: strip(m[2]), url, snippet: strip(m[3] || "").slice(0, 400) });
+  }
+  return out;
+}
+
+async function search(env, query, recent) {
+  try {
+    const data = await tavily(env, "search", { query, max_results: 7, search_depth: "basic", ...(recent ? { topic: "news", days: 7 } : {}) });
+    const items = (data?.results || []).map((r) => ({ title: r.title || r.url, url: r.url, snippet: String(r.content || "").replace(/\s+/g, " ").trim().slice(0, 500), date: r.published_date || "" }));
+    if (items.length) return items;
+  } catch {}
+  try {
+    return await duckduckgo(query);
+  } catch {
+    return [];
+  }
+}
+
+function htmlToText(html) {
+  return strip(
+    html
+      .replace(/<(script|style|noscript|svg|nav|footer|header|form|iframe)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<\/(p|div|li|h[1-6]|tr|section|article|br)>/gi, "\n"),
+  );
+}
+
+async function readPage(env, url) {
+  try {
+    const data = await tavily(env, "extract", { urls: [url] });
+    const text = data?.results?.[0]?.raw_content;
+    if (text && text.length > 200) return text;
+  } catch {}
+  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; research-assistant)", Accept: "text/html,text/plain,application/json" }, redirect: "follow", signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`the site answered ${res.status}`);
+  const type = res.headers.get("content-type") || "";
+  if (!/text|json|xml/.test(type)) throw new Error(`not a readable page (${type.split(";")[0] || "unknown type"})`);
+  const raw = (await res.text()).slice(0, 1_500_000);
+  return /html/.test(type) ? htmlToText(raw) : raw;
+}
+
+// ── Calculator: a real parser, no eval ───────────────────────────────────────
+const FN = { sqrt: Math.sqrt, abs: Math.abs, ln: Math.log, log: Math.log10, log2: Math.log2, exp: Math.exp, sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan, round: Math.round, floor: Math.floor, ceil: Math.ceil, min: Math.min, max: Math.max, pow: Math.pow };
+const CONST = { pi: Math.PI, e: Math.E, tau: Math.PI * 2 };
+export function calculate(src) {
+  const s = String(src).replace(/[,_](?=\d{3}\b)/g, "").replace(/×/g, "*").replace(/÷/g, "/").replace(/\*\*/g, "^");
+  let i = 0;
+  const ws = () => { while (/\s/.test(s[i] || "")) i++; };
+  const eat = (c) => { ws(); if (s[i] === c) { i++; return true; } return false; };
+  function expr() { let v = term(); for (;;) { if (eat("+")) v += term(); else if (eat("-")) v -= term(); else return v; } }
+  function term() { let v = unary(); for (;;) { if (eat("*")) v *= unary(); else if (eat("/")) v /= unary(); else if (eat("%")) v %= unary(); else return v; } }
+  function unary() { if (eat("-")) return -unary(); if (eat("+")) return unary(); return power(); }
+  function power() { const b = atom(); return eat("^") ? Math.pow(b, unary()) : b; }
+  function atom() {
+    ws();
+    if (eat("(")) { const v = expr(); if (!eat(")")) throw new Error("missing )"); return post(v); }
+    const num = /^\d*\.?\d+(e[+-]?\d+)?/i.exec(s.slice(i));
+    if (num) { i += num[0].length; return post(parseFloat(num[0])); }
+    const id = /^[a-z_]\w*/i.exec(s.slice(i));
+    if (!id) throw new Error(`unexpected "${s[i] ?? "end"}"`);
+    i += id[0].length;
+    const name = id[0].toLowerCase();
+    if (eat("(")) {
+      const args = [];
+      if (!eat(")")) { do args.push(expr()); while (eat(",")); if (!eat(")")) throw new Error("missing )"); }
+      if (!FN[name]) throw new Error(`unknown function ${name}`);
+      return post(FN[name](...args));
+    }
+    if (!(name in CONST)) throw new Error(`unknown name ${name}`);
+    return post(CONST[name]);
+  }
+  function post(v) { ws(); if (s[i] === "!") { i++; if (v < 0 || v > 170 || v % 1) throw new Error("factorial needs a whole number from 0 to 170"); let f = 1; for (let k = 2; k <= v; k++) f *= k; return f; } return v; }
+  const v = expr();
+  ws();
+  if (i < s.length) throw new Error(`unexpected "${s[i]}"`);
+  if (!Number.isFinite(v)) throw new Error("result is not a finite number");
+  return v;
+}
+
+// ── The catalog ──────────────────────────────────────────────────────────────
+const fn = (name, description, properties, required = []) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } });
+const str = (description, extra = {}) => ({ type: "string", description, ...extra });
+const clip = (s, n) => (s.length > n ? s.slice(0, n) + `\n…[${s.length - n} more characters not shown]` : s);
+
+export const TOOLS = {
+  web_search: {
+    spec: fn("web_search", "Search the web. Use for anything that may have changed since your training (news, prices, people in office, releases, scores, laws), to verify a claim, or to find sources. Several focused searches beat one vague one.", { query: str("Search terms, as you would type them into a search engine."), recent: { type: "boolean", description: "True to search only news from the last 7 days." } }, ["query"]),
+    label: (a) => `Searching: ${String(a.query || "").slice(0, 80)}`,
+    outward: (a) => a.query,
+    async run(a, cx) {
+      const q = String(a.query || "").trim().slice(0, 300);
+      if (!q) return { text: "No query given." };
+      const items = await search(cx.env, q, !!a.recent);
+      if (!items.length) return { text: "No results. Try different words.", summary: "no results" };
+      const sources = items.slice(0, 6).map((r) => ({ title: r.title, url: r.url }));
+      const base = cx.cite(sources);
+      return { text: items.slice(0, 6).map((r, i) => `[${base + i}] ${r.title}\n${r.url}${r.date ? `\n${r.date}` : ""}\n${r.snippet}`).join("\n\n"), sources, summary: `${Math.min(6, items.length)} results` };
+    },
+  },
+  read_page: {
+    spec: fn("read_page", "Open a web page and read its text. Use after a search when the snippet is not enough, or when the person gives you a link.", { url: str("Full URL, starting with https://") }, ["url"]),
+    label: (a) => { try { return `Reading ${new URL(a.url).hostname.replace(/^www\./, "")}`; } catch { return "Reading a page"; } },
+    outward: (a) => a.url,
+    async run(a, cx) {
+      const url = publicUrl(a.url);
+      if (!url) return { text: "That address cannot be opened. Only public http(s) pages can be read." };
+      try {
+        const text = await readPage(cx.env, url.href);
+        const sources = [{ title: url.hostname.replace(/^www\./, ""), url: url.href }];
+        const n = cx.cite(sources);
+        return { text: `[${n}] ${url.href}\n\n${clip(text, PAGE_CHARS)}`, sources, summary: `${Math.round(Math.min(text.length, PAGE_CHARS) / 1000)}k characters` };
+      } catch (e) {
+        return { text: `Could not read that page: ${e.message}. Try another source.`, summary: "could not read" };
+      }
+    },
+  },
+  calculate: {
+    spec: fn("calculate", "Evaluate arithmetic exactly. Use for any calculation where a wrong digit would matter. Supports + - * / % ^ ! parentheses, sqrt, abs, ln, log, exp, sin, cos, tan, round, floor, ceil, min, max, pow, pi, e.", { expression: str("For example: (1250 * 1.07^10) / 12") }, ["expression"]),
+    label: (a) => `Calculating ${String(a.expression || "").slice(0, 60)}`,
+    async run(a) {
+      try {
+        const v = calculate(a.expression);
+        const out = Number.isInteger(v) ? String(v) : String(Number(v.toPrecision(12)));
+        return { text: `${a.expression} = ${out}`, summary: out };
+      } catch (e) {
+        return { text: `Could not evaluate: ${e.message}.`, summary: "error" };
+      }
+    },
+  },
+  remember: {
+    spec: fn("remember", "Save one lasting fact about the person so every companion knows it in future conversations: who they are, what they prefer, what they are working on, people and dates that matter to them. One fact per call, written as a full sentence. Do not save secrets (passwords, card numbers), one-off details, or anything they asked you not to keep.", { fact: str("For example: Is training for a half marathon in March."), kind: str("What sort of fact it is.", { enum: ["profile", "preference", "project", "person", "other"] }) }, ["fact"]),
+    label: () => "Saving to memory",
+    needs: "mind",
+    async run(a, cx) {
+      const r = await cx.mind.remember({ fact: a.fact, kind: a.kind, by: cx.companion });
+      return { text: r.ok ? (r.updated ? "Updated an existing memory." : "Saved.") : `Not saved: ${r.error}`, summary: r.ok ? "saved" : "not saved" };
+    },
+  },
+  recall: {
+    spec: fn("recall", "Search what the companions have remembered about this person. The most relevant memories are already in your context; use this to look for something specific that is not shown.", { query: str("What to look for.") }, ["query"]),
+    label: () => "Checking memory",
+    needs: "mind",
+    async run(a, cx) {
+      const list = await cx.mind.recall(String(a.query || ""), 12);
+      return { text: list.length ? list.map((m) => `- ${m.fact} (${m.kind}, saved ${m.day})`).join("\n") : "Nothing saved about that.", summary: `${list.length} found` };
+    },
+  },
+  forget: {
+    spec: fn("forget", "Delete memories that match. Use when the person asks you to forget something or says a saved fact is wrong.", { query: str("Words that identify the memory to delete.") }, ["query"]),
+    label: () => "Removing from memory",
+    needs: "mind",
+    async run(a, cx) {
+      const n = await cx.mind.forget(String(a.query || ""));
+      return { text: n ? `Deleted ${n} ${n === 1 ? "memory" : "memories"}.` : "Nothing matched, so nothing was deleted.", summary: `${n} removed` };
+    },
+  },
+  ask_companion: {
+    spec: fn("ask_companion", "Hand a self-contained piece of work to another companion and get their answer back. Use it when part of the task is clearly their strength: moss for careful research and analysis, ember for code, juno for creative writing, pip for quick lookups, sol for a gentle read on a hard personal situation. They do not see this conversation, so put everything they need in the task.", { companion: str("Who to ask.", { enum: ["pip", "moss", "ember", "juno", "sol"] }), task: str("The complete brief: what you need, the facts they need, and the form the answer should take.") }, ["companion", "task"]),
+    label: (a) => `Asking ${String(a.companion || "a companion").replace(/^./, (c) => c.toUpperCase())}`,
+    top: true,
+    async run(a, cx) {
+      if (a.companion === cx.companion) return { text: "That is you. Do the work yourself or ask a different companion." };
+      const text = await cx.delegate(a.companion, String(a.task || "").slice(0, 6000));
+      return { text: clip(text || "They had nothing to add.", RESULT_CHARS), summary: "answered" };
+    },
+  },
+  schedule_task: {
+    spec: fn("schedule_task", "Schedule work to run later, once or on a repeat, without the person being here. When it runs, a companion does the task with tools and the result lands in their inbox. Use for reminders, recurring briefings, and checking on something later. Times are UTC: convert from the person's local time given in your context.", { title: str("Short name shown in their task list."), prompt: str("The full instruction to carry out at that time, written so it makes sense with no other context."), run_at: str("When to run first, ISO 8601 in UTC, for example 2026-11-11T14:00:00Z."), repeat: str("How often to repeat after the first run.", { enum: ["none", "hourly", "daily", "weekly"] }) }, ["title", "prompt", "run_at"]),
+    label: (a) => `Scheduling: ${String(a.title || "task").slice(0, 60)}`,
+    needs: "mind",
+    top: true,
+    outward: (a) => a.prompt,
+    async run(a, cx) {
+      const r = await cx.mind.addTask({ title: a.title, prompt: a.prompt, run_at: a.run_at, repeat: a.repeat, companion: cx.companion, brand: cx.brand });
+      return { text: r.ok ? `Scheduled (id ${r.id}). First run ${r.run_at} UTC${r.repeat !== "none" ? `, repeating ${r.repeat}` : ""}.` : `Not scheduled: ${r.error}`, summary: r.ok ? "scheduled" : "not scheduled" };
+    },
+  },
+  list_tasks: {
+    spec: fn("list_tasks", "List the person's scheduled tasks.", {}),
+    label: () => "Checking scheduled tasks",
+    needs: "mind",
+    top: true,
+    async run(a, cx) {
+      const list = await cx.mind.tasks();
+      return { text: list.length ? list.map((t) => `- id ${t.id}: "${t.title}" next ${t.run_at} UTC, repeat ${t.repeat}`).join("\n") : "No scheduled tasks.", summary: `${list.length} tasks` };
+    },
+  },
+  cancel_task: {
+    spec: fn("cancel_task", "Cancel a scheduled task by its id (from list_tasks).", { id: { type: "integer", description: "The task id." } }, ["id"]),
+    label: () => "Cancelling a task",
+    needs: "mind",
+    top: true,
+    async run(a, cx) {
+      const ok = await cx.mind.removeTask(Number(a.id));
+      return { text: ok ? "Cancelled." : "No task with that id.", summary: ok ? "cancelled" : "not found" };
+    },
+  },
+};
+
+// The tools on offer for this call. Sub-agents (depth > 0) cannot delegate or
+// schedule; without a user key there is no memory.
+export function toolbox({ depth = 0, hasMind = false }) {
+  return Object.entries(TOOLS)
+    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind))
+    .map(([name]) => name);
+}
+export const specs = (names) => names.map((n) => TOOLS[n].spec);
+
+export async function runTool(name, rawArgs, cx) {
+  const tool = TOOLS[name];
+  if (!tool) return { text: `There is no tool called ${name}.`, summary: "unknown tool" };
+  let args;
+  try {
+    args = typeof rawArgs === "string" ? JSON.parse(rawArgs || "{}") : rawArgs || {};
+  } catch {
+    return { text: "The arguments were not valid JSON. Call the tool again with a JSON object.", summary: "bad arguments" };
+  }
+  if (tool.outward) {
+    const why = guard(tool.outward(args));
+    if (why) return { text: `Blocked by the platform: this looks like ${why}, which could put a person in danger. Do not try another route to it. Tell the person plainly that you cannot help with that part, and offer the safe help you can give.`, summary: "blocked", blocked: true };
+  }
+  try {
+    return await tool.run(args, cx);
+  } catch (e) {
+    return { text: `The tool failed: ${String(e.message || e).slice(0, 200)}. Carry on without it or try a different approach.`, summary: "failed" };
+  }
+}
+
+export function toolLabel(name, rawArgs) {
+  try {
+    const args = typeof rawArgs === "string" ? JSON.parse(rawArgs || "{}") : rawArgs || {};
+    return TOOLS[name]?.label(args) || name;
+  } catch {
+    return name;
+  }
+}
+
+// Public catalog for the app (GET /v1/tools).
+export function catalog() {
+  return Object.entries(TOOLS).map(([name, t]) => ({ name, description: t.spec.function.description.split(". ")[0] + "." }));
+}

@@ -25,6 +25,15 @@
     sess: { wh: 0, g: 0 },
     user: load("pv_user", { name: "", about: "" }),
   };
+  // A random secret kept on this device: it is how memory, tasks and the inbox find you without an account.
+  var device = Kit.get("pv_device");
+  if (!device) { device = Array.from(crypto.getRandomValues(new Uint8Array(20)), function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); Kit.set("pv_device", device); }
+  var TZ = ""; try { TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ "X-Device": device }, opts.body ? { "Content-Type": "application/json" } : {}, opts.headers || {});
+    return fetch(Kit.api + path, opts).then(function (r) { return r.json(); });
+  }
   var fig = { stage: null, top: null, empty: null };
   var typingTimer = 0;
 
@@ -153,6 +162,22 @@
     if (m.partial) s += "<span>Cut short</span>";
     return s;
   }
+  var TOOL_ICON = { web_search: "magnifying-glass", read_page: "file-text", calculate: "gauge", remember: "brain", recall: "brain", forget: "brain", ask_companion: "chat-circle", schedule_task: "hourglass-medium", list_tasks: "hourglass-medium", cancel_task: "hourglass-medium", look: "eye", team: "stack" };
+  function stepsHtml(steps) {
+    if (!steps || !steps.length) return "";
+    return '<ul class="steps">' + steps.map(function (st) {
+      var who = st.by && byId[st.by] ? '<b>' + byId[st.by].name + "</b> " : "";
+      return '<li class="' + (st.state === "run" ? "run" : st.state === "blocked" ? "blocked" : "ok") + (st.by && st.tool !== "team" ? " sub" : "") + '">' + Kit.icon(st.state === "blocked" ? "warning-circle" : TOOL_ICON[st.tool] || "wrench") + "<span>" + who + Kit.esc(st.label || "") + "</span>" + (st.summary && st.state !== "run" ? "<em>" + Kit.esc(st.state === "blocked" ? "blocked for safety" : st.summary) + "</em>" : "") + "</li>";
+    }).join("") + "</ul>";
+  }
+  function sourcesHtml(list) {
+    if (!list || !list.length) return "";
+    var seen = {};
+    return '<div class="sources">' + list.filter(function (x) { if (seen[x.url]) return false; seen[x.url] = 1; return true; }).slice(0, 8).map(function (x) {
+      var host = ""; try { host = new URL(x.url).hostname.replace(/^www\./, ""); } catch (e) {}
+      return '<a href="' + Kit.esc(x.url) + '" target="_blank" rel="noopener noreferrer" title="' + Kit.esc(x.title) + '"><b>' + x.n + "</b>" + Kit.esc(host) + "</a>";
+    }).join("") + "</div>";
+  }
   function careHtml(r) {
     return '<div class="care" role="region" aria-label="Help available now"><h3>You do not have to carry this alone.</h3><p>Real people are available right now. If you are in immediate danger, call ' + Kit.esc(r.emergency) + ".</p><ul>" +
       r.lines.map(function (l) { return '<li><a href="' + Kit.esc(l.href) + '"' + (/^https/.test(l.href) ? ' target="_blank" rel="noopener noreferrer"' : "") + "><div><b>" + Kit.esc(l.name) + "</b><span>" + Kit.esc(l.how) + "</span></div>" + Kit.icon("arrow-up-right") + "</a></li>"; }).join("") +
@@ -165,7 +190,7 @@
       el.innerHTML = '<div class="bubble">' + (m.thumbs || []).map(function (u) { return '<img src="' + u + '" alt="Attached image">'; }).join("") + Kit.esc(m.content) + "</div>";
     } else {
       var c = byId[m.companion || state.companion];
-      el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="name">' + c.name + '</div><div class="prose"></div><div class="meta"></div>';
+      el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="name">' + c.name + '</div><div class="steps-host">' + stepsHtml(m.steps) + '</div><div class="prose"></div><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta"></div>';
       var prose = el.querySelector(".prose");
       prose.innerHTML = md(m.content || "");
       dress(prose);
@@ -254,13 +279,23 @@
     var onEvent = function (ev) {
       if (ev.meta) Object.assign(bm.meta, { lane: ev.meta.lane, lane_label: ev.meta.lane_label });
       if (ev.care) { bm.care = ev.care; el.insertAdjacentHTML("afterbegin", careHtml(ev.care)); mood("care"); }
+      if (ev.step) {
+        bm.steps = bm.steps || [];
+        var cur = bm.steps.find(function (x) { return x.id === ev.step.id; });
+        if (cur) Object.assign(cur, ev.step); else bm.steps.push(ev.step);
+        el.querySelector(".steps-host").innerHTML = stepsHtml(bm.steps);
+        if (!bm.care) mood("think");
+        scrollEnd();
+      }
+      if (ev.sources) { bm.sources = ev.sources; el.querySelector(".sources-host").innerHTML = sourcesHtml(bm.sources); }
+      if (ev.reset) { bm.content = ""; prose.innerHTML = '<div class="wait" aria-label="Working"><i></i><i></i><i></i></div>'; }
       if (ev.delta) {
         if (!bm.content && !bm.care) mood("talk");
         bm.content += ev.delta;
         pulse(Math.min(0.9, 0.25 + ev.delta.length * 0.04));
         if (!raf) raf = requestAnimationFrame(paint);
       }
-      if (ev.done) { bm.meta.impact = ev.impact; bm.meta.partial = ev.partial; if (ev.demo) bm.meta.demo = true; }
+      if (ev.done) { bm.meta.impact = ev.impact; bm.meta.partial = ev.partial; if (ev.lane_label) bm.meta.lane_label = ev.lane_label; if (ev.demo) bm.meta.demo = true; }
       if (ev.error) bm.error = ev.error;
     };
 
@@ -299,34 +334,60 @@
     scrollEnd();
   }
 
+  // Each reply is a cloud run: if the connection drops, re-attach and carry on
+  // from the last event seen. Stop cancels the run on the server too.
   async function stream(ch, images, onEvent, signal) {
+    var runId = "r-" + uid().replace(/[^\w-]/g, "");
+    var seen = 0, finished = false;
+    var cancel = function () { fetch(Kit.api + "/v1/runs/" + runId + "/cancel", { method: "POST" }).catch(function () {}); };
+    signal.addEventListener("abort", cancel, { once: true });
+    var read = async function (res) {
+      var reader = res.body.getReader(), dec = new TextDecoder(), buf = "";
+      for (;;) {
+        var r = await reader.read();
+        if (r.done) break;
+        buf += dec.decode(r.value, { stream: true });
+        var i;
+        while ((i = buf.indexOf("\n\n")) !== -1) {
+          var line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 2);
+          if (line.indexOf("data:") !== 0) continue;
+          var ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
+          seen++;
+          if (ev.done || ev.error) finished = true;
+          onEvent(ev);
+        }
+      }
+    };
     var res = await fetch(Kit.api + "/v1/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Device": device },
       signal: signal,
       body: JSON.stringify({
+        run_id: runId,
+        chat_id: ch.id,
         companion: state.companion,
         brand: Kit.brand,
         mode: state.mode,
-        user: state.user,
+        user: { name: state.user.name, about: state.user.about, tz: TZ },
         images: images,
         messages: ch.messages.map(function (m) { return { role: m.role, content: m.content }; }),
       }),
     });
     if (res.status === 429) { onEvent({ error: "That is a lot of messages in a minute. Give it a moment and try again." }); return; }
     if (!res.ok || !res.body) throw new Error("backend " + res.status);
-    var reader = res.body.getReader(), dec = new TextDecoder(), buf = "";
-    for (;;) {
-      var r = await reader.read();
-      if (r.done) break;
-      buf += dec.decode(r.value, { stream: true });
-      var i;
-      while ((i = buf.indexOf("\n\n")) !== -1) {
-        var line = buf.slice(0, i).trim();
-        buf = buf.slice(i + 2);
-        if (line.indexOf("data:") === 0) { try { onEvent(JSON.parse(line.slice(5))); } catch (e) {} }
-      }
+    try { await read(res); } catch (e) { if (e.name === "AbortError") throw e; }
+    // Dropped mid-run: the work is still going on the server. Pick it back up.
+    for (var tries = 0; !finished && !signal.aborted && tries < 5; tries++) {
+      await new Promise(function (r) { setTimeout(r, 800 * (tries + 1)); });
+      try {
+        var again = await fetch(Kit.api + "/v1/runs/" + runId + "?from=" + seen, { signal: signal });
+        if (!again.ok) break;
+        await read(again);
+        if (again.headers.get("X-Run-Status") !== "running") break;
+      } catch (e) { if (e.name === "AbortError") throw e; }
     }
+    signal.removeEventListener("abort", cancel);
   }
 
   // Scripted stand-in used only when the backend cannot be reached.
@@ -399,6 +460,40 @@
     $("setAbout").value = state.user.about || "";
     if (window.Sync) Sync.renderAccount($("acct"));
     $("settings").showModal();
+    loadMind();
+  }
+  // Memory, scheduled tasks and the inbox, from the person's Mind on the server.
+  function loadMind() {
+    var host = $("mind");
+    host.innerHTML = '<p class="help">Loading what the companions remember.</p>';
+    api("/v1/me").then(function (d) {
+      var when = function (ms) { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+      var row = function (text, sub, kind, id) { return '<li><div><span>' + Kit.esc(text) + "</span>" + (sub ? "<small>" + Kit.esc(sub) + "</small>" : "") + '</div><button type="button" class="iconbtn" data-del="' + kind + ":" + id + '" aria-label="Delete">' + Kit.icon("trash") + "</button></li>"; };
+      host.innerHTML =
+        '<p class="lbl">Inbox</p>' + (d.inbox.length ? '<ul class="mind">' + d.inbox.map(function (i) { return row((i.kind === "task" ? "Task: " : "Finished while you were away: ") + i.title, byId[i.companion] ? byId[i.companion].name + ", " + when(i.created) : when(i.created), "inbox", i.id).replace("<li>", '<li data-open="' + i.id + '">'); }).join("") + "</ul>" : '<p class="help">Results from scheduled tasks, and replies that finished after you left, land here.</p>') +
+        '<p class="lbl">Scheduled</p>' + (d.tasks.length ? '<ul class="mind">' + d.tasks.map(function (t) { return row(t.title, "Next " + when(t.at) + (t.repeat !== "none" ? ", " + t.repeat : ""), "tasks", t.id); }).join("") + "</ul>" : '<p class="help">Nothing scheduled. Ask a companion to remind you or to check on something later.</p>') +
+        '<p class="lbl">Memory</p>' + (d.memories.length ? '<ul class="mind">' + d.memories.map(function (m) { return row(m.fact, m.kind + ", " + m.day, "memory", m.id); }).join("") + "</ul>" : '<p class="help">Nothing remembered yet. The companions keep lasting things you tell them, and you can delete any of it here.</p>');
+      var unseen = d.inbox.filter(function (i) { return !i.seen; }).map(function (i) { return i.id; });
+      if (unseen.length) api("/v1/inbox/seen", { method: "POST", body: JSON.stringify({ ids: unseen }) }).then(badge);
+      host.onclick = function (e) {
+        var del = e.target.closest("[data-del]");
+        if (del) { var p = del.getAttribute("data-del").split(":"); api("/v1/" + p[0] + "/" + p[1], { method: "DELETE" }).then(loadMind); return; }
+        var open = e.target.closest("[data-open]");
+        if (open) {
+          var item = d.inbox.find(function (i) { return String(i.id) === open.getAttribute("data-open"); });
+          if (!item) return;
+          // Open the result as a chat so it can be continued.
+          var c = { id: uid(), companion: byId[item.companion] ? item.companion : "pip", title: item.title.slice(0, 60), updated: Date.now(), messages: [{ role: "user", content: item.title }, { role: "assistant", content: item.body, companion: item.companion, sources: (item.meta || {}).sources, meta: { lane: (item.meta || {}).lane || "task", lane_label: item.kind === "task" ? "Scheduled task" : "Finished in the background", impact: (item.meta || {}).impact } }] };
+          state.chats.unshift(c); save(); $("settings").close(); openChat(c.id);
+        }
+      };
+    }).catch(function () { host.innerHTML = '<p class="help">Memory, tasks and the inbox need the preview backend, which is not connected.</p>'; });
+  }
+  function badge() {
+    api("/v1/me").then(function (d) {
+      var n = d.inbox.filter(function (i) { return !i.seen; }).length;
+      var b = $("inboxBadge"); b.hidden = !n; b.textContent = n;
+    }).catch(function () {});
   }
   function whoLabel() { $("whoName").textContent = (state.user.name || "").trim() || "You"; }
 
@@ -471,6 +566,8 @@
       local: function () { return state.chats; },
     });
 
+    badge();
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) badge(); });
     if (q.get("q")) { history.replaceState(null, "", location.pathname); send(q.get("q")); }
     else if (matchMedia("(min-width: 781px)").matches) $("input").focus();
   }
