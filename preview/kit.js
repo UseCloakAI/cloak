@@ -1,4 +1,4 @@
-/* Kit runtime: brand name, light/dark, icons, entrances, API base, and the
+/* Kit runtime: the wordmark, light/dark, icons, entrances, API base, and the
    companion data the pages share. Loaded on every preview page. */
 (function () {
   "use strict";
@@ -6,19 +6,35 @@
   function get(k) { try { return LS.getItem(k); } catch (e) { return null; } }
   function set(k, v) { try { LS.setItem(k, v); } catch (e) {} }
 
-  /* ── Brand. Three candidate names; switch on the System page. ───── */
-  var BRANDS = {
-    Kith: { tag: "AI that keeps good company.", why: "An old word for the people and places you know by heart, as in kith and kin. Four letters, easy to say, and it makes the companions the product: your kith." },
-    Tend: { tag: "AI that tends to people and planet.", why: "A verb, not a noun. To tend is to care for something over time: a person, a garden, a fire. It carries both halves of the mission in one syllable." },
-    Alder: { tag: "Good for the ground it grows in.", why: "The alder is a pioneer tree. It grows first on damaged land and fixes nitrogen so other things can follow. A quiet picture of AI that leaves things better." },
-  };
-  var brand = BRANDS[get("pv_brand")] ? get("pv_brand") : "Kith";
+  /* ── Brand. The wordmark is CL(O)AK: the O is a hand-drawn orb with two
+     dot eyes. It watches the pointer and blinks. ────────────────────── */
+  var BRANDS = { Cloak: { tag: "AI that looks you in the eye." } };
+  var brand = "Cloak";
+  var MARK =
+    '<span class="o" aria-hidden="true"><svg viewBox="0 0 40 40">' +
+    '<path d="M20 3.5 C30 3 37 10.5 36.6 20.4 C36.2 30.4 29.4 36.8 19.6 36.5 C10 36.2 3.2 29.6 3.5 19.8 C3.8 10.6 10.6 4 20 3.5 Z" fill="var(--accent)" stroke="var(--ink)" stroke-width="3.6" stroke-linejoin="round"/>' +
+    '<g class="o-eyes"><ellipse cx="14.2" cy="19" rx="2.5" ry="3.6" fill="#0A0A0A"/><ellipse cx="25.8" cy="19" rx="2.5" ry="3.6" fill="#0A0A0A"/></g>' +
+    "</svg></span>";
 
   function applyBrand() {
-    document.querySelectorAll("[data-brand]").forEach(function (el) { el.textContent = brand; });
+    document.querySelectorAll("[data-brand]").forEach(function (el) {
+      el.innerHTML = "Cl" + MARK + "ak";
+      el.setAttribute("aria-label", "Cloak");
+    });
     document.querySelectorAll("[data-brand-tag]").forEach(function (el) { el.textContent = BRANDS[brand].tag; });
-    document.title = document.title.replace(/Kith|Tend|Alder/g, brand);
   }
+  // Every O on the page looks toward the pointer. One rAF per move, no loop.
+  var eyeRaf = 0, px = 0, py = 0;
+  function lookAt() {
+    eyeRaf = 0;
+    document.querySelectorAll(".o-eyes").forEach(function (g) {
+      var r = g.ownerSVGElement.getBoundingClientRect();
+      var dx = px - (r.left + r.width / 2), dy = py - (r.top + r.height / 2);
+      var d = Math.max(60, Math.hypot(dx, dy));
+      g.style.translate = ((dx / d) * 4.2).toFixed(2) + "px " + ((dy / d) * 3.4).toFixed(2) + "px";
+    });
+  }
+  window.addEventListener("pointermove", function (e) { px = e.clientX; py = e.clientY; if (!eyeRaf) eyeRaf = requestAnimationFrame(lookAt); }, { passive: true });
 
   /* ── Mode: follows the system until the person chooses. ─────────── */
   function mode() {
@@ -31,7 +47,7 @@
     document.documentElement.setAttribute("data-mode", m);
     document.querySelectorAll("[data-mode-toggle] use").forEach(function (u) { u.setAttribute("href", "icons.svg#" + (m === "dark" ? "sun" : "moon")); });
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", m === "dark" ? "#0F1714" : "#EDF0E7");
+    if (meta) meta.setAttribute("content", m === "dark" ? "#131110" : "#F2EEE5");
   }
 
   /* ── API base. Override with ?api=… (remembered) for local work. ── */
@@ -42,11 +58,11 @@
 
   /* ── Companions (mirrors preview-api/src/prompts.js). ───────────── */
   var COMPANIONS = [
-    { id: "pip", name: "Pip", species: "Wren", role: "Everyday helper", lane: "Swift", line: "Quick, bright, on your side.", about: "The one you ask a hundred small things a day. Fast answers, no fuss, and a nudge when you are overthinking it.", hello: "What do you need sorted?", starters: ["Plan my week around three deadlines", "Rewrite this text so it sounds kind but firm", "What can I cook with eggs, rice and spinach?"] },
-    { id: "moss", name: "Moss", species: "Tortoise", role: "Deep thinker", lane: "Deep", line: "Slow on purpose. Thorough always.", about: "For the hard ones: research, decisions, things worth understanding properly. Shows the reasoning and tells you what would change the answer.", hello: "Take your time. What are we working through?", starters: ["Help me decide between two job offers", "Explain how mRNA vaccines work, properly", "What are the strongest arguments against my plan?"] },
-    { id: "ember", name: "Ember", species: "Fox", role: "Builder", lane: "Build", line: "Sharp eyes, clean code.", about: "Code, systems and anything that has to actually work. Writes complete, runnable code, finds the real bug, and warns you before the plan bites.", hello: "What are we building?", starters: ["Build a habit tracker as a single HTML file", "Why does this function return undefined?", "Review this database schema before I ship it"] },
-    { id: "juno", name: "Juno", species: "Otter", role: "Creative partner", lane: "Create", line: "Plays with ideas until one shines.", about: "Stories, names, speeches, jokes, whole worlds. Brings range and surprise, takes your idea seriously, and skips the first cliché.", hello: "Ooh. What are we making?", starters: ["Write the opening of a mystery set in a lighthouse", "Ten names for a bakery, none of them puns", "Punch up this wedding toast"] },
-    { id: "sol", name: "Sol", species: "Capybara", role: "Calm company", lane: "Balanced", line: "Unhurried. Here for the long version.", about: "For the days that are a lot. Listens first, helps you sort what you feel from what you can do, and points you back toward your people.", hello: "No rush. What's on your mind?", starters: ["I can't switch my brain off tonight", "Help me prepare for a hard conversation", "I keep putting off something important"] },
+    { id: "pip", name: "Pip", species: "Orb", role: "Everyday helper", lane: "Swift", line: "Quick, bright, on your side.", about: "The one you ask a hundred small things a day. Fast answers, no fuss, and a nudge when you are overthinking it.", hello: "What do you need sorted?", starters: ["Plan my week around three deadlines", "Rewrite this text so it sounds kind but firm", "What can I cook with eggs, rice and spinach?"] },
+    { id: "moss", name: "Moss", species: "Slab", role: "Deep thinker", lane: "Deep", line: "Slow on purpose. Thorough always.", about: "For the hard ones: research, decisions, things worth understanding properly. Shows the reasoning and tells you what would change the answer.", hello: "Take your time. What are we working through?", starters: ["Help me decide between two job offers", "Explain how mRNA vaccines work, properly", "What are the strongest arguments against my plan?"] },
+    { id: "ember", name: "Ember", species: "Spark", role: "Builder", lane: "Build", line: "All point. Clean code.", about: "Code, systems and anything that has to actually work. Writes complete, runnable code, finds the real bug, and warns you before the plan bites.", hello: "What are we building?", starters: ["Build a habit tracker as a single HTML file", "Why does this function return undefined?", "Review this database schema before I ship it"] },
+    { id: "juno", name: "Juno", species: "Bloom", role: "Creative partner", lane: "Create", line: "Plays with ideas until one shines.", about: "Stories, names, speeches, jokes, whole worlds. Brings range and surprise, takes your idea seriously, and skips the first cliché.", hello: "Ooh. What are we making?", starters: ["Write the opening of a mystery set in a lighthouse", "Ten names for a bakery, none of them puns", "Punch up this wedding toast"] },
+    { id: "sol", name: "Sol", species: "Dome", role: "Calm company", lane: "Balanced", line: "Unhurried. Here for the long version.", about: "For the days that are a lot. Listens first, helps you sort what you feel from what you can do, and points you back toward your people.", hello: "No rush. What's on your mind?", starters: ["I can't switch my brain off tonight", "Help me prepare for a hard conversation", "I keep putting off something important"] },
   ];
 
   function icon(name, cls) {
@@ -115,7 +131,7 @@
     COMPANIONS: COMPANIONS,
     api: api,
     get brand() { return brand; },
-    setBrand: function (b) { if (BRANDS[b]) { brand = b; set("pv_brand", b); applyBrand(); document.dispatchEvent(new CustomEvent("kit:brand", { detail: b })); } },
+    mark: MARK,
     mode: mode,
     toggleMode: function () { set("pv_mode", mode() === "dark" ? "light" : "dark"); applyMode(); },
     icon: icon, esc: esc, fmtWh: fmtWh, fmtCO2: fmtCO2, fmtN: fmtN,

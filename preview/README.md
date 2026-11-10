@@ -7,9 +7,9 @@ The full rebrand, built to live at `preview.usecloak.org`. Nothing in production
 | `index.html` | Home: hero with the five companions, companion picker, routing demo, the one rule, the ledger |
 | `app.html` + `app.css` + `app.js` | The chat app: companions, chats, the stage, care card, sponsor card, per-reply energy |
 | `impact.html` + `impact.js` | The public carbon ledger and its chart |
-| `system.html` | Design system: name candidates (live switch), color, type, parts, creature rig, motion, voice |
+| `system.html` | Design system: the mark, color, type, parts, the shape rig, motion, voice |
 | `kit.css` / `kit.js` | Tokens, components, brand name, light/dark, API base, companion data |
-| `creatures.js` | The five companions: hand-drawn SVG, rigged and animated in code |
+| `creatures.js` | The five companions: hand-drawn shapes with dot eyes (orb, slab, spark, bloom, dome), rigged and animated in code |
 | `sync.js` | Optional sign-in with an existing Cloak account; chats sync to `pv_chats` |
 | `fonts/`, `icons.svg` | Bricolage Grotesque, Geist, Geist Mono (OFL); Phosphor Regular (MIT) |
 
@@ -32,11 +32,11 @@ On localhost the site talks to `http://localhost:8787`. Anywhere else it talks t
 
 ## The name
 
-Working name is **Kith**. Tend and Alder are the other candidates; switch between them on `system.html#name`. To lock one in: set the default in `kit.js` (`brand`) and `BRAND` in `preview-api/wrangler.jsonc`.
+The name is **Cloak**, on Cloak's own tokens (ink, paper, orange, 2px borders, hard shadows, Syne + Space Grotesk from Google Fonts) plus a hand-drawn layer. The wordmark is CL(O)AK: `kit.js` swaps the O in every `[data-brand]` for a small orb with eyes that follows the pointer.
 
 ## Rules that hold everywhere
 
 - Zero em-dashes in visible copy. One accent color (marigold). Controls are pills, surfaces 20px, fields 14px.
-- Creature art is hand-drawn paths in `creatures.js`. No image files, no generated art.
+- Companion art is hand-drawn paths in `creatures.js`. No image files, no generated art.
 - Any number about energy or carbon is labelled an estimate. "Removed" means a receipt exists.
 - Sponsor cards never appear inside a reply and are never targeted.

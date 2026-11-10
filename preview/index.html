@@ -4,115 +4,110 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#EDF0E7">
-<title>Kith: AI that keeps good company</title>
-<meta name="description" content="Five companions that help you think, build and make. Honest by design, and the carbon of every reply is counted and removed ten times over.">
+<meta name="theme-color" content="#F2EEE5">
+<title>Cloak: AI that looks you in the eye</title>
+<meta name="description" content="Five companions that help you think, build and make. Straight with you, and the carbon of every reply is counted and removed ten times over.">
 <script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
-<link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap">
 <link rel="stylesheet" href="kit.css">
 <style>
 section{padding:clamp(64px,9vw,120px) 0}
-.plate{--plate:#D9E5CB}
-:root[data-mode="dark"] .plate{--plate:#B9C9AD}
 
-/* Hero: copy left, the five on the right */
-.hero{padding:clamp(28px,5vw,64px) 0 clamp(48px,7vw,88px)}
-.hero-in{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);gap:clamp(24px,5vw,72px);align-items:center;min-height:min(72dvh,680px)}
-.hero h1{margin:0 0 22px}
-.hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--accent) 62% 92%,transparent 92%)}
-.hero .t-lead{margin-bottom:30px}
-.cta{display:flex;flex-wrap:wrap;gap:12px}
-.scene{position:relative;aspect-ratio:1/1;width:100%;max-width:600px;justify-self:end}
-.scene-bg{position:absolute;inset:4% 0 0 0;width:100%;height:96%}
-.scene [data-c]{position:absolute;cursor:pointer;transition:scale var(--t2) var(--ease-back)}
-.scene [data-c]:hover{scale:1.04}
-.scene [data-c="moss"]{left:1%;top:10%;width:47%}
-.scene [data-c="sol"]{right:1%;top:11%;width:46%}
-.scene [data-c="juno"]{left:3%;top:47%;width:37%}
-.scene [data-c="ember"]{left:29%;top:43%;width:43%}
-.scene [data-c="pip"]{right:3%;top:53%;width:31%}
-@media (max-width:860px){
-  .hero-in{grid-template-columns:1fr;min-height:0}
-  .scene{justify-self:center;max-width:460px;order:-1}
-}
+/* Hero: the line, then the five standing on it */
+.hero{padding:clamp(30px,5vw,60px) 0 clamp(56px,8vw,96px)}
+.hero h1{margin:18px 0 38px;max-width:13ch}
+.hero-row{display:flex;flex-wrap:wrap;gap:22px 48px;align-items:end;justify-content:space-between;margin-bottom:clamp(40px,6vw,72px)}
+.cta{display:flex;flex-wrap:wrap;gap:14px}
+.lineup{position:relative;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:end;gap:clamp(4px,1.5vw,20px);padding:clamp(34px,5vw,60px) clamp(14px,3vw,40px) 0;border:var(--bd);background-color:var(--surface);box-shadow:var(--shadow-lg)}
+.lineup::after{content:"";grid-column:1/-1;height:clamp(40px,5vw,58px);margin:0 calc(-1*clamp(14px,3vw,40px));border-top:var(--bd);background:var(--yel)}
+.who{position:relative;display:grid;justify-items:center;padding:0;border:0;background:none;cursor:pointer;margin-bottom:-6px;z-index:1;transition:translate var(--lift)}
+.who:hover{translate:0 -8px}
+.who .fig{width:100%;aspect-ratio:1/1}
+.who:nth-child(2) .fig{width:108%}.who:nth-child(1) .fig{width:88%}.who:nth-child(4) .fig{width:94%}
+.who b{position:absolute;bottom:calc(-1*clamp(34px,4.2vw,46px));font:800 clamp(.72rem,1.5vw,1.05rem)/1 var(--fd);letter-spacing:.02em;text-transform:uppercase;color:#0A0A0A}
+.lineup .note{position:absolute;z-index:2;white-space:nowrap}
+.lineup .n1{left:clamp(14px,3vw,40px);top:14px}
+.lineup .n2{right:clamp(14px,3vw,40px);top:14px;rotate:2deg;color:var(--ink)}
+.lineup .note svg{width:44px;height:30px;vertical-align:-18px;margin-left:4px;overflow:visible}
+@media (max-width:640px){.lineup .n2{display:none}.hero h1{max-width:none}.who b{font-size:.56rem;letter-spacing:0}}
 
 /* Companions: names on the left, the chosen one on the right */
-.meet{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(24px,5vw,64px);margin-top:44px;align-items:start}
-.meet-list{display:grid;gap:4px}
-.meet-tab{display:flex;align-items:baseline;gap:12px;width:100%;padding:14px 18px;border:0;border-radius:var(--r-card);background:transparent;text-align:left;cursor:pointer;transition:background-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
-.meet-tab b{font:650 1.6rem/1 var(--fd);letter-spacing:-.03em}
-.meet-tab span{color:var(--ink-3);font-size:.92rem}
-.meet-tab:hover{background:var(--sunk)}
-.meet-tab:active{transform:scale(.985)}
-.meet-tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.meet{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(24px,4vw,48px);margin-top:44px;align-items:start}
+.meet-list{display:grid;gap:8px}
+.meet-tab{display:flex;align-items:baseline;gap:12px;width:100%;padding:14px 16px;border:var(--bd);background:var(--surface);color:var(--ink);text-align:left;cursor:pointer;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift),background-color var(--t1) var(--ease)}
+.meet-tab b{font:800 1.5rem/1 var(--fd);letter-spacing:-.03em;text-transform:uppercase}
+.meet-tab span{color:var(--ink-3);font-size:.88rem}
+.meet-tab i{width:14px;height:14px;border:2px solid #0A0A0A;border-radius:50%;flex:none;align-self:center}
+.meet-tab:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.meet-tab[aria-selected="true"]{background:var(--ink);color:var(--bg);transform:translate(2px,2px);box-shadow:none}
 .meet-tab[aria-selected="true"] span{color:inherit;opacity:.7}
-.meet-panel{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(18px,3vw,40px);align-items:center;padding:clamp(20px,3vw,36px);min-height:360px}
+.meet-panel{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(18px,3vw,40px);align-items:center;padding:clamp(20px,3vw,36px);min-height:380px;box-shadow:var(--shadow-lg)}
 .meet-fig{aspect-ratio:1/1;width:100%}
-.meet-body h3{font-size:clamp(1.8rem,3vw,2.5rem);margin-bottom:6px}
-.meet-body .role{color:var(--ink-3);font-weight:500;margin-bottom:16px}
+.meet-body h3{font-size:clamp(2.2rem,4vw,3.4rem);margin-bottom:10px;text-transform:uppercase}
+.meet-body .role{margin-bottom:16px}
 .meet-body p.about{color:var(--ink-2);max-width:46ch;margin-bottom:20px}
-.starters{display:grid;gap:8px}
-.starter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 16px;border-radius:var(--r-field);border:1px solid var(--line);background:var(--raise);text-decoration:none;font-size:.95rem;transition:border-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
-.starter:hover{border-color:var(--ink);transform:translateX(3px)}
-.starter .ic{color:var(--ink-3)}
+.starters{display:grid;gap:10px}
 .swap{animation:swap var(--t3) var(--ease) both}
 @keyframes swap{from{opacity:0;translate:0 14px}}
 @media (max-width:900px){
   .meet{grid-template-columns:1fr}
-  .meet-list{grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
-  .meet-tab{scroll-snap-align:start;padding:10px 16px}.meet-tab span{display:none}.meet-tab b{font-size:1.2rem}
-  .meet-panel{grid-template-columns:1fr}.meet-fig{max-width:240px;margin:0 auto}
+  .meet-list{grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto;padding:4px 4px 8px;scroll-snap-type:x proximity}
+  .meet-tab{scroll-snap-align:start;padding:10px 14px}.meet-tab span{display:none}.meet-tab b{font-size:1.1rem}
+  .meet-panel{grid-template-columns:1fr}.meet-fig{max-width:230px;margin:0 auto}
 }
 
 /* Routing: pick an ask, see where it goes */
+.band{background:var(--surface);border-block:var(--bd)}
 .route{margin-top:40px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:clamp(20px,4vw,56px);align-items:start}
-.asks{display:flex;flex-wrap:wrap;gap:10px}
-.ask{padding:12px 18px;border-radius:var(--r-pill);border:1.5px solid var(--line-2);background:transparent;cursor:pointer;font-size:.98rem;text-align:left;transition:background-color var(--t1) var(--ease),border-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
-.ask:hover{border-color:var(--ink)}
-.ask:active{transform:scale(.97)}
-.ask[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.route-out{padding:26px}
-.route-out dl{display:grid;grid-template-columns:auto 1fr;gap:12px 20px;margin:0}
-.route-out dt{color:var(--ink-3);font-size:.9rem;padding-top:3px}
-.route-out dd{margin:0;font:600 1.15rem/1.3 var(--fd);letter-spacing:-.01em}
-.route-out dd small{display:block;font:400 .9rem/1.45 var(--fb);color:var(--ink-2);letter-spacing:0;margin-top:2px}
+.asks{display:flex;flex-wrap:wrap;gap:12px}
+.ask{padding:11px 15px;border:var(--bd);background:var(--bg);color:var(--ink);cursor:pointer;font-size:.96rem;font-weight:500;text-align:left;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift),background-color var(--t1) var(--ease)}
+.ask:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.ask[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);transform:translate(2px,2px);box-shadow:none}
+.route-out{padding:26px;background:var(--bg)}
+.route-out dl{display:grid;grid-template-columns:auto 1fr;gap:14px 20px;margin:0}
+.route-out dt{color:var(--ink-3);font:700 .66rem/1 var(--fb);letter-spacing:.14em;text-transform:uppercase;padding-top:6px}
+.route-out dd{margin:0;font:800 1.2rem/1.2 var(--fd);letter-spacing:-.01em}
+.route-out dd small{display:block;font:400 .9rem/1.45 var(--fb);color:var(--ink-2);letter-spacing:0;margin-top:3px}
 @media (max-width:860px){.route{grid-template-columns:1fr}}
 
 /* The one rule */
-.rule{background:var(--ink);color:var(--bg);border-radius:clamp(24px,4vw,44px);padding:clamp(40px,7vw,96px) clamp(24px,6vw,88px)}
-.rule h2{font-size:clamp(2.3rem,6.4vw,5.2rem);letter-spacing:-.045em;max-width:14ch}
+.rule{position:relative;background:var(--ink);color:var(--bg);border:var(--bd);box-shadow:8px 8px 0 var(--accent);padding:clamp(40px,7vw,92px) clamp(24px,6vw,84px)}
+.rule h2{font-size:clamp(2.3rem,6.6vw,5.4rem);letter-spacing:-.045em;max-width:13ch;text-transform:uppercase;line-height:.92}
 .rule h2 span{color:var(--accent)}
-.rule-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(20px,4vw,56px);margin-top:clamp(32px,5vw,60px);max-width:900px}
-.rule-cols h3{font-size:1.2rem;margin-bottom:8px;letter-spacing:-.01em}
-.rule-cols p{opacity:.78;max-width:42ch}
+.rule .sticker{position:absolute;top:-16px;right:clamp(16px,5vw,60px);rotate:3deg}
+.rule-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(22px,4vw,56px);margin-top:clamp(32px,5vw,60px);max-width:900px}
+.rule-cols h3{font:700 .72rem/1 var(--fb);letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px;color:var(--yel)}
+:root[data-mode="dark"] .rule-cols h3{color:var(--accent-2)}
+.rule-cols p{opacity:.82;max-width:42ch}
 @media (max-width:700px){.rule-cols{grid-template-columns:1fr}}
 
 /* Ledger */
 .ledger-top{display:flex;flex-wrap:wrap;gap:24px 56px;margin:36px 0 26px}
-.stat b{display:block;font:650 clamp(1.9rem,3.6vw,2.8rem)/1 var(--fd);letter-spacing:-.035em}
+.stat b{display:block;font:800 clamp(1.9rem,3.6vw,3rem)/1 var(--fd);letter-spacing:-.035em}
 .stat span{color:var(--ink-2);font-size:.93rem}
-.chart-card{padding:clamp(16px,2.4vw,28px)}
-.chart-tip{position:absolute;display:grid;gap:3px;width:190px;padding:10px 12px;border-radius:var(--r-sm);background:var(--raise);border:1px solid var(--line);box-shadow:var(--shadow);font-size:.82rem;pointer-events:none}
-.chart-tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
-.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:44px;border-top:1px solid var(--line)}
-.flow div{padding:22px 22px 0 0}
-.flow .ic{width:26px;height:26px;margin-bottom:12px}
-.flow h3{font-size:1.1rem;margin-bottom:6px;letter-spacing:-.01em}
+.chart-card{padding:clamp(16px,2.4vw,28px);position:relative}
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:48px;border:var(--bd);background:var(--surface);box-shadow:var(--shadow)}
+.flow div{padding:22px}
+.flow div+div{border-left:var(--bd)}
+.flow .ic{width:26px;height:26px;margin-bottom:12px;color:var(--accent)}
+.flow h3{font-size:1.15rem;margin-bottom:8px;text-transform:uppercase}
 .flow p{color:var(--ink-2);font-size:.93rem}
-@media (max-width:860px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:520px){.flow{grid-template-columns:1fr}}
+@media (max-width:860px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.flow div:nth-child(3){border-left:0}.flow div:nth-child(n+3){border-top:var(--bd)}}
+@media (max-width:520px){.flow{grid-template-columns:1fr}.flow div+div{border-left:0;border-top:var(--bd)}}
 
 .end{text-align:center}
-.end h2{margin:0 auto 26px;max-width:16ch}
-.end-fig{width:150px;height:150px;margin:0 auto 10px}
+.end h2{margin:0 auto 28px;max-width:16ch}
+.end-fig{width:170px;height:170px;margin:0 auto 6px}
 </style>
 </head>
 <body>
-<div class="pv">Preview build of the rebrand. Not live, not indexed. <a href="system.html#name">Three names are on the table.</a></div>
+<div class="pv">Preview build. Not live, not indexed. <a href="system.html">See the system.</a></div>
 
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="index.html" data-brand>Kith</a>
+    <a class="brand" href="index.html" data-brand>Cloak</a>
     <nav class="nav-links" aria-label="Main">
       <a href="#companions">Companions</a>
       <a href="#routing">How it works</a>
@@ -126,36 +121,43 @@ section{padding:clamp(64px,9vw,120px) 0}
 
 <main>
 <section class="hero">
-  <div class="wrap hero-in">
-    <div>
-      <h1 class="t-hero" data-in>AI that keeps <em>good company.</em></h1>
-      <p class="t-lead" data-in style="--i:1">Five companions that help you think, build and make. Honest with you, and the carbon of every reply is counted and removed.</p>
-      <div class="cta" data-in style="--i:2">
+  <div class="wrap">
+    <span class="sticker" data-in>Five of them. One rule.</span>
+    <h1 class="t-hero" data-in style="--i:1">AI that looks you <span class="scribble">in the eye.</span></h1>
+    <div class="hero-row" data-in style="--i:2">
+      <p class="t-lead">Five companions that think, search, build and remember. Straight with you, never against you, and the carbon of every reply is counted and removed.</p>
+      <div class="cta">
         <a class="btn btn-accent" href="app.html">Start talking <svg class="ic go" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></a>
         <a class="btn btn-ghost" href="impact.html">See the ledger</a>
       </div>
     </div>
-    <div class="scene plate" id="scene" aria-label="The five companions: Moss the tortoise, Sol the capybara, Juno the otter, Ember the fox and Pip the wren">
-      <svg class="scene-bg" viewBox="0 0 600 580" preserveAspectRatio="none" aria-hidden="true"><path d="M300 22 C452 8 588 108 592 282 C596 452 470 566 296 568 C118 570 6 446 8 280 C10 122 150 36 300 22 Z" fill="var(--plate)"/></svg>
-      <div data-c="moss"></div><div data-c="sol"></div><div data-c="juno"></div><div data-c="ember"></div><div data-c="pip"></div>
+    <div class="lineup dots" id="scene" data-in style="--i:3">
+      <button class="who" data-c="pip" aria-label="Meet Pip"><span class="fig"></span><b>Pip</b></button>
+      <button class="who" data-c="moss" aria-label="Meet Moss"><span class="fig"></span><b>Moss</b></button>
+      <button class="who" data-c="ember" aria-label="Meet Ember"><span class="fig"></span><b>Ember</b></button>
+      <button class="who" data-c="juno" aria-label="Meet Juno"><span class="fig"></span><b>Juno</b></button>
+      <button class="who" data-c="sol" aria-label="Meet Sol"><span class="fig"></span><b>Sol</b></button>
+      <span class="note n1" aria-hidden="true">move your mouse, they watch <svg viewBox="0 0 44 30" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5 C16 3 30 9 36 25 M36 25 l-9 -4 M36 25 l3 -10"/></svg></span>
+      <span class="note n2" aria-hidden="true">drawn by hand, rigged in code</span>
     </div>
   </div>
 </section>
 
 <section id="companions" style="padding-top:0">
   <div class="wrap">
+    <span class="note" data-in>pick one</span>
     <h2 class="t-h2" data-in>One for every kind of day.</h2>
     <p class="t-lead" data-in style="--i:1;margin-top:14px">Same honesty and the same rules in all five. What changes is the voice, and the kind of thinking each one is best at.</p>
     <div class="meet" data-in style="--i:2">
       <div class="meet-list" role="tablist" aria-label="Companions" id="meetList"></div>
-      <div class="card meet-panel plate" role="tabpanel" id="meetPanel" aria-live="polite"></div>
+      <div class="card meet-panel" role="tabpanel" id="meetPanel" aria-live="polite"></div>
     </div>
   </div>
 </section>
 
-<section id="routing" style="background:var(--surface);border-block:1px solid var(--line)">
+<section id="routing" class="band">
   <div class="wrap">
-    <h2 class="t-h2" data-in>The smallest model that can do it well.</h2>
+    <h2 class="t-h2" data-in>The smallest model that does it <span class="scribble">well.</span></h2>
     <p class="t-lead" data-in style="--i:1;margin-top:14px">A hello does not need a 550-billion-parameter model. Each message is routed to the lightest open model that will answer it properly. Try a few.</p>
     <div class="route" data-in style="--i:2">
       <div class="asks" id="asks"></div>
@@ -167,6 +169,7 @@ section{padding:clamp(64px,9vw,120px) 0}
 <section>
   <div class="wrap">
     <div class="rule" data-in>
+      <span class="sticker">Not negotiable</span>
       <h2>One rule. <span>Never harm a human life.</span></h2>
       <div class="rule-cols">
         <div>
@@ -192,6 +195,7 @@ section{padding:clamp(64px,9vw,120px) 0}
 
 <section id="ledger" style="padding-top:0">
   <div class="wrap">
+    <span class="note" data-in>all public, all the time</span>
     <h2 class="t-h2" data-in>Ten times cleaner than we found it.</h2>
     <p class="t-lead" data-in style="--i:1;margin-top:14px">Every reply's energy is estimated and logged in public. Sponsors pay to remove ten times the carbon, and every purchase gets a receipt.</p>
     <div class="ledger-top" data-in style="--i:2">
@@ -223,8 +227,8 @@ section{padding:clamp(64px,9vw,120px) 0}
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <span class="brand" style="font-size:1.15rem" data-brand>Kith</span>
-    <span data-brand-tag>AI that keeps good company.</span>
+    <span class="brand" style="font-size:1.15rem" data-brand>Cloak</span>
+    <span data-brand-tag>AI that looks you in the eye.</span>
     <span class="sp"></span>
     <a href="app.html">App</a><a href="impact.html">Impact</a><a href="system.html">Design system</a><a href="https://usecloak.org">Current Cloak</a>
   </div>
@@ -242,18 +246,18 @@ section{padding:clamp(64px,9vw,120px) 0}
   var scene = {};
   document.querySelectorAll("#scene [data-c]").forEach(function (el) {
     var id = el.getAttribute("data-c");
-    scene[id] = Creatures.mount(el, id, { backdrop: false, label: byId[id].name + " the " + byId[id].species.toLowerCase() });
+    scene[id] = Creatures.mount(el.querySelector(".fig"), id, { label: byId[id].name });
     el.addEventListener("click", function () { scene[id].cheer(); pick(id, true); });
   });
   // A small hello, one after another, once the page has settled.
-  ["ember", "pip", "juno", "sol", "moss"].forEach(function (id, i) { setTimeout(function () { scene[id].cheer(); }, 900 + i * 170); });
+  ["pip", "moss", "ember", "juno", "sol"].forEach(function (id, i) { setTimeout(function () { if (i === 2) scene[id].wave(); else scene[id].cheer(); }, 900 + i * 150); });
 
   // Companions picker
   var list = document.getElementById("meetList"), panel = document.getElementById("meetPanel"), fig = null;
   C.forEach(function (c) {
     var b = document.createElement("button");
     b.className = "meet-tab"; b.setAttribute("role", "tab"); b.id = "tab-" + c.id;
-    b.innerHTML = "<b>" + c.name + "</b><span>" + c.role + "</span>";
+    b.innerHTML = '<i style="background:' + Creatures.color(c.id) + '"></i><b>' + c.name + "</b><span>" + c.role + "</span>";
     b.addEventListener("click", function () { pick(c.id); });
     list.appendChild(b);
   });
@@ -264,10 +268,10 @@ section{padding:clamp(64px,9vw,120px) 0}
     panel.setAttribute("aria-labelledby", "tab-" + id);
     panel.innerHTML =
       '<div class="meet-fig swap"></div>' +
-      '<div class="meet-body swap"><h3>' + c.name + '</h3><p class="role">' + c.species + ", " + c.role.toLowerCase() + '</p><p class="about">' + Kit.esc(c.about) + '</p><div class="starters">' +
+      '<div class="meet-body swap"><h3>' + c.name + '</h3><p class="role"><span class="chip chip-accent">' + c.role + '</span> <span class="chip">' + c.lane + ' lane</span></p><p class="about">' + Kit.esc(c.about) + '</p><div class="starters">' +
       c.starters.map(function (s) { return '<a class="starter" href="app.html?c=' + c.id + "&q=" + encodeURIComponent(s) + '">' + Kit.esc(s) + Kit.icon("arrow-up-right") + "</a>"; }).join("") +
       "</div></div>";
-    fig = Creatures.mount(panel.querySelector(".meet-fig"), id, { backdrop: false, mood: "listen", label: c.name });
+    fig = Creatures.mount(panel.querySelector(".meet-fig"), id, { mood: "listen", label: c.name });
     setTimeout(function () { fig.cheer(); }, 120);
     if (scroll) document.getElementById("companions").scrollIntoView({ behavior: "smooth", block: "start" });
   }

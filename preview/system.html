@@ -4,9 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#EDF0E7">
-<title>Design system | Kith</title>
+<meta name="theme-color" content="#F2EEE5">
+<title>Design system | Cloak</title>
 <script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap">
 <link rel="stylesheet" href="kit.css">
 <style>
 .head{padding:clamp(36px,6vw,72px) 0 0}
@@ -16,21 +19,18 @@ section>p.t-lead{margin-bottom:28px}
 .toc{display:flex;flex-wrap:wrap;gap:8px;margin-top:26px}
 .toc a{text-decoration:none}
 
-.names{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.name{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:26px;border-radius:var(--r-card);border:1.5px solid var(--line);background:var(--surface);text-align:left;cursor:pointer;transition:border-color var(--t1) var(--ease),transform var(--t1) var(--ease),background-color var(--t2) var(--ease)}
-.name:hover{border-color:var(--ink)}
-.name:active{transform:scale(.985)}
-.name b{font:750 clamp(2.6rem,5vw,3.8rem)/.95 var(--fd);letter-spacing:-.05em}
-.name i{font-style:normal;font-weight:600}
-.name span{color:var(--ink-2);font-size:.95rem}
-.name u{text-decoration:none;margin-top:auto;font-size:.84rem;font-weight:600;color:var(--ink-3)}
-.name[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.name[aria-pressed="true"] span,.name[aria-pressed="true"] u{color:inherit;opacity:.75}
-@media (max-width:860px){.names{grid-template-columns:1fr}}
+.mark{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:clamp(20px,4vw,48px);align-items:stretch}
+.mark-big{min-width:0;display:grid;place-items:center;padding:clamp(28px,6vw,72px) 20px;border:var(--bd);background-color:var(--surface);box-shadow:var(--shadow-lg);position:relative}
+.mark-big .brand{font-size:clamp(2.6rem,7.2vw,5.6rem)}
+.mark-big .note{position:absolute;right:8%;bottom:10%}
+.mark ul{margin:0;padding-left:1.2em;color:var(--ink-2);display:grid;gap:10px;align-content:center}
+.mark-row{display:flex;flex-wrap:wrap;gap:14px;margin-top:22px}
+.mark-row>div{display:grid;place-items:center;width:150px;height:92px;border:var(--bd)}
+@media (max-width:820px){.mark{grid-template-columns:1fr}}
 
 .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
-.sw{border-radius:var(--r-card);border:1px solid var(--line);overflow:hidden;background:var(--surface)}
-.sw i{display:block;height:84px}
+.sw{border:var(--bd);overflow:hidden;background:var(--surface);box-shadow:var(--shsm)}
+.sw i{display:block;height:84px;border-bottom:var(--bd)}
 .sw div{padding:11px 13px}
 .sw b{display:block;font-size:.93rem}
 .sw code{font:400 .78rem var(--fm);color:var(--ink-3)}
@@ -40,30 +40,27 @@ section>p.t-lead{margin-bottom:28px}
 .type small{color:var(--ink-3);font-size:.84rem}
 @media (max-width:640px){.type>div{grid-template-columns:1fr;gap:6px}}
 
-.demo{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:24px;border-radius:var(--r-card);border:1px solid var(--line);background:var(--surface)}
-.demo+.demo{margin-top:12px}
+.demo{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:26px;border:var(--bd);background:var(--surface)}
+.demo+.demo{border-top:0}
 .demo .col{flex:1;min-width:220px}
 
 .rig{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:clamp(20px,4vw,56px);align-items:center}
 .rig-fig{aspect-ratio:1/1;width:100%}
-.pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.pick button{height:36px;padding:0 15px;border-radius:var(--r-pill);border:1.5px solid var(--line-2);background:transparent;font-weight:500;font-size:.9rem;cursor:pointer;transition:background-color var(--t1) var(--ease),border-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
-.pick button:active{transform:scale(.95)}
-.pick button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .rig h3{margin:18px 0 8px}
 .rig ul{margin:0;padding-left:1.2em;color:var(--ink-2);display:grid;gap:6px;max-width:56ch}
 @media (max-width:820px){.rig{grid-template-columns:1fr}.rig-fig{max-width:300px;margin:0 auto}}
 
 .curves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.curve{padding:20px;border-radius:var(--r-card);border:1px solid var(--line);background:var(--surface);cursor:pointer;text-align:left}
-.curve .track{height:44px;position:relative;margin:14px 0 10px;border-radius:var(--r-pill);background:var(--sunk)}
-.curve .dot{position:absolute;left:6px;top:6px;width:32px;height:32px;border-radius:50%;background:var(--accent)}
+.curve{padding:20px;border:var(--bd);background:var(--surface);color:var(--ink);box-shadow:var(--shsm);cursor:pointer;text-align:left}
+.curve .track{height:44px;position:relative;margin:14px 0 10px;border:1.5px solid var(--line-2);background:var(--bg)}
+.curve .dot{position:absolute;left:5px;top:4px;width:32px;height:32px;border-radius:50%;border:2px solid #0A0A0A;background:var(--accent)}
 .curve.go .dot{left:calc(100% - 38px)}
 .curve b{display:block}.curve code{font:400 .78rem var(--fm);color:var(--ink-3)}
 @media (max-width:760px){.curves{grid-template-columns:1fr}}
 
 .voice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.voice div{padding:22px;border-radius:var(--r-card);border:1px solid var(--line);background:var(--surface)}
+.voice div{padding:22px;border:var(--bd);background:var(--surface)}
+.voice .yes{box-shadow:4px 4px 0 var(--good)}
 .voice small{display:inline-flex;align-items:center;gap:6px;font-weight:600;margin-bottom:10px}
 .voice .yes small{color:var(--good)}.voice .no small{color:var(--care)}
 .voice p{font-size:1.02rem}
@@ -74,7 +71,7 @@ section>p.t-lead{margin-bottom:28px}
 <body>
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="index.html" data-brand>Kith</a>
+    <a class="brand" href="index.html" data-brand>Cloak</a>
     <nav class="nav-links" aria-label="Main">
       <a href="index.html#companions">Companions</a>
       <a href="index.html#routing">How it works</a>
@@ -89,40 +86,54 @@ section>p.t-lead{margin-bottom:28px}
 <main class="wrap" style="padding-bottom:clamp(64px,9vw,120px)">
   <div class="head">
     <h1 class="t-hero" data-in>The system.</h1>
-    <p class="t-lead" data-in style="--i:1;margin-top:16px">Everything the rebrand is made of: the name, the palette, the type, the parts, the creatures and how they move.</p>
+    <p class="t-lead" data-in style="--i:1;margin-top:16px">Everything Cloak is made of, upgraded: the mark, the palette, the type, the parts, the shapes and how they move.</p>
     <nav class="toc" aria-label="On this page" data-in style="--i:2">
-      <a class="chip" href="#name">Name</a><a class="chip" href="#color">Color</a><a class="chip" href="#type">Type</a><a class="chip" href="#parts">Parts</a><a class="chip" href="#creatures">Creatures</a><a class="chip" href="#motion">Motion</a><a class="chip" href="#voice">Voice</a>
+      <a class="chip" href="#mark">Mark</a><a class="chip" href="#color">Color</a><a class="chip" href="#type">Type</a><a class="chip" href="#parts">Parts</a><a class="chip" href="#shapes">Shapes</a><a class="chip" href="#motion">Motion</a><a class="chip" href="#voice">Voice</a>
     </nav>
   </div>
 
-  <section id="name">
-    <h2 class="t-h2">Name</h2>
-    <p class="t-lead">Three candidates. Pick one and the whole preview, including the companions' own sense of who made them, switches to it.</p>
-    <div class="names" id="names"></div>
-    <p class="help" style="margin-top:14px">None of these has had a trademark or domain check yet. Do that before falling in love with one.</p>
+  <section id="mark">
+    <h2 class="t-h2">The mark</h2>
+    <p class="t-lead">Same name, same ink, same orange. One change: the O woke up. It is a hand-drawn orb with two dot eyes that watches your pointer and blinks. Cloak used to hide things. Now it looks back.</p>
+    <div class="mark">
+      <div class="mark-big dots"><span class="brand" data-brand>Cloak</span><span class="note">it looks back</span></div>
+      <ul>
+        <li>The O is the only round thing in a square system. That is the point.</li>
+        <li>It is the sixth shape: the five companions are its family, drawn with the same pen.</li>
+        <li>It never spins, glows or pulses. It looks, blinks and hops when you touch it.</li>
+        <li>At favicon size the O stands alone as the app icon.</li>
+      </ul>
+    </div>
+    <div class="mark-row">
+      <div style="background:var(--bg)"><span class="brand" data-brand>Cloak</span></div>
+      <div style="background:#0A0A0A;--ink:#F2EEE5"><span class="brand" data-brand>Cloak</span></div>
+      <div style="background:var(--yel);--ink:#0A0A0A"><span class="brand" data-brand>Cloak</span></div>
+      <div style="background:var(--accent);--ink:#0A0A0A;--accent:#F2EEE5"><span class="brand" data-brand>Cloak</span></div>
+    </div>
   </section>
 
   <section id="color">
     <h2 class="t-h2">Color</h2>
-    <p class="t-lead">Spruce ink on chalk, with one accent. Marigold is for the thing you should do next and nothing else. The switch in the nav flips every token.</p>
+    <p class="t-lead">Ink on paper with one loud orange. The orange is for the thing you should do next and for the mark. Yellow, green, blue and peach belong to the companions. The switch in the nav flips every token.</p>
     <div class="swatches" id="swatches"></div>
   </section>
 
   <section id="type">
     <h2 class="t-h2">Type</h2>
-    <p class="t-lead">Bricolage Grotesque for display: a sans with enough quirk to feel drawn. Geist for reading. Geist Mono for numbers that are measurements.</p>
+    <p class="t-lead">Syne for display, wide and set in capitals. Space Grotesk for reading. Geist Mono for numbers that are measurements. Caveat for the notes in the margin, used sparingly.</p>
     <div class="type">
-      <div><small>Hero, 700</small><p class="t-hero">Good company.</p></div>
-      <div><small>Heading, 650</small><p class="t-h2" style="font-family:var(--fd);font-weight:650;letter-spacing:-.025em;line-height:1.04">One for every kind of day.</p></div>
+      <div><small>Hero, Syne 800</small><p class="t-hero">In the eye.</p></div>
+      <div><small>Heading, Syne 800</small><p class="t-h2" style="font-family:var(--fd);font-weight:800">One for every kind of day.</p></div>
       <div><small>Lead</small><p class="t-lead">Five companions that help you think, build and make.</p></div>
-      <div><small>Body, Geist 400</small><p style="max-width:62ch">The smallest answer that fully does the job is the best one. It respects your time, and it uses less energy.</p></div>
+      <div><small>Body, Space Grotesk 400</small><p style="max-width:62ch">The smallest answer that fully does the job is the best one. It respects your time, and it uses less energy.</p></div>
       <div><small>Measure, Geist Mono</small><p class="mono">0.21 Wh, 94 mg CO2e est.</p></div>
+      <div><small>Margin note, Caveat</small><p><span class="note" style="rotate:-2deg">they look back</span> &nbsp; <span class="sticker">Sticker</span> &nbsp; <span class="scribble" style="font:800 1.4rem var(--fd);text-transform:uppercase">Scribble</span></p></div>
     </div>
   </section>
 
   <section id="parts">
     <h2 class="t-h2">Parts</h2>
-    <p class="t-lead">One radius rule: controls are pills, surfaces are 20px, fields are 14px. Press sinks a pixel. Hover lifts the shadow, never the layout.</p>
+    <p class="t-lead">No radius. Two pixel ink borders and a hard shadow that works as the floor: hover lifts a part by the shadow it gains, press slams it flat.</p>
     <div class="demo">
       <button class="btn btn-accent">Start talking <svg class="ic go" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></button>
       <button class="btn">Open app</button>
@@ -140,20 +151,21 @@ section>p.t-lead{margin-bottom:28px}
     </div>
   </section>
 
-  <section id="creatures">
-    <h2 class="t-h2">Creatures</h2>
-    <p class="t-lead">Drawn by hand as vector paths and rigged in code. No image files and no generated art. Try the moods.</p>
+  <section id="shapes">
+    <h2 class="t-h2">Shapes with eyes</h2>
+    <p class="t-lead">Five shapes, two dots and a smile each. Drawn by hand as vector paths and rigged in code. No image files and no generated art. Try the moods.</p>
     <div class="rig">
       <div class="rig-fig" id="rigFig"></div>
       <div>
         <div class="pick" id="rigWho" role="group" aria-label="Companion"></div>
         <div class="pick" id="rigMood" role="group" aria-label="Mood"></div>
-        <div class="pick"><button id="rigTalk">Say something</button><button id="rigHop">Hop</button></div>
+        <div class="pick"><button id="rigTalk">Say something</button><button id="rigHop">Hop</button><button id="rigWave">Wave</button><button id="rigNod">Nod</button></div>
         <h3 class="t-h3">Why they read as drawn</h3>
         <ul>
           <li>Line boil: the ink shifts about seven times a second, the way hand-inked frames never quite line up.</li>
-          <li>Gouache grain held inside each shape, so fills are never flat.</li>
-          <li>Eyes lead and the head follows. Ears, tails and the yuzu arrive late and overshoot.</li>
+          <li>The shadow is hatched with a pen, not filled. Cloak's hard shadow, drawn.</li>
+          <li>The eyes are two ink dots. They lead, the face follows, the body leans last, and the arms and toppers arrive late and overshoot.</li>
+          <li>Talking is driven by real energy: stream chunks, or the audio level when a voice is playing.</li>
           <li>A hop crouches first, stretches in the air and squashes on landing.</li>
           <li>Reduced motion gives a still drawing, with nothing lost.</li>
         </ul>
@@ -163,11 +175,11 @@ section>p.t-lead{margin-bottom:28px}
 
   <section id="motion">
     <h2 class="t-h2">Motion</h2>
-    <p class="t-lead">The interface is calm so the creatures can be lively. One easing for almost everything, three durations, and a bounce reserved for things that are glad to see you. Tap to play.</p>
+    <p class="t-lead">The interface is blunt so the shapes can be lively. One easing for entrances, a spring for anything you lift or press, and a fast exit. Tap to play.</p>
     <div class="curves" id="curves">
-      <button class="curve" style="--e:cubic-bezier(.2,.8,.2,1);--d:260ms"><b>Settle</b><div class="track"><div class="dot"></div></div><code>--ease, 140 / 260 / 520ms</code></button>
-      <button class="curve" style="--e:cubic-bezier(.175,.885,.32,1.275);--d:420ms"><b>Glad</b><div class="track"><div class="dot"></div></div><code>--ease-back, overshoot 10%</code></button>
-      <button class="curve" style="--e:cubic-bezier(.4,0,1,1);--d:180ms"><b>Leave</b><div class="track"><div class="dot"></div></div><code>--ease-in, exits only</code></button>
+      <button class="curve" style="--e:cubic-bezier(.16,1,.3,1);--d:480ms"><b>Settle</b><div class="track"><div class="dot"></div></div><code>--ease, 90 / 240 / 480ms</code></button>
+      <button class="curve" style="--e:cubic-bezier(.3,1.35,.55,1);--d:380ms"><b>Lift</b><div class="track"><div class="dot"></div></div><code>--lift, spring, 380ms</code></button>
+      <button class="curve" style="--e:cubic-bezier(.55,0,1,.45);--d:180ms"><b>Leave</b><div class="track"><div class="dot"></div></div><code>--ease-in, exits only</code></button>
     </div>
   </section>
 
@@ -185,7 +197,7 @@ section>p.t-lead{margin-bottom:28px}
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <span class="brand" style="font-size:1.15rem" data-brand>Kith</span>
+    <span class="brand" style="font-size:1.15rem" data-brand>Cloak</span>
     <span data-brand-tag></span>
     <span class="sp"></span>
     <a href="index.html">Home</a><a href="app.html">App</a><a href="impact.html">Impact</a>
@@ -196,23 +208,8 @@ section>p.t-lead{margin-bottom:28px}
 <script src="creatures.js"></script>
 <script>
 (function () {
-  // Names
-  var names = document.getElementById("names");
-  function drawNames() {
-    names.innerHTML = "";
-    Object.keys(Kit.BRANDS).forEach(function (n) {
-      var b = document.createElement("button");
-      b.className = "name";
-      b.setAttribute("aria-pressed", n === Kit.brand ? "true" : "false");
-      b.innerHTML = "<b>" + n + "</b><i>" + Kit.BRANDS[n].tag + "</i><span>" + Kit.BRANDS[n].why + "</span><u>" + (n === Kit.brand ? "Showing now" : "Try it on") + "</u>";
-      b.addEventListener("click", function () { Kit.setBrand(n); drawNames(); });
-      names.appendChild(b);
-    });
-  }
-  drawNames();
-
   // Swatches read the live token values, so they follow light and dark.
-  var TOKENS = [["--bg", "Chalk", "Page"], ["--surface", "Surface", "Cards, panels"], ["--sunk", "Sunk", "Wells, chips"], ["--ink", "Spruce", "Text, primary buttons"], ["--ink-2", "Ink 2", "Secondary text"], ["--accent", "Marigold", "The one accent"], ["--good", "Moss", "Removed, success"], ["--warn", "Rust", "Emitted"], ["--care", "Care", "Help, errors"]];
+  var TOKENS = [["--bg", "Paper", "Page"], ["--surface", "Surface", "Cards, panels"], ["--sunk", "Paper 2", "Wells"], ["--ink", "Ink", "Text, borders, shadows"], ["--accent", "Signal", "The one accent, the mark"], ["--yel", "Pip yellow", "Stickers, highlights"], ["--grn", "Moss green", "Companion"], ["--blu", "Juno blue", "Companion"], ["--peach", "Sol peach", "Companion"], ["--good", "Removed", "Success"], ["--care", "Care", "Help, errors"]];
   var sw = document.getElementById("swatches");
   function drawSwatches() {
     var cs = getComputedStyle(document.documentElement);
@@ -225,7 +222,7 @@ section>p.t-lead{margin-bottom:28px}
 
   // Rig
   var who = "ember", moodNow = "idle", fig = null;
-  var MOODS = ["idle", "listen", "think", "talk", "happy", "care", "sleep"];
+  var MOODS = ["idle", "listen", "think", "search", "talk", "happy", "care", "sleep"];
   var talkTimer = 0;
   function mount() {
     if (fig) fig.destroy();
@@ -250,6 +247,8 @@ section>p.t-lead{margin-bottom:28px}
   pills(document.getElementById("rigMood"), MOODS.map(function (m) { return { id: m, label: m.charAt(0).toUpperCase() + m.slice(1) }; }), function () { return moodNow; }, function (m) { moodNow = m; fig.set(m); if (m === "talk") talk(4000); });
   document.getElementById("rigTalk").addEventListener("click", function () { talk(2600); });
   document.getElementById("rigHop").addEventListener("click", function () { fig.cheer(); });
+  document.getElementById("rigWave").addEventListener("click", function () { fig.wave(); });
+  document.getElementById("rigNod").addEventListener("click", function () { fig.nod(); });
   mount();
 
   // Easing demos

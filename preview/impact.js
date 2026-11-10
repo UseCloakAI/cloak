@@ -82,11 +82,11 @@
     }
     var base = " L" + x(pts.length - 1).toFixed(1) + " " + y(0) + " L" + x(0).toFixed(1) + " " + y(0) + " Z";
 
-    el("path", { d: path("removed", true) + base, fill: "var(--good)", opacity: 0.16 }, svg);
+    el("path", { d: path("removed", true) + base, fill: "var(--good)", opacity: 0.22 }, svg);
     el("path", { d: path("pledge"), fill: "none", stroke: "var(--ink-3)", "stroke-width": 1.5, "stroke-dasharray": "4 5" }, svg);
-    var lr = el("path", { d: path("removed", true), fill: "none", stroke: "var(--good)", "stroke-width": 2.5, "stroke-linejoin": "round" }, svg);
+    var lr = el("path", { d: path("removed", true), fill: "none", stroke: "var(--good)", "stroke-width": 3, "stroke-linejoin": "round" }, svg);
     el("path", { d: path("emitted") + base, fill: "var(--warn)", opacity: 0.2 }, svg);
-    var le = el("path", { d: path("emitted"), fill: "none", stroke: "var(--warn)", "stroke-width": 2.5, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    var le = el("path", { d: path("emitted"), fill: "none", stroke: "var(--warn)", "stroke-width": 3, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
 
     // Draw-on: lines trace left to right once, when first shown.
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {

@@ -195,7 +195,7 @@ async function handleMe(request, env, cors, path) {
   if (path === "/v1/memory" && m === "POST") return json(await mind.remember({ fact: body.fact, kind: body.kind, by: "you" }), cors);
   if (path === "/v1/memory" && m === "DELETE") return json({ ok: await mind.forgetAll() }, cors);
   if ((r = /^\/v1\/memory\/(\d+)$/.exec(path)) && m === "DELETE") return json({ ok: await mind.forgetId(+r[1]) }, cors);
-  if (path === "/v1/tasks" && m === "POST") return json(await mind.addTask({ ...body, companion: COMPANIONS[body.companion] ? body.companion : "pip", brand: BRANDS.includes(body.brand) ? body.brand : env.BRAND || "Kith" }), cors);
+  if (path === "/v1/tasks" && m === "POST") return json(await mind.addTask({ ...body, companion: COMPANIONS[body.companion] ? body.companion : "pip", brand: BRANDS.includes(body.brand) ? body.brand : env.BRAND || "Cloak" }), cors);
   if ((r = /^\/v1\/tasks\/(\d+)$/.exec(path)) && m === "DELETE") return json({ ok: await mind.removeTask(+r[1]) }, cors);
   if (path === "/v1/inbox/seen" && m === "POST") return json({ ok: await mind.seen(body.ids) }, cors);
   if ((r = /^\/v1\/inbox\/(\d+)$/.exec(path)) && m === "DELETE") return json({ ok: await mind.removeInbox(+r[1]) }, cors);

@@ -8,7 +8,7 @@
   var C = Kit.COMPANIONS, byId = {};
   C.forEach(function (c) { byId[c.id] = c; });
 
-  var MOOD_LABEL = { idle: "Here", listen: "Listening", think: "Thinking", talk: "Talking", happy: "Glad", care: "With you", sleep: "Resting" };
+  var MOOD_LABEL = { idle: "Here", listen: "Listening", think: "Thinking", search: "Looking it up", talk: "Talking", happy: "Glad", care: "With you", sleep: "Resting" };
   var SPONSORS = [
     { title: "Your name here", body: "One quiet card, no tracking. Sponsors pay for carbon removal, ten times what this chat emits." },
     { title: "Sponsor a greener answer", body: "Reach people who chose an AI that cleans up after itself. Every view funds verified removal." },
@@ -53,18 +53,19 @@
     $("mood").textContent = MOOD_LABEL[m] || "Here";
   }
   function pulse(n) { ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].pulse(n); }); }
+  function each(fn) { ["stage", "top", "empty"].forEach(function (k) { if (fig[k] && fig[k][fn]) fig[k][fn](); }); }
   function cheer() { ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].cheer(); }); }
   function mountFigs() {
     var c = byId[state.companion];
     ["stage", "top"].forEach(function (k) { if (fig[k]) fig[k].destroy(); });
-    fig.stage = Creatures.mount($("stageFig"), c.id, { backdrop: false, label: c.name });
+    fig.stage = Creatures.mount($("stageFig"), c.id, { label: c.name });
     fig.top = Creatures.mount($("topAv"), c.id, { label: c.name });
     $("topName").textContent = $("stName").textContent = c.name;
     $("topRole").textContent = c.role;
     $("stLine").textContent = c.line;
     $("input").placeholder = "Talk to " + c.name;
     document.title = c.name + " | " + Kit.brand;
-    setTimeout(cheer, 150);
+    setTimeout(function () { each("wave"); }, 250);
   }
 
   /* ── Sidebar ───────────────────────────────────────────────────── */
@@ -284,7 +285,11 @@
         var cur = bm.steps.find(function (x) { return x.id === ev.step.id; });
         if (cur) Object.assign(cur, ev.step); else bm.steps.push(ev.step);
         el.querySelector(".steps-host").innerHTML = stepsHtml(bm.steps);
-        if (!bm.care) mood("think");
+        if (!bm.care) {
+          var t = ev.step.tool;
+          if (ev.step.state === "run") mood(t === "web_search" || t === "read_page" || t === "recall" ? "search" : "think");
+          else if (t === "remember" && ev.step.state !== "blocked") each("nod");
+        }
         scrollEnd();
       }
       if (ev.sources) { bm.sources = ev.sources; el.querySelector(".sources-host").innerHTML = sourcesHtml(bm.sources); }

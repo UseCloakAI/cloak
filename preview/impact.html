@@ -4,25 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#EDF0E7">
-<title>The ledger | Kith</title>
+<meta name="theme-color" content="#F2EEE5">
+<title>The ledger | Cloak</title>
 <meta name="description" content="Every reply's energy and carbon, estimated in public, against the carbon removed with receipts.">
 <script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap">
 <link rel="stylesheet" href="kit.css">
 <style>
 .head{padding:clamp(36px,6vw,72px) 0 8px}
 .head h1{margin-bottom:16px}
-.sample{display:inline-flex;gap:8px;align-items:center;margin-top:20px;padding:9px 14px;border-radius:var(--r-field);background:var(--accent-soft);font-size:.9rem}
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:40px 0 28px;border-block:1px solid var(--line)}
-.stats div{padding:22px 20px 22px 0}
-.stats div+div{padding-left:22px;border-left:1px solid var(--line)}
-.stats b{display:block;font:650 clamp(1.7rem,3.2vw,2.6rem)/1 var(--fd);letter-spacing:-.035em;margin-bottom:6px}
+.sample{display:inline-flex;gap:8px;align-items:center;margin-top:22px;padding:9px 14px;border:var(--bd);background:var(--yel);color:#0A0A0A;box-shadow:var(--shsm);font-size:.9rem;font-weight:500;rotate:-.6deg}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:40px 0 32px;border:var(--bd);background:var(--surface);box-shadow:var(--shadow)}
+.stats div{padding:22px}
+.stats div+div{border-left:var(--bd)}
+.stats b{display:block;font:800 clamp(1.7rem,3.2vw,2.6rem)/1 var(--fd);letter-spacing:-.035em;margin-bottom:6px}
 .stats span{color:var(--ink-2);font-size:.92rem}
 .stats .good{color:var(--good)}
-@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stats div:nth-child(3){padding-left:0;border-left:0;border-top:1px solid var(--line)}.stats div:nth-child(4){border-top:1px solid var(--line)}}
-.chart-card{padding:clamp(16px,2.4vw,28px)}
-.chart-tip{position:absolute;display:grid;gap:3px;width:190px;padding:10px 12px;border-radius:var(--r-sm);background:var(--raise);border:1px solid var(--line);box-shadow:var(--shadow);font-size:.82rem;pointer-events:none}
-.chart-tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stats div:nth-child(3){border-left:0;border-top:var(--bd)}.stats div:nth-child(4){border-top:var(--bd)}}
+.chart-card{padding:clamp(16px,2.4vw,28px);position:relative}
 section{padding:clamp(48px,7vw,88px) 0 0}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,5vw,72px);margin-top:28px}
 @media (max-width:860px){.two{grid-template-columns:1fr}}
@@ -32,28 +33,28 @@ section{padding:clamp(48px,7vw,88px) 0 0}
 .rows b{font-weight:600}
 .rows .mono{font-size:.88rem;color:var(--ink-2);text-align:right;min-width:74px}
 .method{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.method div{padding:18px;border-radius:var(--r-card);background:var(--surface);border:1px solid var(--line)}
-.method b{display:block;font:650 1.5rem/1 var(--fd);letter-spacing:-.02em;margin-bottom:6px}
+.method div{padding:18px;background:var(--surface);border:var(--bd);box-shadow:var(--shsm)}
+.method b{display:block;font:800 1.5rem/1 var(--fd);letter-spacing:-.02em;margin-bottom:6px}
 .method span{font-size:.9rem;color:var(--ink-2)}
 @media (max-width:520px){.method{grid-template-columns:1fr}}
-.receipt{display:grid;grid-template-columns:auto 1fr auto;gap:8px 20px;align-items:center;padding:16px 20px;border-radius:var(--r-card);background:var(--surface);border:1px solid var(--line);text-decoration:none;transition:border-color var(--t1) var(--ease)}
-a.receipt:hover{border-color:var(--ink)}
+.receipt{display:grid;grid-template-columns:auto 1fr auto;gap:8px 20px;align-items:center;padding:16px 20px;background:var(--surface);border:var(--bd);box-shadow:var(--shsm);text-decoration:none;transition:box-shadow var(--lift),transform var(--lift)}
+a.receipt:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
 .receipt+.receipt{margin-top:10px}
-.receipt .kg{font:650 1.3rem/1 var(--fd);letter-spacing:-.02em;color:var(--good);min-width:92px}
+.receipt .kg{font:800 1.3rem/1 var(--fd);letter-spacing:-.02em;color:var(--good);min-width:92px}
 .receipt small{display:block;color:var(--ink-3);font-size:.84rem}
 .promise{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(18px,3vw,40px);margin-top:28px}
-.promise h3{font-size:1.15rem;margin:12px 0 6px;letter-spacing:-.01em}
+.promise h3{font-size:1.15rem;margin:12px 0 8px;text-transform:uppercase}
 .promise p{color:var(--ink-2);font-size:.95rem}
-.promise .ic{width:26px;height:26px}
+.promise .ic{width:26px;height:26px;color:var(--accent)}
 @media (max-width:760px){.promise{grid-template-columns:1fr}}
-.limits{margin:clamp(56px,8vw,96px) 0;padding:clamp(24px,4vw,44px);border-radius:28px;background:var(--sunk)}
+.limits{margin:clamp(56px,8vw,96px) 0;padding:clamp(24px,4vw,44px);border:var(--bd);background:var(--surface);box-shadow:8px 8px 0 var(--accent)}
 .limits ul{margin:16px 0 0;padding-left:1.2em;display:grid;gap:10px;color:var(--ink-2);max-width:70ch}
 </style>
 </head>
 <body>
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="index.html" data-brand>Kith</a>
+    <a class="brand" href="index.html" data-brand>Cloak</a>
     <nav class="nav-links" aria-label="Main">
       <a href="index.html#companions">Companions</a>
       <a href="index.html#routing">How it works</a>
@@ -130,7 +131,7 @@ a.receipt:hover{border-color:var(--ink)}
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <span class="brand" style="font-size:1.15rem" data-brand>Kith</span>
+    <span class="brand" style="font-size:1.15rem" data-brand>Cloak</span>
     <span data-brand-tag></span>
     <span class="sp"></span>
     <a href="index.html">Home</a><a href="app.html">App</a><a href="system.html">Design system</a>
