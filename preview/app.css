@@ -18,6 +18,18 @@ body{overflow:hidden}
 .comp:active{transform:translate(1px,1px)}
 .comp[aria-current="true"]{background:var(--ink);color:var(--bg)}
 .comp-av{width:44px;height:44px;flex:none}
+.comp-tx{flex:1;min-width:0}
+.comp-tx b,.comp-tx span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp-edit{width:30px;height:30px;opacity:0;color:inherit}
+.comp:hover .comp-edit,.comp-edit:focus-visible,.comp[aria-current="true"] .comp-edit{opacity:1}
+.comp[aria-current="true"] .comp-edit:hover{background:transparent;border-color:var(--bg);color:var(--bg)}
+.make{display:flex;align-items:center;gap:11px;width:100%;margin-top:4px;padding:8px;border:2px dashed var(--line-2);background:transparent;color:var(--ink);text-align:left;cursor:pointer;transition:border-color var(--t1) var(--ease),background-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
+.make:hover{border-style:solid;background:var(--bg)}
+.make:active{transform:translate(1px,1px)}
+.make-av{display:grid;place-items:center;width:44px;height:44px;flex:none;border:2px solid var(--ink);border-radius:50%;background:var(--yel);color:#0A0A0A}
+.make-av .ic{width:20px;height:20px}
+.make b{display:block;font:800 .9rem/1.15 var(--fd);text-transform:uppercase}
+.make small{display:block;font-size:.78rem;color:var(--ink-3)}
 .comp b{display:block;font:800 1rem/1.15 var(--fd);letter-spacing:-.01em;text-transform:uppercase}
 .comp span{display:block;font-size:.8rem;opacity:.68}
 .hist{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:0;background:transparent;text-align:left;font-size:.9rem;color:var(--ink-2);cursor:pointer;transition:background-color var(--t1) var(--ease)}
@@ -190,3 +202,58 @@ dialog{max-height:calc(100dvh - 28px);overflow-y:auto}
 .seg{flex:0 1 auto;min-width:0;overflow-x:auto}
 .top-who{flex:1 0 auto}
 @media (max-width:780px){.top-who span{display:none}}
+
+/* ── The Blink maker ─────────────────────────────────────────────── */
+dialog.maker{width:min(1000px,calc(100vw - 28px));max-height:calc(100dvh - 28px);overflow:hidden}
+.mk{display:flex;flex-direction:column;max-height:calc(100dvh - 32px)}
+.mk-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 14px 24px;border-bottom:var(--bd);flex:none}
+.mk-head h2{font-size:1.7rem;text-transform:uppercase}
+.mk-body{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);min-height:0;flex:1}
+.mk-stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px 24px;border-right:var(--bd);background:var(--bg);text-align:center}
+.mk-fig{width:100%;max-width:290px;aspect-ratio:1/1;border:var(--bd);background-color:var(--surface);box-shadow:var(--shadow);padding:7%;cursor:pointer}
+.mk-name{margin-top:12px;font:800 1.9rem/1 var(--fd);text-transform:uppercase;letter-spacing:-.03em;overflow-wrap:anywhere}
+.mk-purpose{color:var(--ink-2);max-width:30ch;min-height:1.6em}
+.mk-note{position:absolute;bottom:68px;right:20px;rotate:-4deg}
+.mk-stage .btn{margin-top:auto}
+.mk-form{overflow-y:auto;padding:6px 26px 26px;display:grid;gap:4px}
+.mk-form section{padding:18px 0 20px;border-bottom:1.5px solid var(--line)}
+.mk-form section:last-child{border-bottom:0}
+.mk-form .lbl{display:flex;align-items:center;gap:10px;font-size:.78rem;margin-bottom:12px}
+.mk-form .lbl i{display:grid;place-items:center;width:24px;height:24px;border:2px solid var(--ink);background:var(--yel);color:#0A0A0A;font:800 .78rem/1 var(--fd);font-style:normal}
+.mk-sub{display:block;font-size:.84rem;font-weight:600;color:var(--ink-2);margin:12px 0 7px}
+.mk-tiles{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.mk-tile{display:grid;justify-items:center;gap:2px;padding:6px 2px 7px;border:var(--bd);background:var(--surface);color:var(--ink);cursor:pointer;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift)}
+.mk-tile:hover{transform:translate(-1px,-1px)}
+.mk-tile[aria-pressed="true"]{background:var(--yel);color:#0A0A0A;transform:translate(2px,2px);box-shadow:none}
+.mk-thumb{display:block;width:100%;aspect-ratio:1/1;pointer-events:none}
+.mk-tile small{font:700 .6rem/1 var(--fb);letter-spacing:.08em;text-transform:uppercase}
+.mk-swatches{display:flex;flex-wrap:wrap;gap:8px}
+.mk-sw{position:relative;display:grid;place-items:center;width:36px;height:36px;border:2px solid var(--ink);border-radius:50%;cursor:pointer;box-shadow:var(--shsm);transition:transform var(--lift),box-shadow var(--lift)}
+.mk-sw:hover{transform:translate(-1px,-1px)}
+.mk-sw[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:3px;box-shadow:none;transform:none}
+.mk-custom{background:conic-gradient(#F5C842,#E5603E,#F28BA8,#B18CF0,#5B9BF8,#7FD6C2,#4CBF73,#F5C842);color:#0A0A0A;overflow:hidden}
+.mk-custom .ic{width:16px;height:16px;background:#FAFAF7;border-radius:50%;padding:2px;box-sizing:content-box}
+.mk-custom input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.mk-form textarea.field{height:120px;padding:11px 14px;resize:vertical;line-height:1.5}
+.mk-form .field+.field{margin-top:8px}
+.mk-traits{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.mk-traits .chip{cursor:pointer;text-transform:none;letter-spacing:0;font:500 .78rem/1 var(--fb);height:28px}
+.mk-traits .chip:hover{background:var(--ink);color:var(--bg)}
+.mk-foot{display:flex;align-items:center;gap:10px;padding:14px 18px;border-top:var(--bd);background:var(--surface);flex:none}
+.mk-foot .sp{flex:1}
+.mk-del{color:var(--care)}
+@media (max-width:760px){
+  dialog.maker{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;border:0}
+  .mk{max-height:100dvh;height:100dvh}
+  .mk-body{grid-template-columns:minmax(0,1fr);overflow-y:auto}
+  .mk-head{padding:12px 12px 10px 16px}.mk-head h2{font-size:1.25rem}
+  .mk-stage{position:sticky;top:0;z-index:3;border-right:0;border-bottom:var(--bd);flex-direction:row;flex-wrap:nowrap;justify-content:flex-start;padding:12px 16px;text-align:left}
+  .mk-fig{width:96px;flex:none;padding:4px;box-shadow:var(--shsm)}
+  .mk-stage>div+p,.mk-stage .mk-name{margin-top:0}
+  .mk-stage .mk-name{font-size:1.25rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+  .mk-stage .btn{padding:0 11px}.mk-rl{display:none}
+  .mk-stage .mk-purpose,.mk-note{display:none}
+  .mk-stage .btn{margin-top:0}
+  .mk-form{overflow:visible;padding:0 16px 20px}
+  .mk-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+}

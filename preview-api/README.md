@@ -6,7 +6,7 @@ Backend for the rebrand prototype (`preview.usecloak.org`). A separate Worker fr
 
 | Route | What |
 |---|---|
-| `POST /v1/chat` | Agent run. `{companion, messages, mode?, run_id?, chat_id?, brand?, user?, images?}` → SSE: `{meta}` `{care?}` `{step}`… `{sources}` `{delta}`… `{done, usage, impact}` or `{error}`. Modes: `auto`, `swift`, `deep`, `research`, `team` |
+| `POST /v1/chat` | Agent run. `{companion, bot?, messages, mode?, run_id?, chat_id?, brand?, user?, images?}` → SSE: `{meta}` `{care?}` `{step}`… `{sources}` `{delta}`… `{done, usage, impact}` or `{error}`. Modes: `auto`, `swift`, `deep`, `research`, `team` |
 | `GET /v1/runs/:id?from=N` | Re-attach to a cloud run and replay from event N. `POST /v1/runs/:id/cancel` stops it |
 | `GET /v1/me` | The person's memories, scheduled tasks and inbox. `DELETE` erases all of it |
 | `POST /v1/memory`, `DELETE /v1/memory[/:id]` | Add or delete memories |
@@ -15,6 +15,8 @@ Backend for the rebrand prototype (`preview.usecloak.org`). A separate Worker fr
 | `GET /v1/tools` | Tool catalog and modes |
 | `POST /v1/speech`, `GET /v1/speech/voices` | Text to speech (WAV), reusing production's NVIDIA Magpie client |
 | `GET /v1/companions` | The five companions and the public lanes |
+
+**Custom Blinks.** People build their own in the app. A message to one sends `companion: "u_…"` plus `bot: {id, name, purpose, persona, lane}`. `customCompanion()` in `src/prompts.js` caps and cleans it and turns it into a voice section that sits under the constitution (it can shape tone, never rules). The lane is its home lane (`swift`/`smart`/`deep`/`code`/`creative`). An id that does not match its bot falls back to Pip. Tasks a custom Blink schedules store its spec (`task.bot`) so it does the work itself later. Other companions cannot delegate to a custom Blink.
 | `GET /v1/impact?days=90` | The public carbon ledger |
 | `POST /v1/ads/event` | `{sponsor, kind: "view" \| "click"}` |
 | `GET /admin/probe` | Times every model in every lane (first token, tokens/sec). `X-Admin-Token` |

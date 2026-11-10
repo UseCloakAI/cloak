@@ -152,6 +152,7 @@ async function handleChat(request, env, ctx, cors) {
   const req = {
     brand: body.brand,
     companion: body.companion,
+    bot: body.bot && typeof body.bot === "object" ? { id: body.bot.id, name: body.bot.name, purpose: body.bot.purpose, persona: body.bot.persona, lane: body.bot.lane } : null,
     mode: ["auto", "swift", "deep", "research", "team"].includes(body.mode) ? body.mode : "auto",
     messages,
     images: readImages(body),

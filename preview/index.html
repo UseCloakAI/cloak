@@ -58,6 +58,20 @@ section{padding:clamp(64px,9vw,120px) 0}
   .meet-panel{grid-template-columns:1fr}.meet-fig{max-width:230px;margin:0 auto}
 }
 
+/* Make your own */
+.make-band{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(24px,5vw,64px);align-items:center}
+.make-band .t-lead{margin:16px 0 26px}
+.make-band ul{list-style:none;padding:0;margin:0 0 28px;display:grid;gap:10px}
+.make-band li{display:flex;gap:12px;align-items:baseline}
+.make-band li b{display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border:2px solid var(--ink);background:var(--yel);color:#0A0A0A;font:800 .78rem/1 var(--fd)}
+.mix{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(8px,2vw,20px);padding:clamp(28px,4vw,48px) clamp(14px,3vw,32px) clamp(18px,3vw,30px);border:var(--bd);background-color:var(--surface);box-shadow:var(--shadow-lg)}
+.mix figure{margin:0;display:grid;justify-items:center;gap:6px;cursor:pointer}
+.mix .fig{width:100%;aspect-ratio:1/1}
+.mix figcaption{font:800 .9rem/1 var(--fd);text-transform:uppercase}
+.mix .note{position:absolute;top:10px;left:18px}
+.mix .shuffle{position:absolute;right:14px;bottom:-20px}
+@media (max-width:860px){.make-band{grid-template-columns:1fr}}
+
 /* Routing: pick an ask, see where it goes */
 .band{background:var(--surface);border-block:var(--bd)}
 .route{margin-top:40px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:clamp(20px,4vw,56px);align-items:start}
@@ -110,6 +124,7 @@ section{padding:clamp(64px,9vw,120px) 0}
     <a class="brand" href="index.html" data-brand>Cloak</a>
     <nav class="nav-links" aria-label="Main">
       <a href="#companions">Companions</a>
+      <a href="#make">Make one</a>
       <a href="#routing">How it works</a>
       <a href="impact.html">Impact</a>
       <a href="system.html">System</a>
@@ -151,6 +166,29 @@ section{padding:clamp(64px,9vw,120px) 0}
     <div class="meet" data-in style="--i:2">
       <div class="meet-list" role="tablist" aria-label="Companions" id="meetList"></div>
       <div class="card meet-panel" role="tabpanel" id="meetPanel" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<section id="make" style="padding-top:0">
+  <div class="wrap make-band">
+    <div data-in>
+      <span class="note">or build your own</span>
+      <h2 class="t-h2">Make a <span class="scribble">Blink.</span></h2>
+      <p class="t-lead">Pick a shape, a colour, the eyes and something on top. Then give it a name, a job and a personality. It runs on the same models, tools and memory as the five, under the same one rule.</p>
+      <ul>
+        <li><b>1</b><span>Shape it: seven shapes, any colour, seven kinds of eyes.</span></li>
+        <li><b>2</b><span>Name it and tell it what it is for, in your own words.</span></li>
+        <li><b>3</b><span>Choose how it thinks: quick, balanced, deep, builder or creative.</span></li>
+      </ul>
+      <a class="btn btn-accent" href="app.html?make=1">Make a Blink <svg class="ic go" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></a>
+    </div>
+    <div class="mix dots" id="mix" data-in style="--i:1">
+      <span class="note" aria-hidden="true">no two the same</span>
+      <figure><div class="fig"></div><figcaption></figcaption></figure>
+      <figure><div class="fig"></div><figcaption></figcaption></figure>
+      <figure><div class="fig"></div><figcaption></figcaption></figure>
+      <button class="btn btn-sm shuffle" type="button" id="shuffle"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-clockwise"/></svg>Shuffle</button>
     </div>
   </div>
 </section>
@@ -313,6 +351,22 @@ section{padding:clamp(64px,9vw,120px) 0}
   });
 
   Creatures.mount(document.getElementById("endFig"), "sol", { mood: "idle", label: "Sol" });
+
+  // Make your own: three random Blinks. Shuffle, or poke one to make it hop.
+  var NAMES = ["Biscuit", "Nova", "Pebble", "Ziggy", "Mochi", "Rook", "Tansy", "Bolt", "Clover", "Fig", "Echo", "Juniper", "Waffle", "Quill", "Basil"];
+  var mixFigs = [];
+  function shuffle() {
+    var names = NAMES.slice().sort(function () { return Math.random() - 0.5; });
+    document.querySelectorAll("#mix figure").forEach(function (f, i) {
+      if (mixFigs[i]) mixFigs[i].destroy();
+      mixFigs[i] = Creatures.mount(f.querySelector(".fig"), Creatures.random(), { label: names[i] });
+      f.querySelector("figcaption").textContent = names[i];
+      f.onclick = function () { mixFigs[i].cheer(); };
+      setTimeout(function () { mixFigs[i].cheer(); }, i * 110);
+    });
+  }
+  shuffle();
+  document.getElementById("shuffle").addEventListener("click", shuffle);
 })();
 </script>
 </body>

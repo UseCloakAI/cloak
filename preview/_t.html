@@ -1,0 +1,8 @@
+<!doctype html><meta charset=utf-8><body style="margin:0;background:#F2EEE5">
+<div id=g style="display:grid;grid-template-columns:repeat(7,180px);gap:4px;padding:10px"></div>
+<script src="creatures.js"></script><script>
+var g=document.getElementById('g');function box(spec){var d=document.createElement('div');d.style.cssText='width:180px;height:180px';g.appendChild(d);Creatures.mount(d,spec)}
+Creatures.ids.forEach(box);box({shape:'drop',color:'#B18CF0',eyes:'big',topper:'antenna'});box({shape:'pill',color:'#F28BA8',eyes:'sleepy',topper:'bow',cheeks:true});
+Creatures.shapes.forEach(function(s,i){box({shape:s.id,color:Creatures.colors[i],eyes:Creatures.eyes[i].id,topper:Creatures.toppers[i+1].id,cheeks:i%2})});
+['orb','slab','spark','bloom','dome','drop','pill'].forEach(function(s,i){box({shape:s,color:i%2?'#3B3A36':'#7FD6C2',eyes:['one','wide','glasses','small','big','dots','sleepy'][i],topper:['star','rays','curl','sprout','bow','antenna','sparks'][i]})});
+</script>

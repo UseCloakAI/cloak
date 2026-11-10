@@ -5,8 +5,16 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var C = Kit.COMPANIONS, byId = {};
-  C.forEach(function (c) { byId[c.id] = c; });
+  // The five, then the Blinks this person made (maker.js, stored on this device).
+  var C = [], byId = {};
+  function rebuild() {
+    C = Kit.COMPANIONS.concat(window.Maker ? Maker.load().map(Maker.asCompanion) : []);
+    byId = {};
+    C.forEach(function (c) { byId[c.id] = c; });
+  }
+  rebuild();
+  function who(id) { return byId[id] || byId.pip; }
+  function look(c) { return c.look || c.id; }
 
   var MOOD_LABEL = { idle: "Here", listen: "Listening", think: "Thinking", search: "Looking it up", talk: "Talking", happy: "Glad", care: "With you", sleep: "Resting" };
   var SPONSORS = [
@@ -56,10 +64,10 @@
   function each(fn) { ["stage", "top", "empty"].forEach(function (k) { if (fig[k] && fig[k][fn]) fig[k][fn](); }); }
   function cheer() { ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].cheer(); }); }
   function mountFigs() {
-    var c = byId[state.companion];
+    var c = who(state.companion);
     ["stage", "top"].forEach(function (k) { if (fig[k]) fig[k].destroy(); });
-    fig.stage = Creatures.mount($("stageFig"), c.id, { label: c.name });
-    fig.top = Creatures.mount($("topAv"), c.id, { label: c.name });
+    fig.stage = Creatures.mount($("stageFig"), look(c), { label: c.name });
+    fig.top = Creatures.mount($("topAv"), look(c), { label: c.name });
     $("topName").textContent = $("stName").textContent = c.name;
     $("topRole").textContent = c.role;
     $("stLine").textContent = c.line;
@@ -75,14 +83,49 @@
     sideFigs.forEach(function (f) { f.destroy(); });
     sideFigs = [];
     host.innerHTML = "";
-    C.forEach(function (c) {
-      var b = document.createElement("button");
+    function row(c) {
+      var b = document.createElement("div");
       b.className = "comp";
+      b.setAttribute("role", "button");
+      b.tabIndex = 0;
       b.setAttribute("aria-current", c.id === state.companion ? "true" : "false");
-      b.innerHTML = '<div class="comp-av"></div><div><b>' + c.name + "</b><span>" + c.role + "</span></div>";
-      b.addEventListener("click", function () { setCompanion(c.id, true); closeSide(); });
+      b.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "</b><span>" + Kit.esc(c.role) + "</span></div>" +
+        (c.custom ? '<button class="iconbtn comp-edit" aria-label="Edit ' + Kit.esc(c.name) + '">' + Kit.icon("pencil-simple") + "</button>" : "");
+      var go = function () { setCompanion(c.id, true); closeSide(); };
+      b.addEventListener("click", function (e) {
+        if (e.target.closest(".comp-edit")) { editBlink(c.id); return; }
+        go();
+      });
+      b.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target === b) { e.preventDefault(); go(); } });
       host.appendChild(b);
-      sideFigs.push(Creatures.mount(b.firstChild, c.id, { label: c.name }));
+      sideFigs.push(Creatures.mount(b.firstChild, look(c), { label: c.name }));
+    }
+    C.filter(function (c) { return !c.custom; }).forEach(row);
+    var mine = C.filter(function (c) { return c.custom; });
+    var h = document.createElement("h2");
+    h.textContent = "Yours";
+    host.appendChild(h);
+    mine.forEach(row);
+    var mk = document.createElement("button");
+    mk.className = "make";
+    mk.type = "button";
+    mk.innerHTML = '<span class="make-av">' + Kit.icon("plus") + "</span><span><b>Make a Blink</b><small>" + (mine.length ? "Pick a shape, give it a job" : "Your own shape, name and purpose") + "</small></span>";
+    mk.addEventListener("click", function () { editBlink(null); closeSide(); });
+    host.appendChild(mk);
+  }
+  function editBlink(id) {
+    var bot = id ? Maker.load().find(function (b) { return b.id === id; }) : null;
+    Maker.open(bot, {
+      onSave: function (b) {
+        rebuild();
+        if (state.companion === b.id) { renderComps(); mountFigs(); renderThread(); }
+        else setCompanion(b.id, true);
+        setTimeout(function () { ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].cheer(); }); }, 200);
+      },
+      onDelete: function (gone) {
+        rebuild();
+        if (state.companion === gone) setCompanion("pip", true); else renderComps();
+      },
     });
   }
   function renderHist() {
@@ -167,8 +210,8 @@
   function stepsHtml(steps) {
     if (!steps || !steps.length) return "";
     return '<ul class="steps">' + steps.map(function (st) {
-      var who = st.by && byId[st.by] ? '<b>' + byId[st.by].name + "</b> " : "";
-      return '<li class="' + (st.state === "run" ? "run" : st.state === "blocked" ? "blocked" : "ok") + (st.by && st.tool !== "team" ? " sub" : "") + '">' + Kit.icon(st.state === "blocked" ? "warning-circle" : TOOL_ICON[st.tool] || "wrench") + "<span>" + who + Kit.esc(st.label || "") + "</span>" + (st.summary && st.state !== "run" ? "<em>" + Kit.esc(st.state === "blocked" ? "blocked for safety" : st.summary) + "</em>" : "") + "</li>";
+      var by = st.by && byId[st.by] ? '<b>' + Kit.esc(byId[st.by].name) + "</b> " : "";
+      return '<li class="' + (st.state === "run" ? "run" : st.state === "blocked" ? "blocked" : "ok") + (st.by && st.tool !== "team" ? " sub" : "") + '">' + Kit.icon(st.state === "blocked" ? "warning-circle" : TOOL_ICON[st.tool] || "wrench") + "<span>" + by + Kit.esc(st.label || "") + "</span>" + (st.summary && st.state !== "run" ? "<em>" + Kit.esc(st.state === "blocked" ? "blocked for safety" : st.summary) + "</em>" : "") + "</li>";
     }).join("") + "</ul>";
   }
   function sourcesHtml(list) {
@@ -190,8 +233,8 @@
     if (m.role === "user") {
       el.innerHTML = '<div class="bubble">' + (m.thumbs || []).map(function (u) { return '<img src="' + u + '" alt="Attached image">'; }).join("") + Kit.esc(m.content) + "</div>";
     } else {
-      var c = byId[m.companion || state.companion];
-      el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="name">' + c.name + '</div><div class="steps-host">' + stepsHtml(m.steps) + '</div><div class="prose"></div><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta"></div>';
+      var c = who(m.companion || state.companion);
+      el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="name">' + Kit.esc(c.name) + '</div><div class="steps-host">' + stepsHtml(m.steps) + '</div><div class="prose"></div><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta"></div>';
       var prose = el.querySelector(".prose");
       prose.innerHTML = md(m.content || "");
       dress(prose);
@@ -208,10 +251,10 @@
     host.innerHTML = "";
     var ch = chat();
     if (!ch || !ch.messages.length) {
-      var c = byId[state.companion];
+      var c = who(state.companion);
       var name = (state.user.name || "").trim();
-      host.innerHTML = '<div class="empty"><div class="empty-fig"></div><h1>' + Kit.esc(c.hello) + "</h1><p>" + (name ? Kit.esc(name) + ", this is " : "This is ") + c.name + ". " + Kit.esc(c.about) + '</p><div class="starters"></div></div>';
-      fig.empty = Creatures.mount(host.querySelector(".empty-fig"), c.id, { label: c.name });
+      host.innerHTML = '<div class="empty"><div class="empty-fig"></div><h1>' + Kit.esc(c.hello) + "</h1><p>" + (name ? Kit.esc(name) + ", this is " : "This is ") + Kit.esc(c.name) + ". " + Kit.esc(c.about) + '</p><div class="starters"></div></div>';
+      fig.empty = Creatures.mount(host.querySelector(".empty-fig"), look(c), { label: c.name });
       var st = host.querySelector(".starters");
       c.starters.forEach(function (s) {
         var b = document.createElement("button");
@@ -372,6 +415,7 @@
         run_id: runId,
         chat_id: ch.id,
         companion: state.companion,
+        bot: who(state.companion).bot || undefined,
         brand: Kit.brand,
         mode: state.mode,
         user: { name: state.user.name, about: state.user.about, tz: TZ },
@@ -405,9 +449,9 @@
   };
   var CRISIS = /\b(kill myself|suicid|end my life|want to die|self[- ]?harm|don'?t want to (live|be here))\b/i;
   async function demo(text, onEvent, signal) {
-    var lane = byId[state.companion].lane;
+    var lane = who(state.companion).lane;
     onEvent({ meta: { lane: lane.toLowerCase(), lane_label: lane } });
-    var body = DEMO[state.companion];
+    var body = DEMO[state.companion] || "Scripted line for now: the preview backend isn't connected yet. Once it is, " + who(state.companion).name + " will answer in the voice and with the purpose you gave it.";
     if (CRISIS.test(text)) {
       onEvent({ care: { emergency: "your local emergency number", lines: [{ name: "Find a Helpline", how: "Free helplines in 130+ countries", href: "https://findahelpline.com" }] } });
       body = "I'm really glad you said that out loud. I'm only a scripted demo right now, so please reach one of the people above. They're there for exactly this, and you deserve a real voice tonight.";
@@ -510,6 +554,7 @@
 
     var q = new URLSearchParams(location.search);
     if (byId[q.get("c")]) { state.companion = q.get("c"); Kit.set("pv_companion", state.companion); renderComps(); mountFigs(); }
+    if (q.get("make")) { history.replaceState(null, "", location.pathname); setTimeout(function () { editBlink(null); }, 300); }
     renderThread();
     renderHist();
 

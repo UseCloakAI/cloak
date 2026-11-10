@@ -251,7 +251,7 @@ export const TOOLS = {
     top: true,
     outward: (a) => a.prompt,
     async run(a, cx) {
-      const r = await cx.mind.addTask({ title: a.title, prompt: a.prompt, run_at: a.run_at, repeat: a.repeat, companion: cx.companion, brand: cx.brand });
+      const r = await cx.mind.addTask({ title: a.title, prompt: a.prompt, run_at: a.run_at, repeat: a.repeat, companion: cx.companion, bot: cx.bot, brand: cx.brand });
       return { text: r.ok ? `Scheduled (id ${r.id}). First run ${r.run_at} UTC${r.repeat !== "none" ? `, repeating ${r.repeat}` : ""}.` : `Not scheduled: ${r.error}`, summary: r.ok ? "scheduled" : "not scheduled" };
     },
   },

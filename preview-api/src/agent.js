@@ -15,7 +15,7 @@
 // tasks (mind.js).
 
 import { LANES, routeLane } from "./models.js";
-import { buildSystem, COMPANIONS, BRANDS } from "./prompts.js";
+import { buildSystem, COMPANIONS, BRANDS, resolveCompanion } from "./prompts.js";
 import { detect, resources, careProtocol } from "./safety.js";
 import { estimate } from "./carbon.js";
 import { streamLane } from "./engine.js";
@@ -50,8 +50,10 @@ const textOf = (m) => (typeof m?.content === "string" ? m.content : "");
 
 export async function* runAgent(env, ctx, req, signal) {
   const depth = req.depth || 0;
-  const companionId = COMPANIONS[req.companion] ? req.companion : "pip";
-  const companion = COMPANIONS[companionId];
+  // One of the five, or a Blink the person built (req.bot carries its spec).
+  const companion = resolveCompanion(req.companion, req.bot);
+  const companionId = companion.id;
+  const bot = companion.custom ? req.bot : null;
   const brand = BRANDS.includes(req.brand) ? req.brand : env.BRAND || "Cloak Blinks";
   const messages = req.messages.slice();
   const last = messages[messages.length - 1];
@@ -65,7 +67,7 @@ export async function* runAgent(env, ctx, req, signal) {
 
   // Team runs are orchestrated one level up.
   if (!depth && req.mode === "team" && !crisis) {
-    yield* runTeam(env, ctx, { ...req, companion: companionId, brand, shared }, signal);
+    yield* runTeam(env, ctx, { ...req, companion: companionId, bot, lead: companion, brand, shared }, signal);
     return;
   }
 
@@ -75,7 +77,7 @@ export async function* runAgent(env, ctx, req, signal) {
     yield { step: { id: "look", tool: "look", label: images.length > 1 ? `Looking at ${images.length} images` : "Looking at the image", state: "run" } };
     let seen = "";
     try {
-      const sys = buildSystem({ brand, companion: companionId, lane: "vision", convictions: env.CONVICTIONS !== "off" });
+      const sys = buildSystem({ brand, companion, lane: "vision", convictions: env.CONVICTIONS !== "off" });
       const ask = [{ role: "user", content: [{ type: "text", text: `Describe what is in ${images.length > 1 ? "these images" : "this image"} in the detail needed to answer this, including any text exactly as written:\n\n${textOf(last)}` }, ...images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] }];
       for await (const ev of streamLane(env, ctx, "vision", { system: sys, messages: ask, signal })) {
         if (ev.done) { seen = ev.text; tally(shared, ev); }
@@ -101,7 +103,7 @@ export async function* runAgent(env, ctx, req, signal) {
   const budget = depth ? STEPS.sub : research ? STEPS.research : req.background ? STEPS.background : STEPS.auto;
 
   const system = buildSystem({
-    brand, companion: companionId, lane, depth, tools, memories, research,
+    brand, companion, lane, depth, tools, memories, research,
     care: danger ? careProtocol(danger, help) : "",
     user: req.user && typeof req.user === "object" ? req.user : {},
     convictions: env.CONVICTIONS !== "off",
@@ -162,7 +164,7 @@ export async function* runAgent(env, ctx, req, signal) {
       ch.emit({ step: { id, by, tool: c.name, label: toolLabel(c.name, c.arguments), state: "run" } });
       if (c.name === "remember") remembered = true;
       const cx = {
-        env, ctx, mind, userKey: req.userKey, companion: companionId, brand, depth, signal, cite,
+        env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite,
         delegate: async (who, task) => {
           const sub = runAgent(env, ctx, { brand, companion: who, userKey: req.userKey, user: req.user, country: req.country, depth: depth + 1, shared, messages: [{ role: "user", content: task }] }, signal);
           let out = "";
@@ -216,6 +218,7 @@ function pickTeam(lead, text) {
 
 async function* runTeam(env, ctx, req, signal) {
   const { companion: lead, brand, shared } = req;
+  const leadName = req.lead?.name || COMPANIONS[lead]?.name || "Your Blink";
   const question = textOf(req.messages[req.messages.length - 1]);
   const team = pickTeam(lead, question);
   yield { meta: { companion: lead, lane: "deep", lane_label: "Team", why: "team", mode: "team", tools: true, team } };
@@ -253,7 +256,7 @@ ${got.length} other companions worked on the person's latest request in parallel
 
 ${got.map((w) => `## ${COMPANIONS[w].name}'s draft\n${drafts[w].slice(0, 7000)}`).join("\n\n") || "No drafts came back. Answer on your own."}`;
 
-  yield { step: { id: "team-lead", tool: "team", label: `${COMPANIONS[lead].name} is writing the answer`, state: "run" } };
+  yield { step: { id: "team-lead", tool: "team", label: `${leadName} is writing the answer`, state: "run" } };
   let first = true;
   for await (const ev of runAgent(env, ctx, { ...req, mode: "deep", tools: false, extra, shared, _lead: true }, signal)) {
     if (ev.meta || ev.care) continue;

@@ -33,6 +33,8 @@ export class Mind extends DurableObject {
       CREATE TABLE IF NOT EXISTS task (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, prompt TEXT NOT NULL, companion TEXT NOT NULL, brand TEXT NOT NULL, run_at INTEGER NOT NULL, repeat TEXT NOT NULL, runs INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS inbox (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, title TEXT NOT NULL, companion TEXT NOT NULL, body TEXT NOT NULL, meta TEXT NOT NULL DEFAULT '{}', created INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0);
     `);
+    // Tasks a custom Blink scheduled carry its spec, so it can do the work itself later.
+    try { this.sql.exec(`ALTER TABLE task ADD COLUMN bot TEXT`); } catch {}
   }
 
   // The object needs to know its own key to act for the person later (tasks).
@@ -98,7 +100,7 @@ export class Mind extends DurableObject {
   }
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
-  async addTask({ title, prompt, run_at, repeat = "none", companion = "pip", brand = "Cloak Blinks" }) {
+  async addTask({ title, prompt, run_at, repeat = "none", companion = "pip", brand = "Cloak Blinks", bot = null }) {
     const when = Date.parse(run_at);
     if (!Number.isFinite(when)) return { ok: false, error: "run_at must be an ISO 8601 time, for example 2026-11-11T14:00:00Z" };
     if (when > Date.now() + 366 * 86400_000) return { ok: false, error: "that is more than a year away" };
@@ -107,7 +109,7 @@ export class Mind extends DurableObject {
     if (p.length < 4) return { ok: false, error: "the task needs an instruction" };
     if (this.sql.exec(`SELECT COUNT(*) n FROM task`).one().n >= MAX_TASKS) return { ok: false, error: `the limit is ${MAX_TASKS} scheduled tasks; cancel one first` };
     const at = Math.max(when, Date.now() + 30_000);
-    const id = this.sql.exec(`INSERT INTO task (title, prompt, companion, brand, run_at, repeat, created) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, String(title || "Task").slice(0, 80), p, companion, brand, at, rep, Date.now()).one().id;
+    const id = this.sql.exec(`INSERT INTO task (title, prompt, companion, brand, run_at, repeat, created, bot) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, String(title || "Task").slice(0, 80), p, companion, brand, at, rep, Date.now(), bot && typeof bot === "object" ? JSON.stringify(bot).slice(0, 4000) : null).one().id;
     await this.arm();
     return { ok: true, id, run_at: new Date(at).toISOString().slice(0, 16).replace("T", " "), repeat: rep };
   }
@@ -135,7 +137,7 @@ export class Mind extends DurableObject {
       let body = "", meta = {};
       try {
         const out = await collect(runAgent(this.env, { waitUntil: (p) => this.ctx.waitUntil(p) }, {
-          brand: t.brand, companion: t.companion, userKey: key, mode: "auto", background: true,
+          brand: t.brand, companion: t.companion, bot: safe(t.bot), userKey: key, mode: "auto", background: true,
           messages: [{ role: "user", content: `Scheduled task "${t.title}". Carry it out now and write the result for me to read later.\n\n${t.prompt}` }],
         }));
         body = out.text || "The task ran but produced nothing.";

@@ -9,7 +9,10 @@
    level), like a voice orb with a face. Gestures on top: cheer (crouch, hop,
    squash), wave (a happy side-to-side rock), nod.
 
-   Creatures.mount(el, "ember", { mood }) →
+   Every Blink is a spec: { shape, color, eyes, topper, cheeks }. The five
+   that ship are named specs; people build their own in the app.
+
+   Creatures.mount(el, "ember" | spec, { mood }) →
      { set(mood), pulse(n), level(0..1), cheer(), wave(), nod(), destroy() } */
 (function () {
   "use strict";
@@ -27,21 +30,32 @@
 
   // An eye: one ink dot. It slides to look, squashes flat to blink, and a
   // hand-drawn arc replaces it when happy. Nothing else.
-  function eye(x, y, rx, ry, pr) {
-    var w = (pr * 0.92).toFixed(1), h = (pr * 1.28).toFixed(1), sw = (rx * 0.72).toFixed(1);
+  function eye(x, y, rx, ry, pr, ink) {
+    var w = (pr * 0.92).toFixed(1), h = (pr * 1.28).toFixed(1), sw = (Math.max(rx, pr * 1.6) * 0.72).toFixed(1);
+    var lf = 'fill="none" stroke="' + ink + '" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"';
     return (
-      '<g data-p="pupil" data-o="' + x + "," + y + '" data-r="' + (rx - pr + 1).toFixed(1) + '">' +
-      '<ellipse data-p="socket" data-o="' + x + "," + y + '" cx="' + x + '" cy="' + y + '" rx="' + w + '" ry="' + h + '" fill="' + DARK + '"/>' +
+      '<g data-p="pupil" data-o="' + x + "," + y + '" data-r="' + Math.max(3, rx - pr + 1).toFixed(1) + '">' +
+      '<ellipse data-p="socket" data-o="' + x + "," + y + '" cx="' + x + '" cy="' + y + '" rx="' + w + '" ry="' + h + '" fill="' + ink + '"/>' +
       "</g>" +
-      '<path data-p="smile" d="M' + (x - sw) + " " + (y + 3) + " Q" + x + " " + (y - ry * 0.7 - 3).toFixed(1) + " " + (x + +sw) + " " + (y + 3) + '" ' + LF + ' opacity="0"/>'
+      '<path data-p="smile" d="M' + (x - sw) + " " + (y + 3) + " Q" + x + " " + (y - ry * 0.7 - 3).toFixed(1) + " " + (x + +sw) + " " + (y + 3) + '" ' + lf + ' opacity="0"/>'
     );
   }
-  function face(cx, cy, gap, rx, ry, pr, my) {
-    return (
-      '<g data-p="head" data-o="' + cx + "," + (cy + 20) + '">' +
-      eye(cx - gap, cy, rx, ry, pr) + eye(cx + gap, cy, rx, ry, pr) +
-      "</g>"
-    );
+  // The face for a shape and an eye style. Positions come from the shape.
+  function face(f, style, ink) {
+    var cx = f[0], cy = f[1], gap = f[2], rx = f[3], ry = f[4], pr = f[5];
+    var tf = 'fill="none" stroke="' + ink + '" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"';
+    var eyes;
+    if (style === "big") eyes = eye(cx - gap * 1.05, cy, rx + 3, ry + 3, pr * 1.45, ink) + eye(cx + gap * 1.05, cy, rx + 3, ry + 3, pr * 1.45, ink);
+    else if (style === "small") eyes = eye(cx - gap * 0.72, cy, rx - 4, ry - 4, pr * 0.66, ink) + eye(cx + gap * 0.72, cy, rx - 4, ry - 4, pr * 0.66, ink);
+    else if (style === "wide") eyes = eye(cx - gap * 1.45, cy, rx, ry, pr, ink) + eye(cx + gap * 1.45, cy, rx, ry, pr, ink);
+    else if (style === "one") eyes = eye(cx, cy, rx + 6, ry + 6, pr * 1.7, ink);
+    else eyes = eye(cx - gap, cy, rx, ry, pr, ink) + eye(cx + gap, cy, rx, ry, pr, ink);
+    var extra = "";
+    if (style === "glasses") {
+      var l = cx - gap, r = cx + gap, g = Math.min(22, gap - 3);
+      extra = '<path d="M' + (l - g) + " " + cy + " a" + g + " " + (g + 1) + " 0 1 0 " + 2 * g + " 0 a" + g + " " + (g + 1) + " 0 1 0 " + -2 * g + " 0 M" + (r - g) + " " + cy + " a" + g + " " + (g + 1) + " 0 1 0 " + 2 * g + " 0 a" + g + " " + (g + 1) + " 0 1 0 " + -2 * g + " 0 M" + (l + g) + " " + (cy - 2) + " q" + (gap - g) + " -5 " + 2 * (gap - g) + " 0 M" + (l - g) + " " + (cy - 4) + " l-14 -6 M" + (r + g) + " " + (cy - 4) + ' l14 -6" ' + tf + "/>";
+    }
+    return '<g data-p="head" data-o="' + cx + "," + (cy + 20) + '">' + eyes + extra + "</g>";
   }
   // The shadow is hatched by hand, not filled: Cloak's hard shadow, drawn.
   function shadow(d, id) {
@@ -63,84 +77,71 @@
     return d + " Z";
   }
 
+  /* Shapes. d: the outline. o: where it stands. shine: the highlight stroke.
+     face: [cx, cy, gap, eye rx, eye ry, pupil]. top/side: where toppers sit. */
   var SHAPES = {
-    orb: "M120 42 C168 40 202 78 200 124 C198 172 164 204 118 202 C72 200 38 166 40 120 C42 76 74 44 120 42 Z",
-    slab: "M60 58 C98 50 152 52 186 60 C196 96 196 152 188 190 C150 200 94 200 56 192 C46 150 48 98 60 58 Z",
-    spark: "M120 34 C129 34 135 42 141 53 L202 166 C211 183 202 198 183 198 L57 198 C38 198 29 183 38 166 L99 53 C105 42 111 34 120 34 Z",
-    bloom: bloom(),
-    dome: "M34 178 C32 112 72 68 122 68 C172 68 208 112 206 178 C206 190 198 196 187 196 L53 196 C41 196 34 190 34 178 Z",
+    orb: { name: "Orb", d: "M120 42 C168 40 202 78 200 124 C198 172 164 204 118 202 C72 200 38 166 40 120 C42 76 74 44 120 42 Z", o: "120,206", shine: "M66 92 q10 -22 32 -30", face: [120, 112, 26, 17, 20, 7.5], top: [120, 44], side: [178, 66] },
+    slab: { name: "Slab", d: "M60 58 C98 50 152 52 186 60 C196 96 196 152 188 190 C150 200 94 200 56 192 C46 150 48 98 60 58 Z", o: "122,206", shine: "M72 78 q22 -8 46 -8", face: [122, 112, 28, 16, 18, 7], top: [150, 56], side: [184, 60] },
+    spark: { name: "Spark", d: "M120 34 C129 34 135 42 141 53 L202 166 C211 183 202 198 183 198 L57 198 C38 198 29 183 38 166 L99 53 C105 42 111 34 120 34 Z", o: "120,206", shine: "M104 70 l-22 42", face: [120, 136, 22, 14, 17, 6.5], top: [120, 34], side: [150, 66] },
+    bloom: { name: "Bloom", d: bloom(), o: "120,206", shine: "M74 84 q12 -16 28 -18", face: [120, 116, 25, 16, 19, 7], top: [120, 46], side: [176, 58] },
+    dome: { name: "Dome", d: "M34 178 C32 112 72 68 122 68 C172 68 208 112 206 178 C206 190 198 196 187 196 L53 196 C41 196 34 190 34 178 Z", o: "120,204", shine: "M62 122 q14 -26 38 -34", face: [120, 134, 27, 16, 15, 7], top: [122, 68], side: [178, 96] },
+    drop: { name: "Drop", d: "M120 30 C138 62 192 104 192 146 C192 182 162 204 120 204 C78 204 48 182 48 146 C48 104 102 62 120 30 Z", o: "120,206", shine: "M70 146 q2 -26 22 -44", face: [120, 144, 24, 15, 18, 7], top: [120, 30], side: [158, 76] },
+    pill: { name: "Pill", d: "M86 40 C110 34 132 34 156 40 C176 46 182 66 182 90 L182 162 C182 186 174 198 154 202 C132 206 108 206 86 202 C66 198 58 186 58 162 L58 90 C58 66 66 46 86 40 Z", o: "120,206", shine: "M74 72 q8 -18 26 -24", face: [120, 106, 25, 15, 18, 7], top: [120, 37], side: [172, 50] },
   };
 
-  var DEFS = {
-    /* Pip: a bright orb with a curl on top. Quick. */
-    pip: {
-      color: "#F5C842",
-      svg: function (h) {
-        return (
-          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.orb, h) +
-          '<path d="' + SHAPES.orb + '" fill="#F5C842" ' + S + "/>" +
-          '<path d="M66 92 q10 -22 32 -30" ' + TF + ' opacity=".4"/>' +
-          '<g data-p="hat" data-o="120,44"><path d="M120 44 C118 30 124 20 134 20 C142 20 144 28 138 30" ' + L + "/></g>" +
-          face(120, 112, 26, 17, 20, 7.5, 152) + "</g>"
-        );
-      },
-    },
-    /* Moss: a heavy slab with round glasses. Slow and exact. */
-    moss: {
-      color: "#4CBF73",
-      svg: function (h) {
-        return (
-          '<g data-p="body" data-o="122,206">' + shadow(SHAPES.slab, h) +
-          '<path d="' + SHAPES.slab + '" fill="#4CBF73" ' + S + "/>" +
-          '<path d="M72 78 q22 -8 46 -8" ' + TF + ' opacity=".4"/>' +
-          '<g data-p="hat" data-o="150,56"><path d="M150 56 C150 44 151 36 153 30 M152 38 C144 38 138 32 138 24 C146 24 152 30 152 38 Z M153 34 C161 36 168 30 170 22 C160 20 153 26 153 34 Z" fill="#fff" ' + T + "/></g>" +
-          face(122, 112, 28, 16, 18, 7, 154) +
-          '<g data-p="head" data-o="122,132"><path d="M72 112 a22 23 0 1 0 44 0 a22 23 0 1 0 -44 0 M128 112 a22 23 0 1 0 44 0 a22 23 0 1 0 -44 0 M116 110 q6 -5 12 0 M72 108 l-14 -6 M172 108 l14 -6" ' + TF + '/></g>' +
-          "</g>"
-        );
-      },
-    },
-    /* Ember: a spark, all point and nerve. Builds things. */
-    ember: {
-      color: "#E5603E",
-      svg: function (h) {
-        return (
-          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.spark, h) +
-          '<path d="' + SHAPES.spark + '" fill="#E5603E" ' + S + "/>" +
-          '<path d="M104 70 l-22 42" ' + TF + ' opacity=".4"/>' +
-          '<g data-p="hat" data-o="120,34"><path d="M120 22 V8 M100 26 L90 14 M140 26 L150 14" ' + L + "/></g>" +
-          face(120, 136, 22, 14, 17, 6.5, 172) + "</g>"
-        );
-      },
-    },
-    /* Juno: a bloom with a star tucked behind one petal. Plays. */
-    juno: {
-      color: "#5B9BF8",
-      svg: function (h) {
-        return (
-          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.bloom, h) +
-          '<path d="' + SHAPES.bloom + '" fill="#5B9BF8" ' + S + "/>" +
-          '<path d="M74 84 q12 -16 28 -18" ' + TF + ' opacity=".4"/>' +
-          '<g data-p="hat" data-o="176,58"><path d="M176 38 l5 13 l14 1 l-11 9 l4 14 l-12 -8 l-12 8 l4 -14 l-11 -9 l14 -1 Z" fill="#F5C842" ' + T + ' stroke-width="3.4"/></g>' +
-          face(120, 116, 25, 16, 19, 7, 154) + "</g>"
-        );
-      },
-    },
-    /* Sol: a low dome that sits and stays. Calm. */
-    sol: {
-      color: "#F3A77C",
-      svg: function (h) {
-        return (
-          '<g data-p="hat" data-o="120,120"><path d="M120 50 V30 M70 66 L56 50 M170 66 L184 50 M36 104 L18 96 M204 104 L222 96" ' + L + ' opacity=".9"/></g>' +
-          '<g data-p="body" data-o="120,204">' + shadow(SHAPES.dome, h) +
-          '<path d="' + SHAPES.dome + '" fill="#F3A77C" ' + S + "/>" +
-          '<path d="M62 122 q14 -26 38 -34" ' + TF + ' opacity=".4"/>' +
-          '<ellipse cx="72" cy="160" rx="10" ry="6" fill="#E5603E" opacity=".45"/><ellipse cx="168" cy="160" rx="10" ry="6" fill="#E5603E" opacity=".45"/>' +
-          face(120, 134, 27, 16, 15, 7, 168) + "</g>"
-        );
-      },
-    },
+  /* Toppers, drawn relative to the shape's top (or side, for the star). */
+  var TOPPERS = {
+    none: { name: "None", svg: function () { return ""; } },
+    curl: { name: "Curl", svg: function () { return '<path d="M0 0 C-2 -14 4 -24 14 -24 C22 -24 24 -16 18 -14" ' + L + "/>"; } },
+    sprout: { name: "Sprout", svg: function () { return '<path d="M0 0 C0 -12 1 -20 3 -26 M2 -18 C-6 -18 -12 -24 -12 -32 C-4 -32 2 -26 2 -18 Z M3 -22 C11 -20 18 -26 20 -34 C10 -36 3 -30 3 -22 Z" fill="#fff" ' + T + "/>"; } },
+    sparks: { name: "Sparks", svg: function () { return '<path d="M0 -12 V-26 M-20 -8 L-30 -20 M20 -8 L30 -20" ' + L + "/>"; } },
+    rays: { name: "Rays", svg: function () { return '<path d="M0 -18 V-38 M-50 -2 L-64 -18 M50 -2 L64 -18 M-84 36 L-102 28 M84 36 L102 28" ' + L + ' opacity=".9"/>'; } },
+    antenna: { name: "Antenna", svg: function (acc) { return '<path d="M0 0 C2 -10 -2 -18 2 -26" ' + L + '/><circle cx="3" cy="-32" r="7" fill="' + acc + '" ' + T + ' stroke-width="3"/>'; } },
+    bow: { name: "Bow", svg: function (acc) { return '<path d="M0 -6 L-20 -18 C-24 -10 -24 2 -20 8 Z M0 -6 L20 -18 C24 -10 24 2 20 8 Z" fill="' + acc + '" ' + T + ' stroke-width="3"/><circle cx="0" cy="-5" r="5" fill="' + acc + '" ' + T + ' stroke-width="3"/>'; } },
+    star: { name: "Star", side: true, svg: function () { return '<path d="M0 -20 l5 13 l14 1 l-11 9 l4 14 l-12 -8 l-12 8 l4 -14 l-11 -9 l14 -1 Z" fill="#F5C842" ' + T + ' stroke-width="3.4"/>'; } },
   };
+  var EYES = { dots: "Dots", big: "Big", small: "Small", wide: "Wide apart", one: "One", sleepy: "Sleepy", glasses: "Glasses" };
+  var COLORS = ["#F5C842", "#4CBF73", "#E5603E", "#5B9BF8", "#F3A77C", "#B18CF0", "#F28BA8", "#7FD6C2", "#FAFAF7", "#3B3A36"];
+
+  /* The five Blinks that ship with Cloak, as specs like anyone else's. */
+  var DEFS = {
+    pip: { shape: "orb", color: "#F5C842", eyes: "dots", topper: "curl" },
+    moss: { shape: "slab", color: "#4CBF73", eyes: "glasses", topper: "sprout" },
+    ember: { shape: "spark", color: "#E5603E", eyes: "dots", topper: "sparks" },
+    juno: { shape: "bloom", color: "#5B9BF8", eyes: "dots", topper: "star" },
+    sol: { shape: "dome", color: "#F3A77C", eyes: "dots", topper: "rays", cheeks: true },
+  };
+
+  function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+  function lum(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return 1;
+    var n = parseInt(m[1], 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  // Any id or partial spec becomes a full, safe spec.
+  function resolve(x) {
+    var s = typeof x === "string" ? DEFS[x] || DEFS.pip : x || {};
+    var col = /^#[0-9a-f]{6}$/i.test(s.color || "") ? s.color : "#F5C842";
+    return {
+      shape: SHAPES[s.shape] ? s.shape : "orb",
+      color: col,
+      eyes: EYES[s.eyes] ? s.eyes : "dots",
+      topper: TOPPERS[s.topper] ? s.topper : "none",
+      cheeks: !!s.cheeks,
+    };
+  }
+  function draw(spec, hatch) {
+    var sh = SHAPES[spec.shape], tp = TOPPERS[spec.topper];
+    var ink = lum(spec.color) < 0.12 ? "#FAFAF7" : DARK; // eyes stay readable on dark bodies
+    var acc = spec.color.toLowerCase() === "#e5603e" ? "#F5C842" : "#E5603E";
+    var at = tp.side ? sh.side : sh.top;
+    var f = sh.face;
+    var cheeks = spec.cheeks ? '<ellipse cx="' + (f[0] - f[2] - 22) + '" cy="' + (f[1] + f[4] + 8) + '" rx="10" ry="6" fill="#E5603E" opacity=".45"/><ellipse cx="' + (f[0] + f[2] + 22) + '" cy="' + (f[1] + f[4] + 8) + '" rx="10" ry="6" fill="#E5603E" opacity=".45"/>' : "";
+    var hat = tp.svg(acc) ? '<g data-p="hat" data-o="' + at[0] + "," + at[1] + '"><g transform="translate(' + at[0] + " " + at[1] + ')">' + tp.svg(acc) + "</g></g>" : "";
+    var shine = '<path d="' + sh.shine + '" fill="none" stroke="' + ink + '" stroke-width="3.2" stroke-linecap="round" opacity=".35"/>';
+    return '<g data-p="body" data-o="' + sh.o + '">' + shadow(sh.d, hatch) + '<path d="' + sh.d + '" fill="' + spec.color + '" ' + S + "/>" + shine + hat + cheeks + face(f, spec.eyes, ink) + "</g>";
+  }
 
   /* ── The rig ─────────────────────────────────────────────────────── */
   var live = [];
@@ -169,11 +170,11 @@
 
   function Creature(el, id, opts) {
     opts = opts || {};
-    var def = DEFS[id] || DEFS.pip;
+    var spec = resolve(id);
     var n = ++uid;
     var fid = "cr-ink-" + n, hid = "cr-hatch-" + n;
     el.innerHTML =
-      '<svg viewBox="0 0 240 240" role="img" aria-label="' + (opts.label || id) + '" style="display:block;width:100%;height:100%;overflow:visible">' +
+      '<svg viewBox="0 0 240 240" role="img" aria-label="' + esc(opts.label || (typeof id === "string" ? id : "A Blink")) + '" style="display:block;width:100%;height:100%;overflow:visible">' +
       "<defs>" +
       '<filter id="' + fid + '" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">' +
       '<feTurbulence type="fractalNoise" baseFrequency="0.024" numOctaves="2" seed="2" result="n"/>' +
@@ -186,7 +187,7 @@
       '<pattern id="' + hid + '" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><line x1="0" y1="0" x2="0" y2="9" stroke="' + INK + '" stroke-width="3.4"/></pattern>' +
       "</defs>" +
       '<g class="cr-dots" opacity="0"><circle cx="196" cy="52" r="4.5" fill="' + INK + '"/><circle cx="210" cy="36" r="6" fill="' + INK + '"/><circle cx="226" cy="16" r="8" fill="' + INK + '"/></g>' +
-      '<g class="cr-root" filter="url(#' + fid + ')"><g class="cr-hop">' + def.svg(hid) + "</g></g>" +
+      '<g class="cr-root" filter="url(#' + fid + ')"><g class="cr-hop">' + draw(spec, hid) + "</g></g>" +
       "</svg>";
 
     var svg = el.firstChild;
@@ -270,7 +271,7 @@
       }
       if (blink > 0) blink = Math.max(0, blink - dt / 0.17);
       var shut = blink > 0 ? Math.sin(Math.PI * Math.pow(1 - blink, 0.6)) : 0;
-      var open = spring(s.open, m.open, 130, 0.7, dt) * (1 - shut * 0.95);
+      var open = spring(s.open, m.open * (spec.eyes === "sleepy" && self.mood !== "happy" ? 0.48 : 1), 130, 0.7, dt) * (1 - shut * 0.95);
 
       // Mouth. With a live audio level it follows the sound; otherwise stream
       // energy from pulse() shapes irregular syllables.
@@ -355,7 +356,7 @@
       io.observe(el);
     }
     el.setAttribute("data-mood", this.mood);
-    if (reduce) {
+    if (reduce || opts.still) {
       // A still drawing: one frame so every part sits in its pose, no boil.
       this.frame(0, 0.016);
       return;
@@ -377,7 +378,16 @@
 
   window.Creatures = {
     ids: Object.keys(DEFS),
-    color: function (id) { return (DEFS[id] || DEFS.pip).color; },
+    color: function (id) { return resolve(id).color; },
+    spec: resolve,
+    shapes: Object.keys(SHAPES).map(function (k) { return { id: k, name: SHAPES[k].name }; }),
+    toppers: Object.keys(TOPPERS).map(function (k) { return { id: k, name: TOPPERS[k].name }; }),
+    eyes: Object.keys(EYES).map(function (k) { return { id: k, name: EYES[k] }; }),
+    colors: COLORS.slice(),
+    random: function () {
+      var pick = function (a) { return a[Math.floor(Math.random() * a.length)]; };
+      return { shape: pick(Object.keys(SHAPES)), color: pick(COLORS.slice(0, 8)), eyes: pick(["dots", "dots", "big", "small", "wide", "one", "sleepy", "glasses"]), topper: pick(Object.keys(TOPPERS)), cheeks: Math.random() < 0.35 };
+    },
     mount: function (el, id, opts) { return new Creature(el, id, opts); },
   };
 })();

@@ -4,12 +4,13 @@ The full rebrand, built to live at `preview.usecloak.org`. Nothing in production
 
 | File | What |
 |---|---|
-| `index.html` | Home: hero with the five companions, companion picker, routing demo, the one rule, the ledger |
+| `index.html` | Home: hero with the five companions, companion picker, make-your-own section, routing demo, the one rule, the ledger |
 | `app.html` + `app.css` + `app.js` | The chat app: companions, chats, the stage, care card, sponsor card, per-reply energy |
 | `impact.html` + `impact.js` | The public carbon ledger and its chart |
 | `system.html` | Design system: the name, color, type, parts, the shape rig, motion, voice |
 | `kit.css` / `kit.js` | Tokens, components, brand name, light/dark, API base, companion data |
-| `creatures.js` | The five Blinks: hand-drawn shapes with two dot eyes and no mouths or arms (orb, slab, spark, bloom, dome), rigged and animated in code. Talking pulses the whole shape |
+| `creatures.js` | The rig. Every Blink is a spec `{shape, color, eyes, topper, cheeks}`: 7 shapes (orb, slab, spark, bloom, dome, drop, pill), any colour, 7 eye styles, 8 toppers. Two dot eyes, no mouths or arms; talking pulses the whole shape. The five that ship are named specs |
+| `maker.js` | The Blink maker: build your own (look, name, purpose, personality, how it thinks, hello, starters). Stored on this device in `pv_bots` (max 12), sent with each message as `bot` |
 | `sync.js` | Optional sign-in with an existing Cloak account; chats sync to `pv_chats` |
 | `fonts/`, `icons.svg` | Bricolage Grotesque, Geist, Geist Mono (OFL); Phosphor Regular (MIT) |
 
