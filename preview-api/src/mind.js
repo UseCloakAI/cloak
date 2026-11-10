@@ -98,7 +98,7 @@ export class Mind extends DurableObject {
   }
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
-  async addTask({ title, prompt, run_at, repeat = "none", companion = "pip", brand = "Cloak" }) {
+  async addTask({ title, prompt, run_at, repeat = "none", companion = "pip", brand = "Cloak Blinks" }) {
     const when = Date.parse(run_at);
     if (!Number.isFinite(when)) return { ok: false, error: "run_at must be an ISO 8601 time, for example 2026-11-11T14:00:00Z" };
     if (when > Date.now() + 366 * 86400_000) return { ok: false, error: "that is more than a year away" };

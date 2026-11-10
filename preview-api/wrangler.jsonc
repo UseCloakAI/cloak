@@ -28,7 +28,7 @@
   // faith block out of the system prompt. Secret: ADMIN_TOKEN.
   // SUPABASE_*: publishable values, used only to verify a signed-in user's token.
   "vars": {
-    "BRAND": "Cloak",
+    "BRAND": "Cloak Blinks",
     "CONVICTIONS": "on",
     "SUPABASE_URL": "https://kdawsqrrmwirilyhcolk.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkYXdzcXJybXdpcmlseWhjb2xrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NjUxNjAsImV4cCI6MjA4OTU0MTE2MH0.cMN9V51J3042DrdaDmL7-ro-AMaw-IU47wQLnW2NMBE"

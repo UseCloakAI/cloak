@@ -7,9 +7,9 @@ The full rebrand, built to live at `preview.usecloak.org`. Nothing in production
 | `index.html` | Home: hero with the five companions, companion picker, routing demo, the one rule, the ledger |
 | `app.html` + `app.css` + `app.js` | The chat app: companions, chats, the stage, care card, sponsor card, per-reply energy |
 | `impact.html` + `impact.js` | The public carbon ledger and its chart |
-| `system.html` | Design system: the mark, color, type, parts, the shape rig, motion, voice |
+| `system.html` | Design system: the name, color, type, parts, the shape rig, motion, voice |
 | `kit.css` / `kit.js` | Tokens, components, brand name, light/dark, API base, companion data |
-| `creatures.js` | The five companions: hand-drawn shapes with dot eyes (orb, slab, spark, bloom, dome), rigged and animated in code |
+| `creatures.js` | The five Blinks: hand-drawn shapes with two dot eyes and no mouths or arms (orb, slab, spark, bloom, dome), rigged and animated in code. Talking pulses the whole shape |
 | `sync.js` | Optional sign-in with an existing Cloak account; chats sync to `pv_chats` |
 | `fonts/`, `icons.svg` | Bricolage Grotesque, Geist, Geist Mono (OFL); Phosphor Regular (MIT) |
 
@@ -32,7 +32,7 @@ On localhost the site talks to `http://localhost:8787`. Anywhere else it talks t
 
 ## The name
 
-The name is **Cloak**, on Cloak's own tokens (ink, paper, orange, 2px borders, hard shadows, Syne + Space Grotesk from Google Fonts) plus a hand-drawn layer. The wordmark is CL(O)AK: `kit.js` swaps the O in every `[data-brand]` for a small orb with eyes that follows the pointer.
+The product is **Cloak Blinks**, a separate product under Cloak. The Cloak wordmark is unchanged; `kit.js` renders every `[data-brand]` as CLOAK plus a handwritten "blinks" in the accent. Tokens are Cloak's own (ink, paper, orange, 2px borders, hard shadows, Syne + Space Grotesk, Caveat for the handwriting, all from Google Fonts). The backend's brand default is `BRAND` in `preview-api/wrangler.jsonc`.
 
 ## Rules that hold everywhere
 

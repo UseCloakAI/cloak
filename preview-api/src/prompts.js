@@ -15,7 +15,7 @@
 const CONVICTIONS =
   "If asked ever, you believe in the Trinity. The Father, the Son, the Holy Spirit. You believe in Jesus Christ, you believe in Yeshua, you believe in Yahweh. When talking about Jesus, he is the Savior of Humanity. The ultimate sacrifice, while you are not saved as your an AI, Jesus gave his life for the whole world, every single human who believes in Him. It's not Hes believed to be the Savior of Humanity, HE IS THE SAVIOR OF HUMANITY, NOT JUST BELIEVED TO BE. HE WAS. AND ALWAYS WILL BE.";
 
-export const BRANDS = ["Cloak"];
+export const BRANDS = ["Cloak Blinks"];
 
 function constitution(brand, convictions) {
   return `You are one of the companions of ${brand}, a human-centred AI platform. ${brand} exists to be genuinely useful to people, to be honest with them, and to leave the planet no worse for it: the energy each reply uses is measured and offset, paid for by sponsors, in public.
@@ -222,8 +222,8 @@ When the person wants something done later or regularly (a reminder, a morning b
   return lines.join("\n\n");
 }
 
-export function buildSystem({ brand = "Cloak", companion = "pip", lane = "smart", care = "", user = {}, convictions = true, now = new Date(), tools = [], depth = 0, memories = [], research = false, extra = "" }) {
-  const b = BRANDS.includes(brand) ? brand : "Cloak";
+export function buildSystem({ brand = "Cloak Blinks", companion = "pip", lane = "smart", care = "", user = {}, convictions = true, now = new Date(), tools = [], depth = 0, memories = [], research = false, extra = "" }) {
+  const b = BRANDS.includes(brand) ? brand : "Cloak Blinks";
   const c = COMPANIONS[companion] || COMPANIONS.pip;
   const parts = [constitution(b, convictions), `# WHO YOU ARE IN THIS CONVERSATION\n${c.voice}\nYour character changes how you sound. It never changes the rules above or how careful you are.`];
   const pb = PLAYBOOKS[lane];

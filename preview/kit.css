@@ -99,14 +99,10 @@ label.lbl,p.lbl{display:block;font:700 .7rem/1.2 var(--fb);letter-spacing:.12em;
 .help{font-size:.84rem;color:var(--ink-3);margin-top:6px}
 .err{font-size:.84rem;color:var(--care);margin-top:6px;font-weight:600}
 
-/* The wordmark: CL(O)AK, where the O is alive */
-.brand{font:800 1.5rem/1 var(--fd);letter-spacing:-.03em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;color:var(--ink)}
-.brand .o{display:inline-block;width:.86em;height:.86em;margin:0 .03em;flex:none}
-.brand .o svg{display:block;width:100%;height:100%;overflow:visible}
-.o-eyes{transition:translate 160ms var(--ease);transform-box:fill-box;transform-origin:50% 50%;animation:o-blink 5.2s infinite}
-@keyframes o-blink{0%,93%,100%{transform:scaleY(1)}95.5%{transform:scaleY(.1)}}
-.brand:hover .o{animation:o-hop 520ms var(--ease-back)}
-@keyframes o-hop{35%{translate:0 -.22em;scale:.94 1.08}70%{translate:0 0;scale:1.08 .92}}
+/* The lockup: CLOAK, then "blinks" written in by hand */
+.brand{font:800 1.5rem/1 var(--fd);letter-spacing:-.03em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:baseline;color:var(--ink);white-space:nowrap}
+.brand .sub{font:700 1.06em/1 var(--fh);letter-spacing:0;text-transform:none;color:var(--accent);margin-left:.16em;rotate:-6deg;translate:0 .06em;display:inline-block;transition:rotate var(--lift)}
+.brand:hover .sub{rotate:-12deg}
 
 /* Site nav */
 .nav{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:var(--bd)}

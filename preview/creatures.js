@@ -1,13 +1,13 @@
-/* The companions: five hand-drawn shapes with eyes. Wobbly ink outlines,
-   hatched shadows, flat Cloak colours. Drawn as paths, rigged and animated in
-   code: no image files, no generated art.
+/* Cloak Blinks: five hand-drawn shapes with two dot eyes. No mouths, no
+   arms. Wobbly ink outlines, hatched shadows, flat Cloak colours. Drawn as
+   paths, rigged and animated in code: no image files, no generated art.
 
-   They behave like an avatar, not an icon. One state machine drives every
-   part: idle, listen, think, search, talk, happy, care, sleep. Eyes lead and
-   the face follows, the body leans after the face, arms and toppers arrive
-   late. Talking is driven by real energy (stream chunks or audio level), and
-   there are gestures on top of the states: cheer (crouch, hop, squash),
-   wave, nod.
+   Everything they say is in the eyes and the body. One state machine drives
+   it: idle, listen, think, search, talk, happy, care, sleep. Eyes lead, the
+   face follows, the body leans last, toppers arrive late. Talking is a pulse
+   through the whole shape, driven by real energy (stream chunks or audio
+   level), like a voice orb with a face. Gestures on top: cheer (crouch, hop,
+   squash), wave (a happy side-to-side rock), nod.
 
    Creatures.mount(el, "ember", { mood }) →
      { set(mood), pulse(n), level(0..1), cheer(), wave(), nod(), destroy() } */
@@ -40,15 +40,7 @@
     return (
       '<g data-p="head" data-o="' + cx + "," + (cy + 20) + '">' +
       eye(cx - gap, cy, rx, ry, pr) + eye(cx + gap, cy, rx, ry, pr) +
-      '<ellipse data-p="mouth" data-o="' + cx + "," + (my - 2) + '" cx="' + cx + '" cy="' + (my + 3) + '" rx="9" ry="8" fill="' + DARK + '" stroke="' + DARK + '" stroke-width="3"/>' +
-      '<path data-p="lip" d="M' + (cx - 9) + " " + my + " Q" + cx + " " + (my + 8) + " " + (cx + 9) + " " + my + '" ' + LF + "/>" +
       "</g>"
-    );
-  }
-  function arms(lx, rx, y) {
-    return (
-      '<g data-p="wing" data-o="' + lx + "," + y + '" data-dir="1"><path d="M' + lx + " " + y + " q-20 6 -26 26 m0 0 l-7 -3 m7 3 l-1 8 m1 -8 l6 5" + '" ' + L + "/></g>" +
-      '<g data-p="wing" data-o="' + rx + "," + y + '" data-dir="-1"><path d="M' + rx + " " + y + " q20 6 26 26 m0 0 l7 -3 m-7 3 l1 8 m-1 -8 l-6 5" + '" ' + L + "/></g>"
     );
   }
   // The shadow is hatched by hand, not filled: Cloak's hard shadow, drawn.
@@ -85,7 +77,7 @@
       color: "#F5C842",
       svg: function (h) {
         return (
-          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.orb, h) + arms(46, 194, 128) +
+          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.orb, h) +
           '<path d="' + SHAPES.orb + '" fill="#F5C842" ' + S + "/>" +
           '<path d="M66 92 q10 -22 32 -30" ' + TF + ' opacity=".4"/>' +
           '<g data-p="hat" data-o="120,44"><path d="M120 44 C118 30 124 20 134 20 C142 20 144 28 138 30" ' + L + "/></g>" +
@@ -98,7 +90,7 @@
       color: "#4CBF73",
       svg: function (h) {
         return (
-          '<g data-p="body" data-o="122,206">' + shadow(SHAPES.slab, h) + arms(54, 190, 130) +
+          '<g data-p="body" data-o="122,206">' + shadow(SHAPES.slab, h) +
           '<path d="' + SHAPES.slab + '" fill="#4CBF73" ' + S + "/>" +
           '<path d="M72 78 q22 -8 46 -8" ' + TF + ' opacity=".4"/>' +
           '<g data-p="hat" data-o="150,56"><path d="M150 56 C150 44 151 36 153 30 M152 38 C144 38 138 32 138 24 C146 24 152 30 152 38 Z M153 34 C161 36 168 30 170 22 C160 20 153 26 153 34 Z" fill="#fff" ' + T + "/></g>" +
@@ -113,7 +105,7 @@
       color: "#E5603E",
       svg: function (h) {
         return (
-          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.spark, h) + arms(55, 185, 142) +
+          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.spark, h) +
           '<path d="' + SHAPES.spark + '" fill="#E5603E" ' + S + "/>" +
           '<path d="M104 70 l-22 42" ' + TF + ' opacity=".4"/>' +
           '<g data-p="hat" data-o="120,34"><path d="M120 22 V8 M100 26 L90 14 M140 26 L150 14" ' + L + "/></g>" +
@@ -126,7 +118,7 @@
       color: "#5B9BF8",
       svg: function (h) {
         return (
-          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.bloom, h) + arms(46, 194, 126) +
+          '<g data-p="body" data-o="120,206">' + shadow(SHAPES.bloom, h) +
           '<path d="' + SHAPES.bloom + '" fill="#5B9BF8" ' + S + "/>" +
           '<path d="M74 84 q12 -16 28 -18" ' + TF + ' opacity=".4"/>' +
           '<g data-p="hat" data-o="176,58"><path d="M176 38 l5 13 l14 1 l-11 9 l4 14 l-12 -8 l-12 8 l4 -14 l-11 -9 l14 -1 Z" fill="#F5C842" ' + T + ' stroke-width="3.4"/></g>' +
@@ -163,16 +155,16 @@
   }
   function sv(x) { return { x: x || 0, v: 0 }; }
 
-  // tilt (deg), lift (px), look bias, eye openness, lean (deg), arm raise, topper energy, breathing rate
+  // tilt (deg), lift (px), look bias, eye openness, lean (deg), topper energy, breathing rate
   var MOODS = {
-    idle: { tilt: 0, lift: 0, lookX: 0, lookY: 0, open: 1, lean: 0, arm: 0, top: 1, breathe: 1 },
-    listen: { tilt: 7, lift: -3, lookX: 0, lookY: 0.15, open: 1.14, lean: 2.5, arm: 0.15, top: 1.4, breathe: 1 },
-    think: { tilt: -7, lift: -1, lookX: 0.85, lookY: -0.9, open: 0.88, lean: -2, arm: 0.5, top: 0.6, breathe: 0.8 },
-    search: { tilt: 0, lift: -2, lookX: 0, lookY: 0.1, open: 1.08, lean: 0, arm: 0.2, top: 2, breathe: 1.2 },
-    talk: { tilt: 0, lift: -1.5, lookX: 0, lookY: 0, open: 1, lean: 0, arm: 0.35, top: 1.3, breathe: 1.15 },
-    happy: { tilt: 5, lift: -4, lookX: 0, lookY: 0, open: 1, lean: 0, arm: 1, top: 2.6, breathe: 1.3 },
-    care: { tilt: -5, lift: 3, lookX: 0, lookY: 0.35, open: 0.8, lean: 3, arm: -0.2, top: 0.4, breathe: 0.7 },
-    sleep: { tilt: 9, lift: 6, lookX: 0, lookY: 0.7, open: 0.05, lean: 4, arm: -0.3, top: 0.2, breathe: 0.5 },
+    idle: { tilt: 0, lift: 0, lookX: 0, lookY: 0, open: 1, lean: 0, top: 1, breathe: 1 },
+    listen: { tilt: 7, lift: -3, lookX: 0, lookY: 0.15, open: 1.14, lean: 2.5, top: 1.4, breathe: 1 },
+    think: { tilt: -7, lift: -1, lookX: 0.85, lookY: -0.9, open: 0.88, lean: -2, top: 0.6, breathe: 0.8 },
+    search: { tilt: 0, lift: -2, lookX: 0, lookY: 0.1, open: 1.08, lean: 0, top: 2, breathe: 1.2 },
+    talk: { tilt: 0, lift: -1.5, lookX: 0, lookY: 0, open: 1, lean: 0, top: 1.3, breathe: 1.15 },
+    happy: { tilt: 5, lift: -4, lookX: 0, lookY: 0, open: 1, lean: 0, top: 2.6, breathe: 1.3 },
+    care: { tilt: -5, lift: 3, lookX: 0, lookY: 0.35, open: 0.8, lean: 3, top: 0.4, breathe: 0.7 },
+    sleep: { tilt: 9, lift: 6, lookX: 0, lookY: 0.7, open: 0.05, lean: 4, top: 0.2, breathe: 0.5 },
   };
 
   function Creature(el, id, opts) {
@@ -213,10 +205,10 @@
     this.mood = MOODS[opts.mood] ? opts.mood : "idle";
     this.visible = true;
     var t0 = Math.random() * 100;
-    var s = { tilt: sv(), lift: sv(), lookX: sv(), lookY: sv(), open: sv(1), lean: sv(), arm: sv(), top: sv(1), hop: sv(), squash: sv(), dots: sv(), hatLag: sv(), happy: sv(), face: sv(), wave: sv(), nod: sv() };
+    var s = { tilt: sv(), lift: sv(), lookX: sv(), lookY: sv(), open: sv(1), lean: sv(), top: sv(1), hop: sv(), squash: sv(), dots: sv(), hatLag: sv(), happy: sv(), face: sv(), nod: sv() };
     var blinkAt = 1 + Math.random() * 3, blink = 0;
     var glanceAt = 2 + Math.random() * 4, glance = { x: 0, y: 0 };
-    var talk = 0, level = -1, mouth = 0;
+    var talk = 0, level = -1, voice = 0;
     var cheerT = -1, waveT = -1, nodT = -1;
     var boilAt = 0, seed = 2, lastTilt = 0;
 
@@ -289,7 +281,7 @@
         var syll = Math.abs(Math.sin(t * 17.3) * 0.6 + Math.sin(t * 11.1 + 1.3) * 0.4);
         target = talk > 0.04 ? Math.min(1, talk) * (0.25 + 0.75 * syll) : 0;
       }
-      mouth += (target - mouth) * Math.min(1, dt * 28);
+      voice += (target - voice) * Math.min(1, dt * 28);
 
       // Gestures. Cheer: anticipation (crouch), hop, squash on landing, settle.
       var hopY = 0, squash = 0;
@@ -301,22 +293,20 @@
         else if (c < 0.68) squash = 0.12 * (1 - (c - 0.54) / 0.14);
         else if (c > 1.5) cheerT = -1;
       }
-      var wave = 0;
-      if (waveT >= 0) { waveT += dt; wave = waveT < 1.3 ? 1 : 0; if (waveT > 1.6) waveT = -1; }
+      var rock = 0;
+      if (waveT >= 0) { waveT += dt; rock = Math.sin(waveT * 11) * 9 * Math.max(0, 1 - waveT / 1.1); if (waveT > 1.2) waveT = -1; }
       var nod = 0;
       if (nodT >= 0) { nodT += dt; nod = Math.sin(nodT * 14) * Math.max(0, 1 - nodT / 0.7) * 5; if (nodT > 0.8) nodT = -1; }
 
       var hy = spring(s.hop, hopY, 330, 0.62, dt);
       var sq = spring(s.squash, squash, 300, 0.6, dt);
-      var smile = spring(s.happy, self.mood === "happy" || (cheerT >= 0 && cheerT < 1.3) ? 1 : 0, 170, 0.7, dt);
-      var wv = spring(s.wave, wave, 120, 0.72, dt);
+      var smile = spring(s.happy, self.mood === "happy" || (cheerT >= 0 && cheerT < 1.3) || waveT >= 0 ? 1 : 0, 170, 0.7, dt);
 
       var breath = Math.sin(t * 1.55 * m.breathe) * 0.014 * (0.6 + m.breathe * 0.4);
-      var beat = mouth * 0.018; // the whole body gives a little with each syllable
+      var beat = voice * 0.05; // no mouth: the whole shape pulses with each syllable
       var tilt = spring(s.tilt, m.tilt + fx * 3 + Math.sin(t * 0.6) * 1, 48, 0.86, dt);
-      var lift = spring(s.lift, m.lift + ey * 1.6 - mouth * 2 + nod, 80, 0.82, dt);
-      var lean = spring(s.lean, m.lean + fx * 2.2 + Math.sin(t * 0.43) * 0.8, 26, 0.9, dt);
-      var arm = spring(s.arm, m.arm, 60, 0.8, dt);
+      var lift = spring(s.lift, m.lift + ey * 1.6 - voice * 2 + nod, 80, 0.82, dt);
+      var lean = spring(s.lean, m.lean + fx * 2.2 + Math.sin(t * 0.43) * 0.8, 26, 0.9, dt) + rock;
       var topE = spring(s.top, m.top, 30, 0.9, dt);
 
       var dTilt = (tilt - lastTilt) / Math.max(dt, 0.001);
@@ -326,16 +316,9 @@
       hop.setAttribute("transform", "translate(0 " + hy.toFixed(2) + ")");
       each("body", function (p) { X(p, 0, 0, lean, 1 - breath * 0.5 + sq * 0.9 - beat * 0.5, 1 + breath - sq + beat); });
       each("head", function (p) { X(p, fx * 5.5, lift + ey * 2.2, tilt * 0.55); });
-      each("socket", function (p) { X(p, 0, 0, 0, 1, Math.max(0.05, Math.min(1.16, open)) * (1 - smile)); p.node.style.opacity = smile > 0.6 ? 0 : 1; });
+      each("socket", function (p) { X(p, 0, 0, 0, 1 - voice * 0.08, Math.max(0.05, Math.min(1.16, open + voice * 0.22)) * (1 - smile)); p.node.style.opacity = smile > 0.6 ? 0 : 1; });
       each("pupil", function (p) { X(p, ex * p.r, ey * p.r * 0.9, 0); });
       each("smile", function (p) { p.node.setAttribute("opacity", smile > 0.6 ? 1 : 0); });
-      each("mouth", function (p) { X(p, 0, 0, 0, 0.6 + mouth * 0.55, 0.02 + mouth * 1.3); p.node.style.opacity = mouth < 0.06 ? 0 : 1; });
-      each("lip", function (p) { p.node.style.opacity = mouth < 0.06 ? 1 : 0; });
-      each("wing", function (p, i) {
-        var up = arm * -34 + Math.max(0, -hy) * -3.2 + (talk > 0.3 || level > 0.15 ? Math.sin(t * 7 + i * 2) * 5 : 0) + Math.sin(t * 1.55 + i) * 2.4;
-        if (i === 1 && wv > 0.02) up = up * (1 - wv) + (-118 + Math.sin(t * 13) * 16) * wv;
-        X(p, 0, 0, p.dir * -up);
-      });
       each("hat", function (p) { X(p, 0, 0, hat + Math.sin(t * (1 + topE * 0.8)) * (1.2 + topE * 1.6), 1, 1 + Math.sin(t * 2.2) * 0.02 * topE); });
 
       // Thought bubbles while thinking or searching (the ambient layer).
@@ -354,7 +337,7 @@
       el.setAttribute("data-mood", mood);
     };
     this.pulse = function (v) { talk = Math.min(1.4, talk + (v || 0.5)); };
-    // Live audio level 0..1 for real lip sync; pass -1 to hand back to pulse().
+    // Live audio level 0..1 (the shape pulses with the voice); pass -1 to hand back to pulse().
     this.level = function (v) { level = v; };
     this.cheer = function () { if (cheerT < 0) cheerT = 0; };
     this.wave = function () { if (waveT < 0) waveT = 0; };

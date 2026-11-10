@@ -52,7 +52,7 @@ export async function* runAgent(env, ctx, req, signal) {
   const depth = req.depth || 0;
   const companionId = COMPANIONS[req.companion] ? req.companion : "pip";
   const companion = COMPANIONS[companionId];
-  const brand = BRANDS.includes(req.brand) ? req.brand : env.BRAND || "Cloak";
+  const brand = BRANDS.includes(req.brand) ? req.brand : env.BRAND || "Cloak Blinks";
   const messages = req.messages.slice();
   const last = messages[messages.length - 1];
   const shared = req.shared || { sources: [], wh: 0, g: 0, tokensIn: 0, tokensOut: 0, steps: 0 };
