@@ -1,7 +1,7 @@
 /* Cloak app version — written by scripts/bump-version.sh on EVERY commit
    (.githooks/pre-commit). Don't edit by hand except to bump `release`.
    Shown on the loading screen and in Settings ([data-cloak-version]). */
-window.CLOAK_VERSION = { version: "1.1.297", release: 1, build: 297, date: "2026-11-10" };
+window.CLOAK_VERSION = { version: "1.1.298", release: 1, build: 298, date: "2026-11-10" };
 (function () {
   function fill() {
     var v = window.CLOAK_VERSION;
