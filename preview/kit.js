@@ -6,18 +6,38 @@
   function get(k) { try { return LS.getItem(k); } catch (e) { return null; } }
   function set(k, v) { try { LS.setItem(k, v); } catch (e) {} }
 
-  /* ── Brand. The logo is plain Cloak. Blinks is the product: a handwritten
-     word that sits after the wordmark, the way a pen note sits in a margin. */
+  /* ── Brand. The logo is CL(O)AK: the O is a hand-drawn orb with two dot
+     eyes that watches the pointer and blinks. Blinks is the product: a
+     handwritten word after the wordmark, like a pen note in a margin. */
   var BRANDS = { "Cloak Blinks": { tag: "AI that looks you in the eye." } };
   var brand = "Cloak Blinks";
+  var MARK =
+    '<span class="o" aria-hidden="true"><svg viewBox="0 0 40 40">' +
+    '<path d="M20 3.5 C30 3 37 10.5 36.6 20.4 C36.2 30.4 29.4 36.8 19.6 36.5 C10 36.2 3.2 29.6 3.5 19.8 C3.8 10.6 10.6 4 20 3.5 Z" fill="var(--accent)" stroke="var(--ink)" stroke-width="3.6" stroke-linejoin="round"/>' +
+    '<g class="o-eyes"><ellipse cx="14.2" cy="19" rx="2.5" ry="3.6" fill="#0A0A0A"/><ellipse cx="25.8" cy="19" rx="2.5" ry="3.6" fill="#0A0A0A"/></g>' +
+    "</svg></span>";
+
 
   function applyBrand() {
     document.querySelectorAll("[data-brand]").forEach(function (el) {
-      el.innerHTML = 'Cloak<span class="sub">blinks</span>';
+      el.innerHTML = "Cl" + MARK + 'ak<span class="sub">blinks</span>';
       el.setAttribute("aria-label", "Cloak Blinks");
     });
     document.querySelectorAll("[data-brand-tag]").forEach(function (el) { el.textContent = BRANDS[brand].tag; });
   }
+
+  // Every O on the page looks toward the pointer. One rAF per move, no loop.
+  var eyeRaf = 0, px = 0, py = 0;
+  function lookAt() {
+    eyeRaf = 0;
+    document.querySelectorAll(".o-eyes").forEach(function (g) {
+      var r = g.ownerSVGElement.getBoundingClientRect();
+      var dx = px - (r.left + r.width / 2), dy = py - (r.top + r.height / 2);
+      var d = Math.max(60, Math.hypot(dx, dy));
+      g.style.translate = ((dx / d) * 4.2).toFixed(2) + "px " + ((dy / d) * 3.4).toFixed(2) + "px";
+    });
+  }
+  window.addEventListener("pointermove", function (e) { px = e.clientX; py = e.clientY; if (!eyeRaf) eyeRaf = requestAnimationFrame(lookAt); }, { passive: true });
 
   /* ── Mode: follows the system until the person chooses. ─────────── */
   function mode() {

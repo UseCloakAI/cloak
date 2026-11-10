@@ -32,7 +32,7 @@ On localhost the site talks to `http://localhost:8787`. Anywhere else it talks t
 
 ## The name
 
-The product is **Cloak Blinks**, a separate product under Cloak. The Cloak wordmark is unchanged; `kit.js` renders every `[data-brand]` as CLOAK plus a handwritten "blinks" in the accent. Tokens are Cloak's own (ink, paper, orange, 2px borders, hard shadows, Syne + Space Grotesk, Caveat for the handwriting, all from Google Fonts). The backend's brand default is `BRAND` in `preview-api/wrangler.jsonc`.
+The product is **Cloak Blinks**, a separate product under Cloak. `kit.js` renders every `[data-brand]` as CL(O)AK, where the O is a hand-drawn orb with eyes that follows the pointer and blinks, plus a handwritten "blinks" in the accent. Tokens are Cloak's own (ink, paper, orange, 2px borders, hard shadows, Syne + Space Grotesk, Caveat for the handwriting, all from Google Fonts). The backend's brand default is `BRAND` in `preview-api/wrangler.jsonc`.
 
 ## Rules that hold everywhere
 
