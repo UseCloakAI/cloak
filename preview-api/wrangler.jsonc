@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Backend for preview.usecloak.org (rebrand prototype). Separate from
+  // production cloak-api. See preview-api/README.md.
+  "name": "cloak-preview-api",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [{ "pattern": "preview-api.usecloak.org", "custom_domain": true }],
+  // The public carbon ledger.
+  "durable_objects": { "bindings": [{ "name": "LEDGER", "class_name": "Ledger" }] },
+  "migrations": [{ "tag": "v1-ledger", "new_sqlite_classes": ["Ledger"] }],
+  // Same key ring as production (read-only here): {"nvidia":[…],"groq":[…],"gemini":[…]}
+  "kv_namespaces": [{ "binding": "PROVIDER_KEYS", "id": "0778af1d9ecb491ba397cc9ae0e2b064" }],
+  // BRAND: working name until one is picked. CONVICTIONS: "off" leaves the
+  // faith block out of the system prompt. Secret: ADMIN_TOKEN.
+  "vars": { "BRAND": "Kith", "CONVICTIONS": "on" },
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

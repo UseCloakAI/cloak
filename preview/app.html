@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#EDF0E7">
+<title>Kith</title>
+<script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
+<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="kit.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="side" id="side" aria-label="Companions and chats">
+    <div class="side-head">
+      <a class="brand" href="index.html" data-brand>Kith</a>
+      <button class="iconbtn" data-mode-toggle aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
+    </div>
+    <div class="side-scroll">
+      <button class="new" id="newChat"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#plus"/></svg>New chat</button>
+      <h2>Companions</h2>
+      <div id="comps"></div>
+      <h2>Recent</h2>
+      <div id="hist"></div>
+    </div>
+    <div class="side-foot">
+      <a class="foot-print" href="impact.html" title="Open the public ledger">
+        <svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#leaf"/></svg>
+        <span>Session <b id="sessWh">0 Wh</b>, removed 10x</span>
+      </a>
+      <div class="foot-row">
+        <button class="who" id="openSettings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#user-circle"/></svg><span id="whoName">You</span></button>
+        <button class="iconbtn" id="openSettings2" aria-label="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg></button>
+      </div>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <main class="main">
+    <header class="top">
+      <button class="iconbtn menu" id="menu" aria-label="Open menu"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#list"/></svg></button>
+      <div class="top-av" id="topAv"></div>
+      <div class="top-who"><b id="topName">Pip</b><span id="topRole">Everyday helper</span></div>
+      <div class="seg" role="group" aria-label="How hard to think" id="seg">
+        <button data-mode="auto" aria-pressed="true" title="Routes each message to the lightest model that fits">Auto</button>
+        <button data-mode="swift" aria-pressed="false" title="Smallest, fastest models">Swift</button>
+        <button data-mode="deep" aria-pressed="false" title="Largest models. Slower, more energy">Deep</button>
+      </div>
+    </header>
+
+    <div class="thread" id="thread">
+      <div class="banner" id="offline" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#info"/></svg><span>The preview backend is not connected yet, so replies here are short scripted demos. Deploy <code>preview-api</code> to talk to the real models.</span></div>
+      <div class="thread-in" id="threadIn"></div>
+    </div>
+
+    <div class="composer">
+      <div class="thumbs" id="thumbs" hidden></div>
+      <form class="box" id="form">
+        <label class="sr" for="input">Message</label>
+        <textarea id="input" rows="1" placeholder="Say anything"></textarea>
+        <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden multiple>
+        <button type="button" class="iconbtn" id="attach" aria-label="Attach an image"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#image"/></svg></button>
+        <button class="send" id="send" aria-label="Send" disabled><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-up"/></svg></button>
+      </form>
+      <p class="fine">AI can be wrong. Check anything that matters. The energy of every reply is counted in the public ledger.</p>
+    </div>
+  </main>
+
+  <aside class="stage plate" aria-label="Your companion">
+    <div class="stage-fig"><div id="stageFig"></div><span class="mood" id="mood">Here</span></div>
+    <div>
+      <h2 id="stName">Pip</h2>
+      <p class="line" id="stLine"></p>
+    </div>
+    <dl>
+      <dt>Last reply</dt><dd id="stLane">none yet</dd>
+      <dt>Energy</dt><dd id="stWh">0 Wh</dd>
+      <dt>Carbon, estimated</dt><dd id="stG">0 g</dd>
+      <dt>Session total</dt><dd id="stSess">0 Wh</dd>
+    </dl>
+    <a class="sponsor" id="sponsor" href="impact.html#sponsors">
+      <small><span>Sponsor</span><span>Sample</span></small>
+      <b id="spTitle"></b>
+      <span id="spBody"></span>
+    </a>
+  </aside>
+</div>
+
+<dialog id="settings" aria-labelledby="setTitle">
+  <form class="dlg" method="dialog" id="setForm">
+    <h2 id="setTitle">You</h2>
+    <div>
+      <label class="lbl" for="setName">What should the companions call you?</label>
+      <input class="field" id="setName" maxlength="40" autocomplete="given-name">
+    </div>
+    <div>
+      <label class="lbl" for="setAbout">Anything they should know</label>
+      <textarea class="field" id="setAbout" maxlength="600"></textarea>
+      <p class="help">How you like answers, what you do, what to skip. Sent with each message, stored on this device.</p>
+    </div>
+    <hr>
+    <div id="acct"></div>
+    <div class="dlg-row">
+      <button class="btn btn-ghost btn-sm" value="cancel" formnovalidate>Close</button>
+      <button class="btn btn-sm" value="save" id="setSave">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" defer></script>
+<script src="kit.js" defer></script>
+<script src="creatures.js" defer></script>
+<script src="sync.js" defer></script>
+<script src="app.js" defer></script>
+</body>
+</html>

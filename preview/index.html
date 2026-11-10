@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#EDF0E7">
+<title>Kith: AI that keeps good company</title>
+<meta name="description" content="Five companions that help you think, build and make. Honest by design, and the carbon of every reply is counted and removed ten times over.">
+<script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
+<link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="kit.css">
+<style>
+section{padding:clamp(64px,9vw,120px) 0}
+.plate{--plate:#D9E5CB}
+:root[data-mode="dark"] .plate{--plate:#B9C9AD}
+
+/* Hero: copy left, the five on the right */
+.hero{padding:clamp(28px,5vw,64px) 0 clamp(48px,7vw,88px)}
+.hero-in{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);gap:clamp(24px,5vw,72px);align-items:center;min-height:min(72dvh,680px)}
+.hero h1{margin:0 0 22px}
+.hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--accent) 62% 92%,transparent 92%)}
+.hero .t-lead{margin-bottom:30px}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.scene{position:relative;aspect-ratio:1/1;width:100%;max-width:600px;justify-self:end}
+.scene-bg{position:absolute;inset:4% 0 0 0;width:100%;height:96%}
+.scene [data-c]{position:absolute;cursor:pointer;transition:scale var(--t2) var(--ease-back)}
+.scene [data-c]:hover{scale:1.04}
+.scene [data-c="moss"]{left:1%;top:10%;width:47%}
+.scene [data-c="sol"]{right:1%;top:11%;width:46%}
+.scene [data-c="juno"]{left:3%;top:47%;width:37%}
+.scene [data-c="ember"]{left:29%;top:43%;width:43%}
+.scene [data-c="pip"]{right:3%;top:53%;width:31%}
+@media (max-width:860px){
+  .hero-in{grid-template-columns:1fr;min-height:0}
+  .scene{justify-self:center;max-width:460px;order:-1}
+}
+
+/* Companions: names on the left, the chosen one on the right */
+.meet{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(24px,5vw,64px);margin-top:44px;align-items:start}
+.meet-list{display:grid;gap:4px}
+.meet-tab{display:flex;align-items:baseline;gap:12px;width:100%;padding:14px 18px;border:0;border-radius:var(--r-card);background:transparent;text-align:left;cursor:pointer;transition:background-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
+.meet-tab b{font:650 1.6rem/1 var(--fd);letter-spacing:-.03em}
+.meet-tab span{color:var(--ink-3);font-size:.92rem}
+.meet-tab:hover{background:var(--sunk)}
+.meet-tab:active{transform:scale(.985)}
+.meet-tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.meet-tab[aria-selected="true"] span{color:inherit;opacity:.7}
+.meet-panel{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(18px,3vw,40px);align-items:center;padding:clamp(20px,3vw,36px);min-height:360px}
+.meet-fig{aspect-ratio:1/1;width:100%}
+.meet-body h3{font-size:clamp(1.8rem,3vw,2.5rem);margin-bottom:6px}
+.meet-body .role{color:var(--ink-3);font-weight:500;margin-bottom:16px}
+.meet-body p.about{color:var(--ink-2);max-width:46ch;margin-bottom:20px}
+.starters{display:grid;gap:8px}
+.starter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 16px;border-radius:var(--r-field);border:1px solid var(--line);background:var(--raise);text-decoration:none;font-size:.95rem;transition:border-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
+.starter:hover{border-color:var(--ink);transform:translateX(3px)}
+.starter .ic{color:var(--ink-3)}
+.swap{animation:swap var(--t3) var(--ease) both}
+@keyframes swap{from{opacity:0;translate:0 14px}}
+@media (max-width:900px){
+  .meet{grid-template-columns:1fr}
+  .meet-list{grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity}
+  .meet-tab{scroll-snap-align:start;padding:10px 16px}.meet-tab span{display:none}.meet-tab b{font-size:1.2rem}
+  .meet-panel{grid-template-columns:1fr}.meet-fig{max-width:240px;margin:0 auto}
+}
+
+/* Routing: pick an ask, see where it goes */
+.route{margin-top:40px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:clamp(20px,4vw,56px);align-items:start}
+.asks{display:flex;flex-wrap:wrap;gap:10px}
+.ask{padding:12px 18px;border-radius:var(--r-pill);border:1.5px solid var(--line-2);background:transparent;cursor:pointer;font-size:.98rem;text-align:left;transition:background-color var(--t1) var(--ease),border-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
+.ask:hover{border-color:var(--ink)}
+.ask:active{transform:scale(.97)}
+.ask[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.route-out{padding:26px}
+.route-out dl{display:grid;grid-template-columns:auto 1fr;gap:12px 20px;margin:0}
+.route-out dt{color:var(--ink-3);font-size:.9rem;padding-top:3px}
+.route-out dd{margin:0;font:600 1.15rem/1.3 var(--fd);letter-spacing:-.01em}
+.route-out dd small{display:block;font:400 .9rem/1.45 var(--fb);color:var(--ink-2);letter-spacing:0;margin-top:2px}
+@media (max-width:860px){.route{grid-template-columns:1fr}}
+
+/* The one rule */
+.rule{background:var(--ink);color:var(--bg);border-radius:clamp(24px,4vw,44px);padding:clamp(40px,7vw,96px) clamp(24px,6vw,88px)}
+.rule h2{font-size:clamp(2.3rem,6.4vw,5.2rem);letter-spacing:-.045em;max-width:14ch}
+.rule h2 span{color:var(--accent)}
+.rule-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(20px,4vw,56px);margin-top:clamp(32px,5vw,60px);max-width:900px}
+.rule-cols h3{font-size:1.2rem;margin-bottom:8px;letter-spacing:-.01em}
+.rule-cols p{opacity:.78;max-width:42ch}
+@media (max-width:700px){.rule-cols{grid-template-columns:1fr}}
+
+/* Ledger */
+.ledger-top{display:flex;flex-wrap:wrap;gap:24px 56px;margin:36px 0 26px}
+.stat b{display:block;font:650 clamp(1.9rem,3.6vw,2.8rem)/1 var(--fd);letter-spacing:-.035em}
+.stat span{color:var(--ink-2);font-size:.93rem}
+.chart-card{padding:clamp(16px,2.4vw,28px)}
+.chart-tip{position:absolute;display:grid;gap:3px;width:190px;padding:10px 12px;border-radius:var(--r-sm);background:var(--raise);border:1px solid var(--line);box-shadow:var(--shadow);font-size:.82rem;pointer-events:none}
+.chart-tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:44px;border-top:1px solid var(--line)}
+.flow div{padding:22px 22px 0 0}
+.flow .ic{width:26px;height:26px;margin-bottom:12px}
+.flow h3{font-size:1.1rem;margin-bottom:6px;letter-spacing:-.01em}
+.flow p{color:var(--ink-2);font-size:.93rem}
+@media (max-width:860px){.flow{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.flow{grid-template-columns:1fr}}
+
+.end{text-align:center}
+.end h2{margin:0 auto 26px;max-width:16ch}
+.end-fig{width:150px;height:150px;margin:0 auto 10px}
+</style>
+</head>
+<body>
+<div class="pv">Preview build of the rebrand. Not live, not indexed. <a href="system.html#name">Three names are on the table.</a></div>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html" data-brand>Kith</a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#companions">Companions</a>
+      <a href="#routing">How it works</a>
+      <a href="impact.html">Impact</a>
+      <a href="system.html">System</a>
+    </nav>
+    <button class="iconbtn" data-mode-toggle aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
+    <a class="btn btn-sm" href="app.html">Open app</a>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap hero-in">
+    <div>
+      <h1 class="t-hero" data-in>AI that keeps <em>good company.</em></h1>
+      <p class="t-lead" data-in style="--i:1">Five companions that help you think, build and make. Honest with you, and the carbon of every reply is counted and removed.</p>
+      <div class="cta" data-in style="--i:2">
+        <a class="btn btn-accent" href="app.html">Start talking <svg class="ic go" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></a>
+        <a class="btn btn-ghost" href="impact.html">See the ledger</a>
+      </div>
+    </div>
+    <div class="scene plate" id="scene" aria-label="The five companions: Moss the tortoise, Sol the capybara, Juno the otter, Ember the fox and Pip the wren">
+      <svg class="scene-bg" viewBox="0 0 600 580" preserveAspectRatio="none" aria-hidden="true"><path d="M300 22 C452 8 588 108 592 282 C596 452 470 566 296 568 C118 570 6 446 8 280 C10 122 150 36 300 22 Z" fill="var(--plate)"/></svg>
+      <div data-c="moss"></div><div data-c="sol"></div><div data-c="juno"></div><div data-c="ember"></div><div data-c="pip"></div>
+    </div>
+  </div>
+</section>
+
+<section id="companions" style="padding-top:0">
+  <div class="wrap">
+    <h2 class="t-h2" data-in>One for every kind of day.</h2>
+    <p class="t-lead" data-in style="--i:1;margin-top:14px">Same honesty and the same rules in all five. What changes is the voice, and the kind of thinking each one is best at.</p>
+    <div class="meet" data-in style="--i:2">
+      <div class="meet-list" role="tablist" aria-label="Companions" id="meetList"></div>
+      <div class="card meet-panel plate" role="tabpanel" id="meetPanel" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<section id="routing" style="background:var(--surface);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <h2 class="t-h2" data-in>The smallest model that can do it well.</h2>
+    <p class="t-lead" data-in style="--i:1;margin-top:14px">A hello does not need a 550-billion-parameter model. Each message is routed to the lightest open model that will answer it properly. Try a few.</p>
+    <div class="route" data-in style="--i:2">
+      <div class="asks" id="asks"></div>
+      <div class="card route-out" id="routeOut" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="rule" data-in>
+      <h2>One rule. <span>Never harm a human life.</span></h2>
+      <div class="rule-cols">
+        <div>
+          <h3>What that rules out</h3>
+          <p>Help with suicide or self-harm, violence against people, weapons that kill at scale, anything sexual involving a minor, and hunting down a private person.</p>
+        </div>
+        <div>
+          <h3>What it does not</h3>
+          <p>Hard subjects, blunt opinions, dark fiction, uncomfortable facts. No lectures and no stacked disclaimers. You are an adult and the rest is your call.</p>
+        </div>
+        <div>
+          <h3>When someone is in danger</h3>
+          <p>The task waits. The companion answers the person, asks directly, and shows real helplines for their country, pinned above the reply.</p>
+        </div>
+        <div>
+          <h3>Built in twice</h3>
+          <p>The rule lives in every companion and in the platform around them, so safety never depends on a model behaving.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ledger" style="padding-top:0">
+  <div class="wrap">
+    <h2 class="t-h2" data-in>Ten times cleaner than we found it.</h2>
+    <p class="t-lead" data-in style="--i:1;margin-top:14px">Every reply's energy is estimated and logged in public. Sponsors pay to remove ten times the carbon, and every purchase gets a receipt.</p>
+    <div class="ledger-top" data-in style="--i:2">
+      <div class="stat"><b id="sReplies">0</b><span>replies counted</span></div>
+      <div class="stat"><b id="sEmit">0 g</b><span>CO2e emitted, estimated</span></div>
+      <div class="stat"><b id="sGone">0 g</b><span>CO2e removed, with receipts</span></div>
+    </div>
+    <div class="card chart-card" data-in style="--i:3">
+      <div id="chart"></div>
+      <p class="help" id="chartNote" style="margin-top:10px"></p>
+    </div>
+    <div class="flow" data-in>
+      <div><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gauge"/></svg><h3>Measure</h3><p>Tokens in and out become watt-hours, then grams, with a 50% margin added on purpose.</p></div>
+      <div><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#hand-heart"/></svg><h3>Sponsor</h3><p>One quiet sponsor card beside the chat. No tracking, no targeting, never inside a reply.</p></div>
+      <div><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#leaf"/></svg><h3>Remove</h3><p>Sponsor money buys verified carbon removal: ten grams out for every gram in.</p></div>
+      <div><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#seal-check"/></svg><h3>Prove</h3><p>Only credits with a registry receipt count as removed. Everything else stays labelled an estimate.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="end" style="padding-top:0">
+  <div class="wrap" data-in>
+    <div class="end-fig" id="endFig"></div>
+    <h2 class="t-h2">Pull up a chair.</h2>
+    <a class="btn btn-accent" href="app.html">Start talking <svg class="ic go" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-right"/></svg></a>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <span class="brand" style="font-size:1.15rem" data-brand>Kith</span>
+    <span data-brand-tag>AI that keeps good company.</span>
+    <span class="sp"></span>
+    <a href="app.html">App</a><a href="impact.html">Impact</a><a href="system.html">Design system</a><a href="https://usecloak.org">Current Cloak</a>
+  </div>
+</footer>
+
+<script src="kit.js"></script>
+<script src="creatures.js"></script>
+<script src="impact.js"></script>
+<script>
+(function () {
+  var C = Kit.COMPANIONS, byId = {};
+  C.forEach(function (c) { byId[c.id] = c; });
+
+  // Hero: the five, alive. Click one to make it hop and open it below.
+  var scene = {};
+  document.querySelectorAll("#scene [data-c]").forEach(function (el) {
+    var id = el.getAttribute("data-c");
+    scene[id] = Creatures.mount(el, id, { backdrop: false, label: byId[id].name + " the " + byId[id].species.toLowerCase() });
+    el.addEventListener("click", function () { scene[id].cheer(); pick(id, true); });
+  });
+  // A small hello, one after another, once the page has settled.
+  ["ember", "pip", "juno", "sol", "moss"].forEach(function (id, i) { setTimeout(function () { scene[id].cheer(); }, 900 + i * 170); });
+
+  // Companions picker
+  var list = document.getElementById("meetList"), panel = document.getElementById("meetPanel"), fig = null;
+  C.forEach(function (c) {
+    var b = document.createElement("button");
+    b.className = "meet-tab"; b.setAttribute("role", "tab"); b.id = "tab-" + c.id;
+    b.innerHTML = "<b>" + c.name + "</b><span>" + c.role + "</span>";
+    b.addEventListener("click", function () { pick(c.id); });
+    list.appendChild(b);
+  });
+  function pick(id, scroll) {
+    var c = byId[id];
+    list.querySelectorAll(".meet-tab").forEach(function (b) { b.setAttribute("aria-selected", b.id === "tab-" + id ? "true" : "false"); });
+    if (fig) fig.destroy();
+    panel.setAttribute("aria-labelledby", "tab-" + id);
+    panel.innerHTML =
+      '<div class="meet-fig swap"></div>' +
+      '<div class="meet-body swap"><h3>' + c.name + '</h3><p class="role">' + c.species + ", " + c.role.toLowerCase() + '</p><p class="about">' + Kit.esc(c.about) + '</p><div class="starters">' +
+      c.starters.map(function (s) { return '<a class="starter" href="app.html?c=' + c.id + "&q=" + encodeURIComponent(s) + '">' + Kit.esc(s) + Kit.icon("arrow-up-right") + "</a>"; }).join("") +
+      "</div></div>";
+    fig = Creatures.mount(panel.querySelector(".meet-fig"), id, { backdrop: false, mood: "listen", label: c.name });
+    setTimeout(function () { fig.cheer(); }, 120);
+    if (scroll) document.getElementById("companions").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  pick("ember");
+
+  // Routing demo. Outcomes match preview-api/src/models.js; energy is the
+  // typical figure from carbon.js for a reply of that size.
+  var ASKS = [
+    { q: "hey, you around?", who: "Pip", lane: "Swift", model: "A small 30B model", wh: 0.05, why: "Small talk. The lightest lane answers in under a second." },
+    { q: "Why does my React effect run twice?", who: "Ember", lane: "Build", model: "A code-tuned model", wh: 0.7, why: "Code in the question sends it to the build lane and its engineering playbook." },
+    { q: "Should I take the job in Denver or stay put?", who: "Moss", lane: "Deep", model: "The largest model available", wh: 2.6, why: "A real decision with trade-offs gets the slow, careful lane." },
+    { q: "Write a limerick about my cat's hatred of Mondays", who: "Juno", lane: "Create", model: "A writing-tuned model", wh: 0.5, why: "Creative writing goes to a model trained for voice and range." },
+    { q: "What does this rash look like to you? (photo)", who: "Any", lane: "See", model: "A vision model", wh: 0.5, why: "An attached image always routes to a model that can see." },
+    { q: "I don't think I can keep going", who: "Sol", lane: "Balanced, with care", model: "The strongest general model", wh: 0.5, why: "Signs of danger skip the small models, switch on the care protocol and pin helplines above the reply." },
+  ];
+  var asks = document.getElementById("asks"), out = document.getElementById("routeOut");
+  ASKS.forEach(function (a, i) {
+    var b = document.createElement("button");
+    b.className = "ask"; b.textContent = a.q;
+    b.addEventListener("click", function () { show(i); });
+    asks.appendChild(b);
+  });
+  function show(i) {
+    var a = ASKS[i];
+    asks.querySelectorAll(".ask").forEach(function (b, j) { b.setAttribute("aria-pressed", j === i ? "true" : "false"); });
+    out.innerHTML = '<dl class="swap"><dt>Goes to</dt><dd>' + a.lane + " lane<small>" + a.model + "</small></dd><dt>Answered by</dt><dd>" + (a.who === "Any" ? "Whoever you are talking to" : a.who) + "</dd><dt>Energy</dt><dd>About " + Kit.fmtWh(a.wh) + "<small>Typical, estimated. A phone charge is roughly 15 Wh.</small></dd><dt>Why</dt><dd><small style=\"margin:0;font-size:1rem\">" + a.why + "</small></dd></dl>";
+  }
+  show(0);
+
+  // Ledger
+  Kit.loadImpact().then(function (d) {
+    document.getElementById("sReplies").textContent = Kit.fmtN(d.totals.replies);
+    document.getElementById("sEmit").textContent = Kit.fmtCO2(d.totals.emitted_kg);
+    document.getElementById("sGone").textContent = Kit.fmtCO2(d.totals.retired_kg);
+    ImpactChart.draw(document.getElementById("chart"), d, {});
+    document.getElementById("chartNote").textContent = d.sample
+      ? "Sample data. The preview backend is not connected yet, so this shows the shape of the ledger, not real numbers."
+      : "Live from the public ledger. Emissions are modelled from token counts. Removal counts only once a receipt is posted.";
+  });
+
+  Creatures.mount(document.getElementById("endFig"), "sol", { mood: "idle", label: "Sol" });
+})();
+</script>
+</body>
+</html>
