@@ -11,6 +11,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { runAgent, mindFor } from "./agent.js";
+import { stripTags } from "./prompts.js";
 
 const KEEP_MS = 10 * 60_000;
 const enc = new TextEncoder();
@@ -102,7 +103,7 @@ export class AgentRun extends DurableObject {
     // Nobody was here for the ending: leave the answer in their inbox.
     if (!watched && final?.text && body.userKey) {
       const ask = body.messages[body.messages.length - 1]?.content || "";
-      await mindFor(this.env, body.userKey)?.deliver({ kind: "reply", title: String(ask).slice(0, 100), companion: body.companion || "pip", body: final.text, meta: { chat_id: body.chat_id || null, sources: final.sources, impact: final.impact, lane: final.lane } }).catch(() => {});
+      await mindFor(this.env, body.userKey)?.deliver({ kind: "reply", title: String(ask).slice(0, 100), companion: body.companion || "cloak", body: stripTags(final.text), meta: { chat_id: body.chat_id || null, sources: final.sources, impact: final.impact, lane: final.lane } }).catch(() => {});
     }
     await this.ctx.storage.setAlarm(Date.now() + KEEP_MS);
   }

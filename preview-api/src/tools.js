@@ -9,6 +9,7 @@
 // talks itself into a bad call.
 
 import * as gov from "../../api-worker/src/governor.js";
+import { COMPANIONS } from "./prompts.js";
 
 const PAGE_CHARS = 9000;
 const RESULT_CHARS = 6000;
@@ -235,8 +236,8 @@ export const TOOLS = {
     },
   },
   ask_companion: {
-    spec: fn("ask_companion", "Hand a self-contained piece of work to another companion and get their answer back. Use it when part of the task is clearly their strength: moss for careful research and analysis, ember for code, juno for creative writing, pip for quick lookups, sol for a gentle read on a hard personal situation. They do not see this conversation, so put everything they need in the task.", { companion: str("Who to ask.", { enum: ["pip", "moss", "ember", "juno", "sol"] }), task: str("The complete brief: what you need, the facts they need, and the form the answer should take.") }, ["companion", "task"]),
-    label: (a) => `Asking ${String(a.companion || "a companion").replace(/^./, (c) => c.toUpperCase())}`,
+    spec: fn("ask_companion", "Hand a self-contained piece of work to a helper and get their answer back. Use it when part of the task is clearly their strength: moss (the researcher) for careful research and analysis, ember (the builder) for code, juno (the writer) for creative writing, pip (the quick helper) for quick lookups, sol (the listener) for a gentle read on a hard personal situation. They do not see this conversation, so put everything they need in the task.", { companion: str("Who to ask.", { enum: ["pip", "moss", "ember", "juno", "sol"] }), task: str("The complete brief: what you need, the facts they need, and the form the answer should take.") }, ["companion", "task"]),
+    label: (a) => `Asking ${COMPANIONS[a.companion] ? COMPANIONS[a.companion].name.toLowerCase() : "a helper"}`,
     top: true,
     async run(a, cx) {
       if (a.companion === cx.companion) return { text: "That is you. Do the work yourself or ask a different companion." };

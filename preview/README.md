@@ -4,12 +4,12 @@ The full rebrand, built to live at `preview.usecloak.org`. Nothing in production
 
 | File | What |
 |---|---|
-| `index.html` | Home: hero with the five companions, companion picker, make-your-own section, routing demo, the one rule, the ledger |
-| `app.html` + `app.css` + `app.js` | The chat app: companions, chats, the stage, care card, sponsor card, per-reply energy |
+| `index.html` | Home: hero with Cloak texting on a loop, make-your-own section with example Blinks, routing demo, the one rule, the ledger |
+| `app.html` + `app.css` + `app.js` | The app, built as a messaging app: replies arrive as short text bubbles with a typing indicator (split at blank lines; code, lists and tables stay whole), the Blink can tapback your message (`[react:X]`) or leave it on read (`[read]`, never when care is showing), your last message shows Delivered / Read, and you can tapback its bubbles (double-click, long-press or the heart). Plus chats, the stage, care card, sponsor card, per-reply energy |
 | `impact.html` + `impact.js` | The public carbon ledger and its chart |
 | `system.html` | Design system: the name, color, type, parts, the shape rig, motion, voice |
 | `kit.css` / `kit.js` | Tokens, components, brand name, light/dark, API base, companion data |
-| `creatures.js` | The rig. Every Blink is a spec `{shape, color, eyes, topper, cheeks}`: 7 shapes (orb, slab, spark, bloom, dome, drop, pill), any colour, 7 eye styles, 8 toppers. Two dot eyes, no mouths or arms; talking pulses the whole shape. The five that ship are named specs |
+| `creatures.js` | The rig. Every Blink is a spec `{shape, color, eyes, topper, glasses, cheeks}`: 7 shapes (orb, slab, spark, bloom, dome, drop, pill), any colour, 6 eye styles, glasses on any of them (a monocle on one eye), 8 toppers. Dot eyes, no mouths or arms; talking pulses the whole shape. One ships: `cloak`, the O from the wordmark drawn by hand. Every other character is an example or one somebody made |
 | `maker.js` | The Blink maker: build your own (look, name, purpose, personality, how it thinks, hello, starters). Stored on this device in `pv_bots` (max 12), sent with each message as `bot` |
 | `sync.js` | Optional sign-in with an existing Cloak account; chats sync to `pv_chats` |
 | `fonts/`, `icons.svg` | Bricolage Grotesque, Geist, Geist Mono (OFL); Phosphor Regular (MIT) |

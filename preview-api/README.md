@@ -14,7 +14,11 @@ Backend for the rebrand prototype (`preview.usecloak.org`). A separate Worker fr
 | `POST /v1/inbox/seen`, `DELETE /v1/inbox/:id` | Inbox housekeeping |
 | `GET /v1/tools` | Tool catalog and modes |
 | `POST /v1/speech`, `GET /v1/speech/voices` | Text to speech (WAV), reusing production's NVIDIA Magpie client |
-| `GET /v1/companions` | The five companions and the public lanes |
+| `GET /v1/companions` | Cloak (the one built-in Blink) and the public lanes |
+
+**Cloak and the helpers.** `cloak` is the one character people talk to. The other five entries in `COMPANIONS` are not characters any more: they are behind-the-scenes helpers for team mode and `ask_companion`, shown in the UI only by role ("The researcher is working on it").
+
+**Texting.** Top-level replies get a `# HOW YOU TEXT` section (`textingGuide` in `src/prompts.js`): short texts split by blank lines, long only when needed, an optional `[react:EMOJI]` tapback (fixed set, `REACTIONS`) and `[read]` to leave a no-reply message on read. Under the care protocol both tags are off. Sub-agents, team drafts and background tasks do not text. `stripTags()` cleans finished replies for the inbox and memory.
 
 **Custom Blinks.** People build their own in the app. A message to one sends `companion: "u_…"` plus `bot: {id, name, purpose, persona, lane}`. `customCompanion()` in `src/prompts.js` caps and cleans it and turns it into a voice section that sits under the constitution (it can shape tone, never rules). The lane is its home lane (`swift`/`smart`/`deep`/`code`/`creative`). An id that does not match its bot falls back to Pip. Tasks a custom Blink schedules store its spec (`task.bot`) so it does the work itself later. Other companions cannot delegate to a custom Blink.
 | `GET /v1/impact?days=90` | The public carbon ledger |

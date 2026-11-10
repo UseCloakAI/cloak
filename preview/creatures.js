@@ -9,8 +9,9 @@
    level), like a voice orb with a face. Gestures on top: cheer (crouch, hop,
    squash), wave (a happy side-to-side rock), nod.
 
-   Every Blink is a spec: { shape, color, eyes, topper, cheeks }. The five
-   that ship are named specs; people build their own in the app.
+   Every Blink is a spec: { shape, color, eyes, topper, glasses, cheeks }.
+   One ships, "cloak": the orb from the wordmark, drawn by hand. People
+   build the rest in the app.
 
    Creatures.mount(el, "ember" | spec, { mood }) →
      { set(mood), pulse(n), level(0..1), cheer(), wave(), nod(), destroy() } */
@@ -40,20 +41,35 @@
       '<path data-p="smile" d="M' + (x - sw) + " " + (y + 3) + " Q" + x + " " + (y - ry * 0.7 - 3).toFixed(1) + " " + (x + +sw) + " " + (y + 3) + '" ' + lf + ' opacity="0"/>'
     );
   }
-  // The face for a shape and an eye style. Positions come from the shape.
-  function face(f, style, ink) {
-    var cx = f[0], cy = f[1], gap = f[2], rx = f[3], ry = f[4], pr = f[5];
-    var tf = 'fill="none" stroke="' + ink + '" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"';
-    var eyes;
-    if (style === "big") eyes = eye(cx - gap * 1.05, cy, rx + 3, ry + 3, pr * 1.45, ink) + eye(cx + gap * 1.05, cy, rx + 3, ry + 3, pr * 1.45, ink);
-    else if (style === "small") eyes = eye(cx - gap * 0.72, cy, rx - 4, ry - 4, pr * 0.66, ink) + eye(cx + gap * 0.72, cy, rx - 4, ry - 4, pr * 0.66, ink);
-    else if (style === "wide") eyes = eye(cx - gap * 1.45, cy, rx, ry, pr, ink) + eye(cx + gap * 1.45, cy, rx, ry, pr, ink);
-    else if (style === "one") eyes = eye(cx, cy, rx + 6, ry + 6, pr * 1.7, ink);
-    else eyes = eye(cx - gap, cy, rx, ry, pr, ink) + eye(cx + gap, cy, rx, ry, pr, ink);
+  // The face for a shape and an eye style, with optional glasses that fit
+  // whatever eyes are there (one eye gets a monocle).
+  var EYE_SCALE = 1.2;
+  function face(f, style, glasses, ink) {
+    var cx = f[0], cy = f[1], gap = f[2], rx = f[3], ry = f[4], pr = f[5] * EYE_SCALE;
+    var tf = 'stroke="' + ink + '" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"';
+    var list;
+    if (style === "big") list = [[-gap * 1.08, rx + 4, ry + 4, pr * 1.4], [gap * 1.08, rx + 4, ry + 4, pr * 1.4]];
+    else if (style === "small") list = [[-gap * 0.74, rx - 3, ry - 3, pr * 0.7], [gap * 0.74, rx - 3, ry - 3, pr * 0.7]];
+    else if (style === "wide") list = [[-gap * 1.45, rx, ry, pr], [gap * 1.45, rx, ry, pr]];
+    else if (style === "one") list = [[0, rx + 7, ry + 7, pr * 1.6]];
+    else list = [[-gap, rx + 1, ry + 1, pr], [gap, rx + 1, ry + 1, pr]];
+    var eyes = list.map(function (e) { return eye(cx + e[0], cy, e[1], e[2], e[3], ink); }).join("");
     var extra = "";
-    if (style === "glasses") {
-      var l = cx - gap, r = cx + gap, g = Math.min(22, gap - 3);
-      extra = '<path d="M' + (l - g) + " " + cy + " a" + g + " " + (g + 1) + " 0 1 0 " + 2 * g + " 0 a" + g + " " + (g + 1) + " 0 1 0 " + -2 * g + " 0 M" + (r - g) + " " + cy + " a" + g + " " + (g + 1) + " 0 1 0 " + 2 * g + " 0 a" + g + " " + (g + 1) + " 0 1 0 " + -2 * g + " 0 M" + (l + g) + " " + (cy - 2) + " q" + (gap - g) + " -5 " + 2 * (gap - g) + " 0 M" + (l - g) + " " + (cy - 4) + " l-14 -6 M" + (r + g) + " " + (cy - 4) + ' l14 -6" ' + tf + "/>";
+    if (glasses) {
+      var R = Math.max(14, list[0][3] * 2.2);
+      if (list.length === 2) R = Math.min(R, (list[1][0] - list[0][0]) / 2 - 2.5);
+      var lens = function (x) { return '<circle cx="' + x.toFixed(1) + '" cy="' + cy + '" r="' + R.toFixed(1) + '" fill="#fff" fill-opacity=".2" ' + tf + "/>"; };
+      var l = cx + list[0][0], d = "";
+      if (list.length === 2) {
+        var r = cx + list[1][0];
+        extra = lens(l) + lens(r);
+        d = "M" + (l + R).toFixed(1) + " " + (cy - 2) + " Q" + cx + " " + (cy - 9) + " " + (r - R).toFixed(1) + " " + (cy - 2) +
+          " M" + (l - R).toFixed(1) + " " + (cy - 3) + " l-13 -6 M" + (r + R).toFixed(1) + " " + (cy - 3) + " l13 -6";
+      } else {
+        extra = lens(l);
+        d = "M" + (l + R * 0.7).toFixed(1) + " " + (cy + R * 0.7).toFixed(1) + " q8 16 -2 30";
+      }
+      extra += '<path d="' + d + '" fill="none" ' + tf + "/>";
     }
     return '<g data-p="head" data-o="' + cx + "," + (cy + 20) + '">' + eyes + extra + "</g>";
   }
@@ -100,16 +116,13 @@
     bow: { name: "Bow", svg: function (acc) { return '<path d="M0 -6 L-20 -18 C-24 -10 -24 2 -20 8 Z M0 -6 L20 -18 C24 -10 24 2 20 8 Z" fill="' + acc + '" ' + T + ' stroke-width="3"/><circle cx="0" cy="-5" r="5" fill="' + acc + '" ' + T + ' stroke-width="3"/>'; } },
     star: { name: "Star", side: true, svg: function () { return '<path d="M0 -20 l5 13 l14 1 l-11 9 l4 14 l-12 -8 l-12 8 l4 -14 l-11 -9 l14 -1 Z" fill="#F5C842" ' + T + ' stroke-width="3.4"/>'; } },
   };
-  var EYES = { dots: "Dots", big: "Big", small: "Small", wide: "Wide apart", one: "One", sleepy: "Sleepy", glasses: "Glasses" };
+  var EYES = { dots: "Dots", big: "Big", small: "Small", wide: "Wide apart", one: "One", sleepy: "Sleepy" };
   var COLORS = ["#F5C842", "#4CBF73", "#E5603E", "#5B9BF8", "#F3A77C", "#B18CF0", "#F28BA8", "#7FD6C2", "#FAFAF7", "#3B3A36"];
 
-  /* The five Blinks that ship with Cloak, as specs like anyone else's. */
+  /* The one Blink that ships with Cloak: the O from the wordmark, drawn by
+     hand. Every other character is one somebody made (or an example). */
   var DEFS = {
-    pip: { shape: "orb", color: "#F5C842", eyes: "dots", topper: "curl" },
-    moss: { shape: "slab", color: "#4CBF73", eyes: "glasses", topper: "sprout" },
-    ember: { shape: "spark", color: "#E5603E", eyes: "dots", topper: "sparks" },
-    juno: { shape: "bloom", color: "#5B9BF8", eyes: "dots", topper: "star" },
-    sol: { shape: "dome", color: "#F3A77C", eyes: "dots", topper: "rays", cheeks: true },
+    cloak: { shape: "orb", color: "#D44D2A", eyes: "big", topper: "none" },
   };
 
   function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
@@ -121,26 +134,27 @@
   }
   // Any id or partial spec becomes a full, safe spec.
   function resolve(x) {
-    var s = typeof x === "string" ? DEFS[x] || DEFS.pip : x || {};
-    var col = /^#[0-9a-f]{6}$/i.test(s.color || "") ? s.color : "#F5C842";
+    var s = typeof x === "string" ? DEFS[x] || DEFS.cloak : x || {};
+    var col = /^#[0-9a-f]{6}$/i.test(s.color || "") ? s.color : "#D44D2A";
     return {
       shape: SHAPES[s.shape] ? s.shape : "orb",
       color: col,
       eyes: EYES[s.eyes] ? s.eyes : "dots",
       topper: TOPPERS[s.topper] ? s.topper : "none",
+      glasses: !!s.glasses || s.eyes === "glasses", // older Blinks had glasses as an eye style
       cheeks: !!s.cheeks,
     };
   }
   function draw(spec, hatch) {
     var sh = SHAPES[spec.shape], tp = TOPPERS[spec.topper];
     var ink = lum(spec.color) < 0.12 ? "#FAFAF7" : DARK; // eyes stay readable on dark bodies
-    var acc = spec.color.toLowerCase() === "#e5603e" ? "#F5C842" : "#E5603E";
+    var acc = /^#(e5603e|d44d2a)$/i.test(spec.color) ? "#F5C842" : "#E5603E";
     var at = tp.side ? sh.side : sh.top;
     var f = sh.face;
     var cheeks = spec.cheeks ? '<ellipse cx="' + (f[0] - f[2] - 22) + '" cy="' + (f[1] + f[4] + 8) + '" rx="10" ry="6" fill="#E5603E" opacity=".45"/><ellipse cx="' + (f[0] + f[2] + 22) + '" cy="' + (f[1] + f[4] + 8) + '" rx="10" ry="6" fill="#E5603E" opacity=".45"/>' : "";
     var hat = tp.svg(acc) ? '<g data-p="hat" data-o="' + at[0] + "," + at[1] + '"><g transform="translate(' + at[0] + " " + at[1] + ')">' + tp.svg(acc) + "</g></g>" : "";
     var shine = '<path d="' + sh.shine + '" fill="none" stroke="' + ink + '" stroke-width="3.2" stroke-linecap="round" opacity=".35"/>';
-    return '<g data-p="body" data-o="' + sh.o + '">' + shadow(sh.d, hatch) + '<path d="' + sh.d + '" fill="' + spec.color + '" ' + S + "/>" + shine + hat + cheeks + face(f, spec.eyes, ink) + "</g>";
+    return '<g data-p="body" data-o="' + sh.o + '">' + shadow(sh.d, hatch) + '<path d="' + sh.d + '" fill="' + spec.color + '" ' + S + "/>" + shine + hat + cheeks + face(f, spec.eyes, spec.glasses, ink) + "</g>";
   }
 
   /* ── The rig ─────────────────────────────────────────────────────── */
@@ -207,8 +221,8 @@
     this.visible = true;
     var t0 = Math.random() * 100;
     var s = { tilt: sv(), lift: sv(), lookX: sv(), lookY: sv(), open: sv(1), lean: sv(), top: sv(1), hop: sv(), squash: sv(), dots: sv(), hatLag: sv(), happy: sv(), face: sv(), nod: sv() };
-    var blinkAt = 1 + Math.random() * 3, blink = 0;
-    var glanceAt = 2 + Math.random() * 4, glance = { x: 0, y: 0 };
+    var blinkAt = -1, blink = 0;
+    var glanceAt = 0, glance = { x: 0, y: 0 };
     var talk = 0, level = -1, voice = 0;
     var cheerT = -1, waveT = -1, nodT = -1;
     var boilAt = 0, seed = 2, lastTilt = 0;
@@ -228,6 +242,7 @@
     this.frame = function (now, dt) {
       var t = now / 1000 + t0;
       var m = MOODS[self.mood];
+      if (blinkAt < 0) { blinkAt = t + 1 + Math.random() * 3; glanceAt = t + 2 + Math.random() * 4; } // first blink comes after a beat, never on mount
 
       // Line boil: the ink is redrawn about seven times a second.
       if (now > boilAt) {
@@ -386,7 +401,7 @@
     colors: COLORS.slice(),
     random: function () {
       var pick = function (a) { return a[Math.floor(Math.random() * a.length)]; };
-      return { shape: pick(Object.keys(SHAPES)), color: pick(COLORS.slice(0, 8)), eyes: pick(["dots", "dots", "big", "small", "wide", "one", "sleepy", "glasses"]), topper: pick(Object.keys(TOPPERS)), cheeks: Math.random() < 0.35 };
+      return { shape: pick(Object.keys(SHAPES)), color: pick(COLORS.slice(0, 8)), eyes: pick(["dots", "dots", "big", "small", "wide", "one", "sleepy"]), topper: pick(Object.keys(TOPPERS)), glasses: Math.random() < 0.25, cheeks: Math.random() < 0.35 };
     },
     mount: function (el, id, opts) { return new Creature(el, id, opts); },
   };

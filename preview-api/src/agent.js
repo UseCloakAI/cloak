@@ -15,7 +15,7 @@
 // tasks (mind.js).
 
 import { LANES, routeLane } from "./models.js";
-import { buildSystem, COMPANIONS, BRANDS, resolveCompanion } from "./prompts.js";
+import { buildSystem, COMPANIONS, BRANDS, resolveCompanion, stripTags } from "./prompts.js";
 import { detect, resources, careProtocol } from "./safety.js";
 import { estimate } from "./carbon.js";
 import { streamLane } from "./engine.js";
@@ -104,6 +104,7 @@ export async function* runAgent(env, ctx, req, signal) {
 
   const system = buildSystem({
     brand, companion, lane, depth, tools, memories, research,
+    texting: !depth && !req.background,
     care: danger ? careProtocol(danger, help) : "",
     user: req.user && typeof req.user === "object" ? req.user : {},
     convictions: env.CONVICTIONS !== "off",
@@ -192,7 +193,7 @@ export async function* runAgent(env, ctx, req, signal) {
     ctx.waitUntil?.(ledger(env).recordReply({ lane, tokensIn: shared.tokensIn, tokensOut: shared.tokensOut, wh: impact.wh, g: impact.g }).catch(() => {}));
     // Quietly keep anything lasting the person said, if the companion did not.
     if (mind && !remembered && !crisis && !req.background && textOf(last).length >= 25 && answer) {
-      ctx.waitUntil?.(learn(env, ctx, mind, companionId, textOf(last), answer, memories).catch(() => {}));
+      ctx.waitUntil?.(learn(env, ctx, mind, companionId, textOf(last), stripTags(answer), memories).catch(() => {}));
     }
     yield { done: true, partial, lane, text: answer, steps: shared.steps, sources: shared.sources, usage: { tokens_in: shared.tokensIn, tokens_out: shared.tokensOut }, impact };
   } else {
@@ -218,7 +219,7 @@ function pickTeam(lead, text) {
 
 async function* runTeam(env, ctx, req, signal) {
   const { companion: lead, brand, shared } = req;
-  const leadName = req.lead?.name || COMPANIONS[lead]?.name || "Your Blink";
+  const leadName = req.lead?.name || COMPANIONS[lead]?.name || "Cloak";
   const question = textOf(req.messages[req.messages.length - 1]);
   const team = pickTeam(lead, question);
   yield { meta: { companion: lead, lane: "deep", lane_label: "Team", why: "team", mode: "team", tools: true, team } };

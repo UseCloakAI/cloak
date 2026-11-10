@@ -46,7 +46,7 @@ export class Mind extends DurableObject {
   }
 
   // ── Memory ────────────────────────────────────────────────────────────────
-  remember({ fact, kind = "other", by = "pip" }) {
+  remember({ fact, kind = "other", by = "cloak" }) {
     const text = String(fact || "").replace(/\s+/g, " ").trim().slice(0, 300);
     if (text.length < 4) return { ok: false, error: "nothing to save" };
     if (/\b(password|passcode|pin|cvv|ssn|social security|card number)\b/i.test(text) && /\d{3,}/.test(text)) return { ok: false, error: "secrets are never stored" };
@@ -100,7 +100,7 @@ export class Mind extends DurableObject {
   }
 
   // ── Tasks ─────────────────────────────────────────────────────────────────
-  async addTask({ title, prompt, run_at, repeat = "none", companion = "pip", brand = "Cloak Blinks", bot = null }) {
+  async addTask({ title, prompt, run_at, repeat = "none", companion = "cloak", brand = "Cloak Blinks", bot = null }) {
     const when = Date.parse(run_at);
     if (!Number.isFinite(when)) return { ok: false, error: "run_at must be an ISO 8601 time, for example 2026-11-11T14:00:00Z" };
     if (when > Date.now() + 366 * 86400_000) return { ok: false, error: "that is more than a year away" };
@@ -156,7 +156,7 @@ export class Mind extends DurableObject {
   }
 
   // ── Inbox ─────────────────────────────────────────────────────────────────
-  deliver({ kind = "task", title = "", companion = "pip", body = "", meta = {} }) {
+  deliver({ kind = "task", title = "", companion = "cloak", body = "", meta = {} }) {
     this.sql.exec(`INSERT INTO inbox (kind, title, companion, body, meta, created) VALUES (?, ?, ?, ?, ?, ?)`, kind, String(title).slice(0, 120), companion, String(body).slice(0, 60_000), JSON.stringify(meta || {}), Date.now());
     this.sql.exec(`DELETE FROM inbox WHERE id NOT IN (SELECT id FROM inbox ORDER BY id DESC LIMIT ?)`, MAX_INBOX);
   }

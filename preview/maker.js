@@ -1,7 +1,7 @@
-/* The Blink maker: build your own companion. Pick a shape, a colour, eyes and
+/* The Blink maker: build your own Blink. Pick a shape, a colour, eyes and
    something on top, then give it a name, a purpose and a personality. Blinks
    are stored on this device (pv_bots) and sent with each message, so the
-   backend can run them under the same constitution as the five.
+   backend can run them under the same constitution as Cloak.
 
    Maker.open(bot | null, { onSave(bot), onDelete(id) }) */
 (function () {
@@ -22,14 +22,14 @@
   function store(list) { Kit.set("pv_bots", JSON.stringify(list.slice(0, MAX))); }
   function id() { return "u_" + Array.from(crypto.getRandomValues(new Uint8Array(8)), function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
 
-  // A saved Blink as the app sees it: the same fields as the five, plus look.
+  // A saved Blink as the app sees it: the same fields as Cloak, plus look.
   function asCompanion(b) {
     var lane = LANE_LABEL[b.lane] || "Balanced";
     return {
       id: b.id, name: b.name, custom: true, look: b.look, lane: lane, home: b.lane,
       role: b.purpose || "Made by you", line: b.purpose || "Made by you.",
       about: b.purpose ? b.purpose + (/[.!?]$/.test(b.purpose) ? "" : ".") : "A Blink you made.",
-      hello: b.hello || "Hi. What are we doing?",
+      hello: b.hello || "Hey. What are we doing?",
       starters: (b.starters || []).filter(Boolean).length ? b.starters.filter(Boolean) : ["What can you help me with?", "Tell me about yourself", "Surprise me"],
       bot: { id: b.id, name: b.name, purpose: b.purpose || "", persona: b.persona || "", lane: b.lane },
     };
@@ -54,7 +54,7 @@
       '<p class="mk-sub">Colour</p><div class="mk-swatches" id="mkColors" role="radiogroup" aria-label="Colour"></div>' +
       '<p class="mk-sub">Eyes</p><div class="pick" id="mkEyes" role="radiogroup" aria-label="Eyes"></div>' +
       '<p class="mk-sub">On top</p><div class="pick" id="mkTop" role="radiogroup" aria-label="On top"></div>' +
-      '<div class="pick"><button type="button" id="mkCheeks" aria-pressed="false">Rosy cheeks</button></div></section>' +
+      '<p class="mk-sub">Extras</p><div class="pick"><button type="button" id="mkGlasses" aria-pressed="false">Glasses</button><button type="button" id="mkCheeks" aria-pressed="false">Rosy cheeks</button></div></section>' +
       '<section><p class="lbl"><i>2</i>Who it is</p>' +
       '<label class="mk-sub" for="mkNameIn">Name</label><input class="field" id="mkNameIn" maxlength="24" required autocomplete="off" placeholder="Biscuit">' +
       '<label class="mk-sub" for="mkPurposeIn">What is it for?</label><input class="field" id="mkPurposeIn" maxlength="120" placeholder="Helps me study for my chemistry final">' +
@@ -64,7 +64,7 @@
       '<section><p class="lbl"><i>4</i>First hello</p>' +
       '<label class="mk-sub" for="mkHello">The first thing it says</label><input class="field" id="mkHello" maxlength="80" placeholder="What are we studying today?">' +
       '<p class="mk-sub">Conversation starters</p><input class="field mk-st" maxlength="80" placeholder="Quiz me on organic chemistry"><input class="field mk-st" maxlength="80" placeholder="Explain moles like I am twelve"><input class="field mk-st" maxlength="80" placeholder="Make me a study plan for Friday">' +
-      '<p class="help">Every Blink runs on the same rules as the five: never harm a human life, honest, no lectures. Your description shapes its voice, not the rules.</p></section>' +
+      '<p class="help">Every Blink runs on the same rules as Cloak: never harm a human life, honest, no lectures. Your description shapes its voice, not the rules.</p></section>' +
       "</div></div>" +
       '<footer class="mk-foot"><button type="button" class="btn btn-ghost btn-sm mk-del" id="mkDelete" hidden>' + Kit.icon("trash") + 'Delete</button><span class="sp"></span><button class="btn btn-ghost btn-sm" value="cancel" formnovalidate>Cancel</button><button class="btn btn-accent btn-sm" value="save" id="mkSave">Save Blink</button></footer>' +
       "</form></dialog>"
@@ -90,6 +90,7 @@
     chips(f("mkTop"), Creatures.toppers, function () { return state.look.topper; }, function (v) { state.look.topper = v; refresh(); });
     chips(f("mkLane"), LANES, function () { return state.lane; }, function (v) { state.lane = v; laneHelp(); });
     f("mkCheeks").addEventListener("click", function () { state.look.cheeks = !state.look.cheeks; refresh(); });
+    f("mkGlasses").addEventListener("click", function () { state.look.glasses = !state.look.glasses; refresh(); });
 
     TRAITS.forEach(function (t) {
       var b = el('<button type="button" class="chip">+ ' + t + "</button>");
@@ -111,7 +112,7 @@
       refresh(true);
     });
     f("mkDelete").addEventListener("click", function () {
-      if (!state.id || !confirm("Delete " + (state.name || "this Blink") + "? Its chats stay, and switch to Pip.")) return;
+      if (!state.id || !confirm("Delete " + (state.name || "this Blink") + "? Its chats stay, and Cloak picks them up.")) return;
       store(load().filter(function (b) { return b.id !== state.id; }));
       dlg.close("deleted");
       if (handlers.onDelete) handlers.onDelete(state.id);
@@ -176,6 +177,7 @@
       mark(f("mkEyes"), look.eyes);
       mark(f("mkTop"), look.topper);
       f("mkCheeks").setAttribute("aria-pressed", look.cheeks ? "true" : "false");
+      f("mkGlasses").setAttribute("aria-pressed", look.glasses ? "true" : "false");
       var cust = dlg.querySelector(".mk-custom");
       var known = Creatures.colors.some(function (c) { return c.toLowerCase() === look.color.toLowerCase(); });
       cust.style.background = known ? "" : look.color;

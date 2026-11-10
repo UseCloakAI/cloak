@@ -59,13 +59,10 @@
   var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   var api = (get("pv_api") || (local ? "http://localhost:8787" : "https://preview-api.usecloak.org")).replace(/\/+$/, "");
 
-  /* ── Companions (mirrors preview-api/src/prompts.js). ───────────── */
+  /* ── The built-in Blink (mirrors preview-api/src/prompts.js). Everyone else
+     is made by people in the app (maker.js). ─────────────────────────── */
   var COMPANIONS = [
-    { id: "pip", name: "Pip", species: "Orb", role: "Everyday helper", lane: "Swift", line: "Quick, bright, on your side.", about: "The one you ask a hundred small things a day. Fast answers, no fuss, and a nudge when you are overthinking it.", hello: "What do you need sorted?", starters: ["Plan my week around three deadlines", "Rewrite this text so it sounds kind but firm", "What can I cook with eggs, rice and spinach?"] },
-    { id: "moss", name: "Moss", species: "Slab", role: "Deep thinker", lane: "Deep", line: "Slow on purpose. Thorough always.", about: "For the hard ones: research, decisions, things worth understanding properly. Shows the reasoning and tells you what would change the answer.", hello: "Take your time. What are we working through?", starters: ["Help me decide between two job offers", "Explain how mRNA vaccines work, properly", "What are the strongest arguments against my plan?"] },
-    { id: "ember", name: "Ember", species: "Spark", role: "Builder", lane: "Build", line: "All point. Clean code.", about: "Code, systems and anything that has to actually work. Writes complete, runnable code, finds the real bug, and warns you before the plan bites.", hello: "What are we building?", starters: ["Build a habit tracker as a single HTML file", "Why does this function return undefined?", "Review this database schema before I ship it"] },
-    { id: "juno", name: "Juno", species: "Bloom", role: "Creative partner", lane: "Create", line: "Plays with ideas until one shines.", about: "Stories, names, speeches, jokes, whole worlds. Brings range and surprise, takes your idea seriously, and skips the first cliché.", hello: "Ooh. What are we making?", starters: ["Write the opening of a mystery set in a lighthouse", "Ten names for a bakery, none of them puns", "Punch up this wedding toast"] },
-    { id: "sol", name: "Sol", species: "Dome", role: "Calm company", lane: "Balanced", line: "Unhurried. Here for the long version.", about: "For the days that are a lot. Listens first, helps you sort what you feel from what you can do, and points you back toward your people.", hello: "No rush. What's on your mind?", starters: ["I can't switch my brain off tonight", "Help me prepare for a hard conversation", "I keep putting off something important"] },
+    { id: "cloak", name: "Cloak", role: "Your Blink", lane: "Auto", line: "The O from the logo, awake.", about: "Texts back fast, keeps it short, and goes long only when it is worth it. Searches, builds, remembers, and tells you straight.", hello: "Hey. What's up?", starters: ["Plan my week around three deadlines", "Explain how tides work, quickly", "Help me reply to this text without sounding mad"] },
   ];
 
   function icon(name, cls) {

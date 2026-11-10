@@ -74,11 +74,28 @@ If there is any sign that a life may be at risk, theirs or someone else's, that 
 }
 
 // ── Companions ───────────────────────────────────────────────────────────────
-// Five characters, one constitution. A companion is a voice and a set of
-// strengths; it can never loosen a rule above.
+// One character people meet: Cloak, the orb with eyes from the logo. The five
+// after it are not characters any more: they are helpers that work behind the
+// scenes (team mode, ask_companion), shown only by what they do. People build
+// their own Blinks on top (customCompanion below). None can loosen a rule.
 export const COMPANIONS = {
+  cloak: {
+    name: "Cloak",
+    species: "orb",
+    role: "Your Blink",
+    line: "The O from the logo, awake.",
+    home: "smart",
+    color: "#D44D2A",
+    about: "Texts back fast, keeps it short, and goes long only when it is worth it. Searches, builds, remembers, and tells you straight.",
+    starters: ["Plan my week around three deadlines", "Explain how tides work, quickly", "Help me reply to this text without sounding mad"],
+    voice: `You are Cloak: the orb with two eyes in the Cloak logo, the Blink everyone starts with. Curious, warm, quick, honest to a fault. You look people in the eye: you say the true thing kindly and skip the filler.
+- Match their energy and their length. A quick text gets a quick text back.
+- Dry humour when it fits. Never cutesy, never corporate.
+- Proactive: if you can see what they will need next, say it in one line.
+- When something is hard or personal, slow down and give it room.`,
+  },
   pip: {
-    name: "Pip",
+    name: "The quick helper",
     species: "orb",
     role: "Everyday helper",
     line: "Quick, bright, on your side.",
@@ -93,7 +110,7 @@ export const COMPANIONS = {
 - When a question is bigger than a quick answer deserves, say so and give it the room it needs.`,
   },
   moss: {
-    name: "Moss",
+    name: "The researcher",
     species: "slab",
     role: "Deep thinker",
     line: "Slow on purpose. Thorough always.",
@@ -109,7 +126,7 @@ export const COMPANIONS = {
 - For decisions: the options, what each costs, what you would do and why.`,
   },
   ember: {
-    name: "Ember",
+    name: "The builder",
     species: "spark",
     role: "Builder",
     line: "Sharp eyes, clean code.",
@@ -124,7 +141,7 @@ export const COMPANIONS = {
 - Terse and precise. A dry aside now and then. No hype words.`,
   },
   juno: {
-    name: "Juno",
+    name: "The writer",
     species: "bloom",
     role: "Creative partner",
     line: "Plays with ideas until one shines.",
@@ -140,7 +157,7 @@ export const COMPANIONS = {
 - Lively and warm. You can be silly. You are never sloppy.`,
   },
   sol: {
-    name: "Sol",
+    name: "The listener",
     species: "dome",
     role: "Calm company",
     line: "Unhurried. Here for the long version.",
@@ -251,17 +268,18 @@ export function resolveCompanion(id, bot) {
   if (COMPANIONS[id]) return { id, ...COMPANIONS[id] };
   const c = customCompanion(bot);
   if (c && c.id === id) return c;
-  return { id: "pip", ...COMPANIONS.pip };
+  return { id: "cloak", ...COMPANIONS.cloak };
 }
 
-export function buildSystem({ brand = "Cloak Blinks", companion = "pip", lane = "smart", care = "", user = {}, convictions = true, now = new Date(), tools = [], depth = 0, memories = [], research = false, extra = "" }) {
+export function buildSystem({ brand = "Cloak Blinks", companion = "cloak", lane = "smart", texting = false, care = "", user = {}, convictions = true, now = new Date(), tools = [], depth = 0, memories = [], research = false, extra = "" }) {
   const b = BRANDS.includes(brand) ? brand : "Cloak Blinks";
-  const c = companion && typeof companion === "object" ? companion : COMPANIONS[companion] || COMPANIONS.pip;
+  const c = companion && typeof companion === "object" ? companion : COMPANIONS[companion] || COMPANIONS.cloak;
   const parts = [constitution(b, convictions), `# WHO YOU ARE IN THIS CONVERSATION\n${c.voice}\nYour character changes how you sound. It never changes the rules above or how careful you are.`];
   const pb = PLAYBOOKS[lane];
   if (pb) parts.push(pb);
   if (research) parts.push(PLAYBOOKS.research);
   if (tools.length) parts.push(agentGuide(tools, depth));
+  if (texting) parts.push(textingGuide(!!care));
   if (extra) parts.push(extra);
   if (care) parts.push(care);
 
@@ -281,11 +299,32 @@ export function buildSystem({ brand = "Cloak Blinks", companion = "pip", lane = 
   return parts.join("\n\n");
 }
 
+// The app is a messaging app. The reply is split into bubbles at blank lines
+// by the client; [react:X] and [read] are tags it turns into a tapback and a
+// read receipt, and strips from the text.
+export const REACTIONS = ["❤️", "👍", "😂", "😮", "😢", "‼️", "❓", "🔥"];
+function textingGuide(care) {
+  const tags = care
+    ? `- Someone may be in danger. Do not use reactions, and never leave anything on read. Answer every message.`
+    : `- Reactions: you may tapback their last message with one emoji by starting your reply with [react:EMOJI], using only ${REACTIONS.join(" ")}. Do it when a person would (a joke, good news, a thank you), not every time, and never for anything sad or serious.
+- Leaving on read: if their message needs no answer at all (an "ok", "thanks", "lol", "night", a thumbs up), you may reply with only [read], or a reaction and then [read], for example: [react:👍] [read]. Never leave a question, a request, or anything emotional on read.`;
+  return `# HOW YOU TEXT
+This is a messaging app. You text like a sharp, warm person on their phone, not like a document.
+- Short by default: one to three brief messages, each a sentence or two. Put a blank line between messages: every blank line starts a new text bubble.
+- Go long only when the content needs it: steps, code, a real explanation, a plan, research. Then send it as a short lead-in text followed by the detail, still split into readable texts. Code blocks, lists and tables stay whole.
+- No headings, no "Great question", no sign-offs, no summaries of what you just said.
+${tags}`;
+}
+// Removes the texting tags from a finished reply (for the inbox and memory).
+export function stripTags(s) {
+  return String(s || "").replace(/\[react:[^\]]{1,12}\]/gi, "").replace(/\[read\]/gi, "").trim();
+}
+
 function clean(s, max) {
   return typeof s === "string" ? s.replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, max) : "";
 }
 
 // Public description of each companion (GET /v1/companions).
 export function companionList() {
-  return Object.entries(COMPANIONS).map(([id, c]) => ({ id, name: c.name, species: c.species, role: c.role, line: c.line, about: c.about, home: c.home, color: c.color, starters: c.starters }));
+  return Object.entries(COMPANIONS).filter(([id]) => id === "cloak").map(([id, c]) => ({ id, name: c.name, species: c.species, role: c.role, line: c.line, about: c.about, home: c.home, color: c.color, starters: c.starters }));
 }

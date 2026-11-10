@@ -13,7 +13,7 @@
     C.forEach(function (c) { byId[c.id] = c; });
   }
   rebuild();
-  function who(id) { return byId[id] || byId.pip; }
+  function who(id) { return byId[id] || byId.cloak; }
   function look(c) { return c.look || c.id; }
 
   var MOOD_LABEL = { idle: "Here", listen: "Listening", think: "Thinking", search: "Looking it up", talk: "Talking", happy: "Glad", care: "With you", sleep: "Resting" };
@@ -25,7 +25,7 @@
   var state = {
     chats: load("pv_chats", []),
     chatId: null,
-    companion: byId[Kit.get("pv_companion")] ? Kit.get("pv_companion") : "pip",
+    companion: byId[Kit.get("pv_companion")] ? Kit.get("pv_companion") : "cloak",
     mode: "auto",
     busy: false,
     ctrl: null,
@@ -124,7 +124,7 @@
       },
       onDelete: function (gone) {
         rebuild();
-        if (state.companion === gone) setCompanion("pip", true); else renderComps();
+        if (state.companion === gone) setCompanion("cloak", true); else renderComps();
       },
     });
   }
@@ -227,27 +227,165 @@
       r.lines.map(function (l) { return '<li><a href="' + Kit.esc(l.href) + '"' + (/^https/.test(l.href) ? ' target="_blank" rel="noopener noreferrer"' : "") + "><div><b>" + Kit.esc(l.name) + "</b><span>" + Kit.esc(l.how) + "</span></div>" + Kit.icon("arrow-up-right") + "</a></li>"; }).join("") +
       "</ul></div>";
   }
-  function addMsg(m) {
+  /* ── Texting ───────────────────────────────────────────────────────
+     Replies arrive as texts: a typing bubble, then short bubbles one after
+     another, split at blank lines. The Blink can tapback your message
+     ([react:X]) or leave it on read ([read]); your last message shows
+     Delivered, then Read. You can tapback its bubbles too (double-click,
+     long-press, or the heart). */
+  var REACTS = ["❤️", "👍", "😂", "😮", "😢", "‼️", "❓", "🔥"];
+  var TAPS = ["❤️", "👍", "😂", "😮", "😢", "‼️"];
+  function parseReply(raw) {
+    var react = null, m = /\[react:\s*([^\]\s]{1,8})\s*\]/i.exec(raw);
+    if (m && REACTS.indexOf(m[1]) !== -1) react = m[1];
+    return {
+      react: react,
+      read: /\[read\]/i.test(raw),
+      text: raw.replace(/\[react:[^\]]{0,12}\]/gi, "").replace(/\[read\]/gi, "").replace(/^\s+/, ""),
+    };
+  }
+  // Blank lines split texts. Code stays whole, a list stays one bubble, a
+  // heading rides with what follows it.
+  function bubbles(text) {
+    var out = [], cur = [], fence = false;
+    String(text || "").split("\n").forEach(function (line) {
+      if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+      if (!fence && !line.trim()) { if (cur.length) { out.push(cur.join("\n")); cur = []; } return; }
+      cur.push(line);
+    });
+    if (cur.length) out.push(cur.join("\n"));
+    var LIST = /^\s*([-*+]|\d+[.)])\s/, TABLE = /^\s*\|/;
+    var merged = [];
+    out.forEach(function (seg) {
+      var prev = merged[merged.length - 1];
+      var lastLine = prev ? prev.split("\n").pop() : "";
+      if (prev != null && ((LIST.test(seg) && LIST.test(lastLine)) || (TABLE.test(seg) && TABLE.test(lastLine)) || /^#{1,6}\s[^\n]*$/.test(prev))) merged[merged.length - 1] = prev + "\n\n" + seg;
+      else merged.push(seg);
+    });
+    return merged;
+  }
+  function hm(t) { return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
+  function dayLabel(t) {
+    var d = new Date(t), now = new Date(), y = new Date(now - 864e5);
+    var day = d.toDateString() === now.toDateString() ? "Today" : d.toDateString() === y.toDateString() ? "Yesterday" : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    return day + " " + hm(t);
+  }
+  function divider(t) {
+    var d = document.createElement("div");
+    d.className = "when";
+    d.textContent = dayLabel(t);
+    $("threadIn").appendChild(d);
+  }
+  function reactHtml(e, pop) { return '<span class="react' + (pop ? " pop" : "") + '" role="img" aria-label="Reacted ' + e + '">' + e + "</span>"; }
+
+  function userTurn(m, react) {
     var el = document.createElement("div");
-    el.className = "msg " + (m.role === "user" ? "user" : "bot");
-    if (m.role === "user") {
-      el.innerHTML = '<div class="bubble">' + (m.thumbs || []).map(function (u) { return '<img src="' + u + '" alt="Attached image">'; }).join("") + Kit.esc(m.content) + "</div>";
-    } else {
-      var c = who(m.companion || state.companion);
-      el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="name">' + Kit.esc(c.name) + '</div><div class="steps-host">' + stepsHtml(m.steps) + '</div><div class="prose"></div><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta"></div>';
-      var prose = el.querySelector(".prose");
-      prose.innerHTML = md(m.content || "");
-      dress(prose);
-      el.querySelector(".meta").innerHTML = metaHtml(m.meta) + (m.content ? '<button class="iconbtn" aria-label="Copy reply">' + Kit.icon("copy") + "</button>" : "");
-      var cp = el.querySelector(".meta .iconbtn");
-      if (cp) cp.addEventListener("click", function () { navigator.clipboard.writeText(m.content); });
-    }
+    el.className = "turn me";
+    var html = (m.thumbs || []).map(function (u) { return '<div class="bub me pic"><img src="' + u + '" alt="Attached image"></div>'; }).join("");
+    html += '<div class="bub me"><span class="tx">' + Kit.esc(m.content) + "</span>" + (react ? reactHtml(react) : "") + "</div>";
+    el.innerHTML = '<div class="stack">' + html + "</div>";
     $("threadIn").appendChild(el);
     return el;
   }
+  function botTurn(m) {
+    var c = who(m.companion || state.companion);
+    var el = document.createElement("div");
+    el.className = "turn them";
+    el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="steps-host">' + stepsHtml(m.steps) + '</div><div class="row"><div class="av" aria-hidden="true"></div><div class="stack"></div></div><div class="tfoot"><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta">' + (m.content || m.care ? metaHtml(m.meta || {}) : "") + "</div></div>";
+    $("threadIn").appendChild(el);
+    var segs = bubbles(m.content);
+    segs.forEach(function (t, i) { addBubble(el, m, t, i, false); });
+    if (segs.length) avatar(el, c);
+    return el;
+  }
+  function avatar(el, c) {
+    var av = el.querySelector(".av");
+    if (av && !av.firstChild) Creatures.mount(av, look(c), { still: true, label: c.name });
+  }
+  function addBubble(turn, m, text, i, anim) {
+    var b = document.createElement("div");
+    b.className = "bub them" + (anim ? " pop" : "") + (/```|^\s*\|/m.test(text) ? " wide" : "");
+    b.setAttribute("data-i", i);
+    b.innerHTML = '<div class="prose"></div><button type="button" class="tapbtn" aria-label="React">' + Kit.icon("hand-heart") + "</button>";
+    var p = b.firstChild;
+    p.innerHTML = md(text);
+    dress(p);
+    if (m.taps && m.taps[i]) b.insertAdjacentHTML("beforeend", reactHtml(m.taps[i]));
+    hookTap(b, m);
+    var st = turn.querySelector(".stack");
+    st.insertBefore(b, st.querySelector(".typing"));
+    return b;
+  }
+
+  // Your tapbacks on its texts.
+  var picker = null;
+  function hookTap(b, m) {
+    var t = 0;
+    b.addEventListener("mousedown", function (e) { if (e.detail > 1 && !e.target.closest("pre")) e.preventDefault(); });
+    b.addEventListener("dblclick", function (e) { if (e.target.closest("a,pre,button")) return; e.preventDefault(); openPicker(b, m); });
+    b.querySelector(".tapbtn").addEventListener("click", function (e) { e.stopPropagation(); openPicker(b, m); });
+    b.addEventListener("pointerdown", function (e) { if (e.pointerType === "mouse") return; t = setTimeout(function () { openPicker(b, m); }, 460); });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (n) { b.addEventListener(n, function () { clearTimeout(t); }); });
+  }
+  function openPicker(b, m) {
+    closePicker();
+    var i = +b.getAttribute("data-i");
+    picker = document.createElement("div");
+    picker.className = "picker";
+    picker.setAttribute("role", "menu");
+    picker.innerHTML = TAPS.map(function (e) { return '<button type="button" role="menuitemradio" aria-checked="' + (m.taps && m.taps[i] === e ? "true" : "false") + '" data-e="' + e + '">' + e + "</button>"; }).join("") +
+      '<button type="button" class="pk-copy" role="menuitem" aria-label="Copy this text">' + Kit.icon("copy") + "</button>";
+    b.appendChild(picker);
+    picker.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var x = e.target.closest("button");
+      if (!x) return;
+      if (x.classList.contains("pk-copy")) { navigator.clipboard.writeText(bubbles(m.content)[i] || ""); closePicker(); return; }
+      var em = x.getAttribute("data-e");
+      m.taps = m.taps || {};
+      var old = b.querySelector(":scope > .react");
+      if (old) old.remove();
+      if (m.taps[i] === em) delete m.taps[i];
+      else {
+        m.taps[i] = em;
+        b.insertAdjacentHTML("beforeend", reactHtml(em, true));
+        if (em === "😢") each("nod"); else cheer();
+      }
+      closePicker();
+      var ch = chat();
+      if (ch) { save(); if (window.Sync) Sync.push(ch); }
+    });
+    setTimeout(function () { document.addEventListener("pointerdown", outside, true); }, 0);
+  }
+  function outside(e) { if (picker && !picker.contains(e.target)) closePicker(); }
+  function closePicker() {
+    if (picker) { picker.remove(); picker = null; }
+    document.removeEventListener("pointerdown", outside, true);
+  }
+
+  // Delivered / Read under your last message, while it is the last word.
+  function receipt() {
+    var host = $("threadIn");
+    host.querySelectorAll(".receipt").forEach(function (r) { r.remove(); });
+    var ch = chat();
+    if (!ch) return;
+    var msgs = ch.messages, li = -1;
+    for (var i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === "user") { li = i; break; }
+    if (li === -1) return;
+    var next = msgs[li + 1];
+    if (next && !next.onRead) return;
+    var turns = host.querySelectorAll(".turn.me"), t = turns[turns.length - 1];
+    if (!t) return;
+    var r = document.createElement("div");
+    r.className = "receipt";
+    r.innerHTML = msgs[li].read ? "<b>Read</b> " + hm(msgs[li].read) : "Delivered";
+    t.appendChild(r);
+  }
+
   function renderThread() {
     var host = $("threadIn");
     if (fig.empty) { fig.empty.destroy(); fig.empty = null; }
+    closePicker();
     host.innerHTML = "";
     var ch = chat();
     if (!ch || !ch.messages.length) {
@@ -265,7 +403,14 @@
       });
       return;
     }
-    ch.messages.forEach(addMsg);
+    var last = 0;
+    ch.messages.forEach(function (m, i) {
+      if (m.at && m.at - last > 20 * 60000) divider(m.at);
+      if (m.at) last = m.at;
+      if (m.role === "user") { var nx = ch.messages[i + 1]; userTurn(m, nx && nx.role === "assistant" ? nx.react : null); }
+      else if (!m.onRead) botTurn(m);
+    });
+    receipt();
     scrollEnd(true);
   }
   function scrollEnd(force) {
@@ -286,6 +431,7 @@
   async function send(text) {
     text = (text == null ? $("input").value : text).trim();
     if (!text || state.busy) return;
+    closePicker();
     var ch = chat();
     if (!ch) {
       ch = { id: uid(), companion: state.companion, title: text.slice(0, 60), messages: [], updated: Date.now() };
@@ -297,37 +443,127 @@
     var images = state.images;
     state.images = [];
     renderThumbs();
-    var um = { role: "user", content: text };
+    var now = Date.now(), prevAt = 0;
+    ch.messages.forEach(function (m) { if (m.at) prevAt = m.at; });
+    if (now - prevAt > 20 * 60000) divider(now);
+    var um = { role: "user", content: text, at: now };
     ch.messages.push(um);
-    addMsg({ role: "user", content: text, thumbs: images.map(function (i) { return "data:" + i.mime + ";base64," + i.data; }) });
+    var uEl = userTurn({ content: text, thumbs: images.map(function (i) { return "data:" + i.mime + ";base64," + i.data; }) }, null);
+    uEl.classList.add("sent");
+    receipt();
     $("input").value = "";
     grow();
     setBusy(true);
     renderHist();
-
-    var bm = { role: "assistant", content: "", companion: state.companion, meta: {} };
-    var el = addMsg(bm);
-    var prose = el.querySelector(".prose"), metaEl = el.querySelector(".meta");
-    prose.innerHTML = '<div class="wait" aria-label="Thinking"><i></i><i></i><i></i></div>';
     scrollEnd(true);
     mood("think");
 
-    state.ctrl = new AbortController();
-    var raf = 0;
-    var paint = function () {
-      raf = 0;
-      prose.innerHTML = md(bm.content);
-      prose.classList.add("caret");
+    var bm = { role: "assistant", content: "", companion: state.companion, meta: {} };
+    var el = null, typingEl = null, finished = false, readDone = false;
+    var raw = "", queued = 0, shown = 0, live = null, liveRaf = 0, chain = Promise.resolve(), gen = 0, reacted = false;
+    function turn() { if (!el) el = botTurn({ companion: bm.companion, steps: bm.steps, sources: bm.sources, care: bm.care, meta: {} }); return el; }
+    function typing(on) {
+      if (on && !typingEl && !finished) {
+        var st = turn().querySelector(".stack");
+        typingEl = document.createElement("div");
+        typingEl.className = "bub them typing";
+        typingEl.setAttribute("aria-label", who(bm.companion).name + " is typing");
+        typingEl.innerHTML = "<i></i><i></i><i></i>";
+        st.appendChild(typingEl);
+        avatar(el, who(bm.companion));
+        scrollEnd();
+      } else if (!on && typingEl) { typingEl.remove(); typingEl = null; }
+    }
+    function markRead() {
+      if (readDone) return;
+      readDone = true;
+      um.read = Date.now();
+      receipt();
+      setTimeout(function () { if (!finished && !live && shown === queued) typing(true); }, 420);
+    }
+    // Texts go out one at a time, with a beat of typing between them.
+    function enqueue(i) {
+      var g = gen;
+      chain = chain.then(function () {
+        if (g !== gen) return;
+        var t = bubbles(bm.content)[i];
+        if (t == null) return;
+        if (live && +live.getAttribute("data-i") === i) {
+          if (liveRaf) { cancelAnimationFrame(liveRaf); liveRaf = 0; }
+          var p = live.querySelector(".prose");
+          p.innerHTML = md(t);
+          p.classList.remove("caret");
+          dress(p);
+          live = null;
+          shown++;
+          return;
+        }
+        var wait = shown === 0 ? 0 : Math.min(700, 180 + t.length * 4);
+        if (wait) typing(true);
+        return new Promise(function (r) { setTimeout(r, wait); }).then(function () {
+          if (g !== gen) return;
+          typing(false);
+          if (!bm.at) bm.at = Date.now();
+          addBubble(turn(), bm, t, i, true);
+          avatar(el, who(bm.companion));
+          shown++;
+          pulse(0.8);
+          if (!finished || shown < queued) typing(true);
+          scrollEnd();
+        });
+      });
+    }
+    function paintLive() {
+      liveRaf = 0;
+      if (!live) return;
+      var p = live.querySelector(".prose");
+      p.innerHTML = md(bubbles(bm.content)[+live.getAttribute("data-i")] || "");
+      p.classList.add("caret");
       scrollEnd();
-    };
+    }
+    function onText(done) {
+      if (!done && /^\s*\[[^\]]{0,14}$/.test(raw)) return; // a tag is still arriving
+      var p = parseReply(raw);
+      if (p.react && !reacted) {
+        reacted = true;
+        bm.react = p.react;
+        var ub = uEl.querySelector(".bub.me:last-child");
+        if (ub) ub.insertAdjacentHTML("beforeend", reactHtml(p.react, true));
+        if (p.react !== "😢") cheer();
+      }
+      bm.content = p.text;
+      bm.read = p.read;
+      var segs = bubbles(p.text);
+      var complete = done ? segs.length : Math.max(0, segs.length - 1);
+      while (queued < complete) enqueue(queued++);
+      // The text being written now: if it is long and nothing is waiting, write it live.
+      var cur = segs[queued];
+      if (!done && cur != null && queued === shown && (live || cur.length > 220)) {
+        if (!live) {
+          typing(false);
+          if (!bm.at) bm.at = Date.now();
+          live = addBubble(turn(), bm, cur, queued, true);
+          avatar(el, who(bm.companion));
+        }
+        if (!liveRaf) liveRaf = requestAnimationFrame(paintLive);
+      }
+    }
+
+    state.ctrl = new AbortController();
     var onEvent = function (ev) {
-      if (ev.meta) Object.assign(bm.meta, { lane: ev.meta.lane, lane_label: ev.meta.lane_label });
-      if (ev.care) { bm.care = ev.care; el.insertAdjacentHTML("afterbegin", careHtml(ev.care)); mood("care"); }
+      if (ev.meta) { Object.assign(bm.meta, { lane: ev.meta.lane, lane_label: ev.meta.lane_label }); markRead(); }
+      if (ev.care) {
+        bm.care = ev.care;
+        markRead();
+        if (el) el.insertAdjacentHTML("afterbegin", careHtml(ev.care)); else turn();
+        mood("care");
+      }
       if (ev.step) {
+        markRead();
         bm.steps = bm.steps || [];
         var cur = bm.steps.find(function (x) { return x.id === ev.step.id; });
         if (cur) Object.assign(cur, ev.step); else bm.steps.push(ev.step);
-        el.querySelector(".steps-host").innerHTML = stepsHtml(bm.steps);
+        turn().querySelector(".steps-host").innerHTML = stepsHtml(bm.steps);
         if (!bm.care) {
           var t = ev.step.tool;
           if (ev.step.state === "run") mood(t === "web_search" || t === "read_page" || t === "recall" ? "search" : "think");
@@ -335,13 +571,19 @@
         }
         scrollEnd();
       }
-      if (ev.sources) { bm.sources = ev.sources; el.querySelector(".sources-host").innerHTML = sourcesHtml(bm.sources); }
-      if (ev.reset) { bm.content = ""; prose.innerHTML = '<div class="wait" aria-label="Working"><i></i><i></i><i></i></div>'; }
+      if (ev.sources) { bm.sources = ev.sources; turn().querySelector(".sources-host").innerHTML = sourcesHtml(bm.sources); }
+      if (ev.reset) {
+        gen++;
+        raw = ""; bm.content = ""; queued = shown = 0; live = null; chain = Promise.resolve();
+        if (el) el.querySelectorAll(".bub:not(.typing)").forEach(function (b) { b.remove(); });
+        typing(true);
+      }
       if (ev.delta) {
-        if (!bm.content && !bm.care) mood("talk");
-        bm.content += ev.delta;
+        markRead();
+        if (!raw && !bm.care) mood("talk");
+        raw += ev.delta;
         pulse(Math.min(0.9, 0.25 + ev.delta.length * 0.04));
-        if (!raf) raf = requestAnimationFrame(paint);
+        onText(false);
       }
       if (ev.done) { bm.meta.impact = ev.impact; bm.meta.partial = ev.partial; if (ev.lane_label) bm.meta.lane_label = ev.lane_label; if (ev.demo) bm.meta.demo = true; }
       if (ev.error) bm.error = ev.error;
@@ -356,14 +598,24 @@
         try { await demo(text, onEvent, state.ctrl.signal); } catch (e2) {}
       }
     }
-    if (raf) cancelAnimationFrame(raf);
     state.ctrl = null;
-    prose.classList.remove("caret");
-    if (!bm.content) bm.content = bm.error || (bm.care ? "" : "Stopped before I could answer.");
-    prose.innerHTML = md(bm.content);
-    dress(prose);
-    metaEl.innerHTML = metaHtml(bm.meta) + '<button class="iconbtn" aria-label="Copy reply">' + Kit.icon("copy") + "</button>";
-    metaEl.querySelector(".iconbtn").addEventListener("click", function () { navigator.clipboard.writeText(bm.content); });
+    markRead();
+    onText(true);
+    await chain;
+    finished = true;
+    typing(false);
+    var said = bm.content.trim();
+    // Left on read: only when there is truly nothing to say and nobody is at risk.
+    if (!said && bm.read && !bm.care && !bm.error) {
+      bm.onRead = true;
+      if (el) { el.remove(); el = null; }
+      each("nod");
+    } else if (!said && !bm.care) {
+      bm.content = bm.error || "Stopped before I could answer.";
+      addBubble(turn(), bm, bm.content, 0, true);
+      avatar(el, who(bm.companion));
+    }
+    if (el) el.querySelector(".meta").innerHTML = metaHtml(bm.meta);
     if (bm.meta.impact) {
       state.sess.wh += bm.meta.impact.wh;
       state.sess.g += bm.meta.impact.g;
@@ -372,14 +624,32 @@
       $("stG").textContent = Kit.fmtCO2(bm.meta.impact.g / 1000);
       $("stSess").textContent = $("sessWh").textContent = Kit.fmtWh(state.sess.wh);
     }
+    delete bm.read;
+    bm.at = bm.at || Date.now();
     ch.messages.push(bm);
     ch.updated = Date.now();
+    receipt();
     save();
     if (window.Sync) Sync.push(ch);
     setBusy(false);
-    // Settle: stay soft if care is showing, otherwise a small nod and back to idle.
-    if (bm.care) mood("care"); else { mood("idle"); if (ch.messages.length === 2) cheer(); }
+    // Settle: stay soft if care is showing, otherwise back to idle.
+    if (bm.care) mood("care"); else { mood("idle"); if (ch.messages.length === 2 && !bm.onRead) cheer(); }
     scrollEnd();
+  }
+
+  // What the model sees: its own tags kept, your tapbacks noted on your next text.
+  function history(ch) {
+    return ch.messages.map(function (m, i) {
+      if (m.role === "user") {
+        var prev = ch.messages[i - 1], note = "";
+        if (prev && prev.role === "assistant" && prev.taps) {
+          var t = Object.keys(prev.taps).map(function (k) { return prev.taps[k]; });
+          if (t.length) note = "(I tapped " + t.join(" ") + " on your last texts.)\n";
+        }
+        return { role: "user", content: note + m.content };
+      }
+      return { role: "assistant", content: ((m.react ? "[react:" + m.react + "] " : "") + (m.onRead ? "[read]" : m.content || "…")).trim() };
+    });
   }
 
   // Each reply is a cloud run: if the connection drops, re-attach and carry on
@@ -420,7 +690,7 @@
         mode: state.mode,
         user: { name: state.user.name, about: state.user.about, tz: TZ },
         images: images,
-        messages: ch.messages.map(function (m) { return { role: m.role, content: m.content }; }),
+        messages: history(ch),
       }),
     });
     if (res.status === 429) { onEvent({ error: "That is a lot of messages in a minute. Give it a moment and try again." }); return; }
@@ -440,18 +710,14 @@
   }
 
   // Scripted stand-in used only when the backend cannot be reached.
-  var DEMO = {
-    pip: "This is a scripted line, not a real answer: the preview backend isn't connected yet. Once it is, I'm the quick one. Lists, rewrites, what's-for-dinner, the hundred small things.",
-    moss: "A scripted line for now, since the preview backend isn't connected. When it is, bring me the slow questions. I'll give you the answer first, then the reasoning, then what would change my mind.",
-    ember: "Scripted placeholder: the preview backend isn't connected yet. When it is, you'll get complete, runnable code from me, like this:\n\n```js\nconst greet = (name) => `Hello, ${name}.`;\nconsole.log(greet(\"world\"));\n```",
-    juno: "This one is scripted, because the preview backend isn't connected yet. When it is, bring me the half-idea you can't stop thinking about and we'll see what it wants to be.",
-    sol: "A scripted line for now. The preview backend isn't connected yet. When it is, there's no rush here. Tell me the long version.",
-  };
+  var DEMO = "[react:👀] hey!\n\nheads up, this is a scripted text. the preview backend isn't connected yet\n\nonce it is I'll text back for real. short and quick, longer only when it's worth it";
   var CRISIS = /\b(kill myself|suicid|end my life|want to die|self[- ]?harm|don'?t want to (live|be here))\b/i;
   async function demo(text, onEvent, signal) {
     var lane = who(state.companion).lane;
     onEvent({ meta: { lane: lane.toLowerCase(), lane_label: lane } });
-    var body = DEMO[state.companion] || "Scripted line for now: the preview backend isn't connected yet. Once it is, " + who(state.companion).name + " will answer in the voice and with the purpose you gave it.";
+    var body = DEMO;
+    if (/^(ok(ay)?|k|thanks|thank you|thx|ty|cool|nice|night|gn|👍)[.!]*$/i.test(text.trim())) body = "[react:👍] [read]";
+    else if (/\b(lol|haha|lmao|joke)\b/i.test(text)) body = "[react:😂] ok that got me\n\n(scripted, but still)";
     if (CRISIS.test(text)) {
       onEvent({ care: { emergency: "your local emergency number", lines: [{ name: "Find a Helpline", how: "Free helplines in 130+ countries", href: "https://findahelpline.com" }] } });
       body = "I'm really glad you said that out loud. I'm only a scripted demo right now, so please reach one of the people above. They're there for exactly this, and you deserve a real voice tonight.";
@@ -532,7 +798,7 @@
           var item = d.inbox.find(function (i) { return String(i.id) === open.getAttribute("data-open"); });
           if (!item) return;
           // Open the result as a chat so it can be continued.
-          var c = { id: uid(), companion: byId[item.companion] ? item.companion : "pip", title: item.title.slice(0, 60), updated: Date.now(), messages: [{ role: "user", content: item.title }, { role: "assistant", content: item.body, companion: item.companion, sources: (item.meta || {}).sources, meta: { lane: (item.meta || {}).lane || "task", lane_label: item.kind === "task" ? "Scheduled task" : "Finished in the background", impact: (item.meta || {}).impact } }] };
+          var c = { id: uid(), companion: byId[item.companion] ? item.companion : "cloak", title: item.title.slice(0, 60), updated: Date.now(), messages: [{ role: "user", content: item.title }, { role: "assistant", content: item.body, companion: item.companion, sources: (item.meta || {}).sources, meta: { lane: (item.meta || {}).lane || "task", lane_label: item.kind === "task" ? "Scheduled task" : "Finished in the background", impact: (item.meta || {}).impact } }] };
           state.chats.unshift(c); save(); $("settings").close(); openChat(c.id);
         }
       };
