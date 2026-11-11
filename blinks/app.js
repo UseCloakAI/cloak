@@ -1,5 +1,8 @@
 /* The app: text Cloak (or a Blink you made), watch it listen, think and answer.
-   Chats live in localStorage (and in Supabase when signed in, see sync.js).
+   One continuous chat per Blink, like a messaging app. The home-PC brain keeps
+   the real copy (and compacts it); the app keeps one in localStorage and
+   Supabase, and catches up from the brain (/v1/blink/since) for replies that
+   finished while it was closed and messages Blinks sent each other.
    Talks to blinks-api POST /v1/chat (SSE). If that is unreachable the app
    says so and plays a short scripted reply instead of pretending. */
 (function () {
@@ -39,6 +42,7 @@
     files: [],
     power: "full",
     user: load("pv_user", { name: "", about: "" }),
+    unread: load("pv_unread", {}),
   };
   // A random secret kept on this device: it is how memory, tasks and the inbox find you without an account.
   var device = Kit.get("pv_device");
@@ -63,12 +67,20 @@
 
   function load(k, d) { try { return JSON.parse(Kit.get(k)) || d; } catch (e) { return d; } }
   function save() {
-    // Newest 40 chats; images are never stored.
+    // One chat per Blink (older extra ones are left alone); images are never stored.
     state.chats.sort(function (a, b) { return b.updated - a.updated; });
     state.chats = state.chats.slice(0, 40);
+    state.chats.forEach(function (c) { if (c.messages.length > 600) c.messages = c.messages.slice(-600); });
     Kit.set("pv_chats", JSON.stringify(state.chats));
   }
-  function chat() { return state.chats.find(function (c) { return c.id === state.chatId; }) || null; }
+  // Each Blink has exactly one chat: the newest one with it.
+  function chatFor(id) { return state.chats.filter(function (c) { return c.companion === id; }).sort(function (a, b) { return b.updated - a.updated; })[0] || null; }
+  function chat() { return chatFor(state.companion); }
+  function newChatFor(id) {
+    var ch = { id: uid(), companion: id, title: who(id).name, messages: [], updated: Date.now() };
+    state.chats.unshift(ch);
+    return ch;
+  }
   function uid() { return (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)); }
 
   /* ── Creatures ─────────────────────────────────────────────────── */
@@ -82,7 +94,8 @@
     return crowd.filter(function (x) { return x.id === state.companion; }).map(function (x) { return x.f; });
   }
   var nowMood = "idle";
-  function mood(m) {
+  function mood(m, forId) {
+    if (forId && forId !== state.companion) return; // a reply still finishing for a Blink you left
     nowMood = m;
     mates().forEach(function (f) { f.set(m); });
     $("mood").textContent = MOOD_LABEL[m] || "Here";
@@ -108,11 +121,32 @@
   var sideFigs = [];
   // Last thing said with a Blink, for its row. Plain text, no tags.
   function preview(id) {
-    var ch = state.chats.filter(function (c) { return c.companion === id && c.messages.length; }).sort(function (a, b) { return b.updated - a.updated; })[0];
-    if (!ch) return null;
+    var ch = chatFor(id);
+    if (!ch || !ch.messages.length) return null;
     var m = ch.messages[ch.messages.length - 1];
     var t = String(m.onRead ? "Read" : m.content || "").replace(/```[\s\S]*?```/g, "[code]").replace(/\[react:[^\]]*\]|\[read\]/gi, "").replace(/[*_#>`]/g, "").replace(/\s+/g, " ").trim();
-    return (m.role === "user" ? "You: " : "") + t;
+    return (m.from ? m.from + ": " : m.role === "user" ? "You: " : "") + t;
+  }
+  function when(id) {
+    var ch = chatFor(id);
+    if (!ch || !ch.messages.length) return "";
+    var t = ch.messages[ch.messages.length - 1].at || ch.updated;
+    return Date.now() - t < 864e5 ? hm(t) : new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
+  }
+  // Rows keep their live Blinks; only the words and the unread dot change.
+  function refreshRows() {
+    document.querySelectorAll("#comps .comp").forEach(function (r) {
+      var id = r.dataset.id, c = byId[id];
+      if (!c) return;
+      r.querySelector(".comp-tx span").textContent = preview(id) || c.role;
+      r.querySelector(".comp-tx em").textContent = when(id);
+      var n = state.unread[id] || 0;
+      r.classList.toggle("unread", !!n);
+      var dot = r.querySelector(".dot");
+      if (n && !dot) r.querySelector(".comp-av").insertAdjacentHTML("beforeend", '<i class="dot" aria-hidden="true"></i>');
+      if (!n && dot) dot.remove();
+      r.setAttribute("aria-label", c.name + (n ? ", " + n + " new" : ""));
+    });
   }
   function renderComps() {
     var host = $("comps");
@@ -130,7 +164,8 @@
       b.dataset.id = c.id;
       b.setAttribute("aria-current", c.id === state.companion ? "true" : "false");
       var pv = preview(c.id);
-      b.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "</b><span>" + Kit.esc(pv || c.role) + "</span></div>" +
+      b.setAttribute("data-tip", c.name);
+      b.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "<em>" + when(c.id) + "</em></b><span>" + Kit.esc(pv || c.role) + "</span></div>" +
         (c.custom ? '<button class="iconbtn comp-edit" aria-label="Edit ' + Kit.esc(c.name) + '">' + Kit.icon("pencil-simple") + "</button>" : "");
       var go = function () { openBlink(c.id); closeSide(); };
       b.addEventListener("click", function (e) {
@@ -143,14 +178,9 @@
       sideFigs.push(f);
       track(c.id, f);
     }
-    C.forEach(row);
-    var mk = document.createElement("button");
-    mk.className = "make conv-in";
-    mk.style.setProperty("--k", C.length);
-    mk.type = "button";
-    mk.innerHTML = '<span class="make-av">' + Kit.icon("plus") + "</span><span><b>Make a Blink</b></span>";
-    mk.addEventListener("click", function () { editBlink(null); closeSide(); });
-    host.appendChild(mk);
+    // Most recent conversation first, like a messaging app.
+    C.slice().sort(function (a, b) { var x = chatFor(a.id), y = chatFor(b.id); return (y ? y.updated : 0) - (x ? x.updated : 0); }).forEach(row);
+    refreshRows();
     requestAnimationFrame(function () { inkTo(true); });
   }
   // The ink: one block that springs between rows, leading edge first.
@@ -169,10 +199,10 @@
     ink.classList.add("show");
     inkAt = top;
   }
-  // Opening a Blink picks up your latest chat with it, like a messaging app.
+  // Opening a Blink opens its one chat. A reply still on its way keeps going
+  // on the brain and lands in its own chat.
   function openBlink(id) {
     if (!byId[id]) return;
-    var last = state.chats.filter(function (c) { return c.companion === id; }).sort(function (a, b) { return b.updated - a.updated; })[0];
     if (id !== state.companion) {
       stop();
       state.companion = id;
@@ -181,77 +211,28 @@
       inkTo(false);
       mountFigs();
     }
-    state.chatId = last ? last.id : null;
+    if (state.unread[id]) { delete state.unread[id]; Kit.set("pv_unread", JSON.stringify(state.unread)); refreshRows(); }
     renderThread();
-    renderHist();
   }
   function editBlink(id) {
     var bot = id ? Maker.load().find(function (b) { return b.id === id; }) : null;
     Maker.open(bot, {
       onSave: function (b) {
         rebuild();
-        if (state.companion === b.id) { renderComps(); mountFigs(); renderThread(); }
-        else setCompanion(b.id, true);
-        setTimeout(function () { ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].cheer(); }); }, 200);
+        renderComps();
+        if (state.companion === b.id) { mountFigs(); renderThread(); }
+        else openBlink(b.id);
+        setTimeout(cheer, 200);
       },
       onDelete: function (gone) {
         rebuild();
-        if (state.companion === gone) setCompanion("cloak", true); else renderComps();
+        renderComps();
+        if (state.companion === gone) openBlink("cloak");
       },
     });
   }
-  function renderHist() {
-    var host = $("hist");
-    host.innerHTML = "";
-    if (!state.chats.length) { host.innerHTML = '<p class="hist-empty">Your chats will collect here.</p>'; return; }
-    var q = ($("search").value || "").toLowerCase();
-    state.chats.forEach(function (c) {
-      if (q && String(c.title || "").toLowerCase().indexOf(q) === -1) return;
-      var b = document.createElement("div");
-      b.className = "hist";
-      b.setAttribute("role", "button");
-      b.tabIndex = 0;
-      b.setAttribute("aria-current", c.id === state.chatId ? "true" : "false");
-      b.innerHTML = "<span>" + Kit.esc(c.title || "New chat") + '</span><button class="iconbtn del" aria-label="Delete chat">' + Kit.icon("trash") + "</button>";
-      var open = function () { openChat(c.id); closeSide(); };
-      b.addEventListener("click", function (e) {
-        if (e.target.closest(".del")) {
-          state.chats = state.chats.filter(function (x) { return x.id !== c.id; });
-          save();
-          if (window.Sync) Sync.remove(c.id);
-          if (state.chatId === c.id) newChat(); else renderHist();
-          return;
-        }
-        open();
-      });
-      b.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target === b) open(); });
-      host.appendChild(b);
-    });
-  }
   function closeSide() { $("app").classList.remove("open"); }
-
-  function setCompanion(id, fresh) {
-    if (!byId[id]) return;
-    stop();
-    state.companion = id;
-    Kit.set("pv_companion", id);
-    if (fresh) state.chatId = null;
-    document.querySelectorAll("#comps .comp").forEach(function (r) { r.setAttribute("aria-current", r.dataset.id === id ? "true" : "false"); });
-    inkTo(false);
-    mountFigs();
-    renderThread();
-    renderHist();
-  }
-  function newChat() { stop(); state.chatId = null; renderThread(); renderHist(); $("input").focus(); }
-  function openChat(id) {
-    var c = state.chats.find(function (x) { return x.id === id; });
-    if (!c) return;
-    stop();
-    state.chatId = id;
-    if (c.companion !== state.companion && byId[c.companion]) { state.companion = c.companion; Kit.set("pv_companion", c.companion); renderComps(); mountFigs(); }
-    renderThread();
-    renderHist();
-  }
+  function setCompanion(id) { openBlink(id); }
 
   /* ── Thread ────────────────────────────────────────────────────── */
   function md(text) {
@@ -300,7 +281,7 @@
     if (m.partial) s += "<span>Cut short</span>";
     return s;
   }
-  var TOOL_ICON = { web_search: "magnifying-glass", read_page: "file-text", calculate: "gauge", remember: "brain", recall: "brain", forget: "brain", ask_companion: "chat-circle", schedule_task: "hourglass-medium", list_tasks: "hourglass-medium", cancel_task: "hourglass-medium", look: "eye", team: "stack" };
+  var TOOL_ICON = { message_blink: "chat-circle", compact: "stack", web_search: "magnifying-glass", read_page: "file-text", calculate: "gauge", remember: "brain", recall: "brain", forget: "brain", ask_companion: "chat-circle", schedule_task: "hourglass-medium", list_tasks: "hourglass-medium", cancel_task: "hourglass-medium", look: "eye", team: "stack" };
   function didHtml(steps) {
     if (!steps || !steps.length) return "";
     var tool = function (n) { return steps.filter(function (s) { return s.tool === n; }).length; };
@@ -308,6 +289,9 @@
     if (tool("web_search")) parts.push("searched " + tool("web_search") + (tool("web_search") === 1 ? " time" : " times"));
     if (tool("read_page")) parts.push("read " + tool("read_page") + (tool("read_page") === 1 ? " page" : " pages"));
     if (tool("remember")) parts.push("saved " + tool("remember") + (tool("remember") === 1 ? " memory" : " memories"));
+    var talked = steps.filter(function (s) { return s.tool === "message_blink" && s.label; }).map(function (s) { return s.label.replace(/^Messaging\s+/, ""); });
+    talked = talked.filter(function (n, i) { return talked.indexOf(n) === i; });
+    if (talked.length) parts.push("messaged " + talked.join(" and "));
     var t = parts.length ? parts.join(", ") : "took " + steps.length + (steps.length === 1 ? " step" : " steps");
     t = t.charAt(0).toUpperCase() + t.slice(1);
     return '<button type="button" class="did" aria-expanded="false">' + Kit.esc(t) + Kit.icon("caret-down") + "</button>" + stepsHtml(steps).replace('<ul class="steps">', '<ul class="steps" hidden>');
@@ -396,11 +380,21 @@
     $("threadIn").appendChild(el);
     return el;
   }
+  // A message another Blink sent this one, shown as a quiet note.
+  function relayTurn(m) {
+    var el = document.createElement("div");
+    el.className = "relay";
+    var from = C.find(function (c) { return c.name === m.from; });
+    el.innerHTML = '<div class="relay-av" aria-hidden="true"></div><div><b>' + Kit.esc(m.from) + " to " + Kit.esc(who(state.companion).name) + "</b><p>" + Kit.esc(m.content) + "</p></div>";
+    $("threadIn").appendChild(el);
+    if (from) Creatures.mount(el.querySelector(".relay-av"), look(from), { label: from.name, still: true });
+    return el;
+  }
   function botTurn(m) {
     var c = who(m.companion || state.companion);
     var el = document.createElement("div");
     el.className = "turn them";
-    el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="steps-host">' + didHtml(m.steps) + '</div><div class="row"><div class="av" aria-hidden="true"></div><div class="stack"></div></div><div class="tfoot"><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta">' + (m.content || m.care ? metaHtml(m.meta || {}) : "") + "</div></div>";
+    el.innerHTML = (m.care ? careHtml(m.care) : "") + (m.task ? '<div class="task-tag">' + Kit.icon("hourglass-medium") + "Scheduled: " + Kit.esc(m.task) + "</div>" : "") + '<div class="steps-host">' + didHtml(m.steps) + '</div><div class="row"><div class="av" aria-hidden="true"></div><div class="stack"></div></div><div class="tfoot"><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta">' + (m.content || m.care ? metaHtml(m.meta || {}) : "") + "</div></div>";
     $("threadIn").appendChild(el);
     hookDid(el);
     var segs = bubbles(m.content);
@@ -480,7 +474,7 @@
     var ch = chat();
     if (!ch) return;
     var msgs = ch.messages, li = -1;
-    for (var i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === "user") { li = i; break; }
+    for (var i = msgs.length - 1; i >= 0; i--) if (msgs[i].role === "user" && !msgs[i].from) { li = i; break; }
     if (li === -1) return;
     var next = msgs[li + 1];
     if (next && !next.onRead) return;
@@ -517,7 +511,8 @@
     ch.messages.forEach(function (m, i) {
       if (m.at && m.at - last > 20 * 60000) divider(m.at);
       if (m.at) last = m.at;
-      if (m.role === "user") { var nx = ch.messages[i + 1]; userTurn(m, nx && nx.role === "assistant" ? nx.react : null); }
+      if (m.from) relayTurn(m);
+      else if (m.role === "user") { var nx = ch.messages[i + 1]; userTurn(m, nx && nx.role === "assistant" ? nx.react : null); }
       else if (!m.onRead) botTurn(m);
     });
     receipt();
@@ -548,6 +543,8 @@
     state.queue.push(item);
     scrollEnd(true);
   }
+  // Leaving a Blink mid-reply only lets go of it here: the brain finishes the
+  // reply and it arrives in that Blink's chat (catchUp).
   function stop() { if (state.ctrl) state.ctrl.abort(); }
 
   function flySend() {
@@ -579,13 +576,12 @@
     closePicker();
     flySend();
     var ch = chat();
-    if (!ch) {
-      ch = { id: uid(), companion: state.companion, title: texts[0].slice(0, 60), messages: [], updated: Date.now() };
-      state.chats.unshift(ch);
-      state.chatId = ch.id;
+    if (!ch || !ch.messages.length) {
+      ch = ch || newChatFor(state.companion);
       $("threadIn").innerHTML = "";
       if (fig.empty) { fig.empty.destroy(); fig.empty = null; }
     }
+    var mine = state.companion;
     var images = state.images;
     state.images = [];
     renderThumbs();
@@ -603,7 +599,8 @@
     $("input").value = "";
     grow();
     setBusy(true);
-    renderHist();
+    ch.updated = now;
+    refreshRows();
     scrollEnd(true);
     mood("think");
 
@@ -619,9 +616,18 @@
         nowEl = document.createElement("div");
         nowEl.className = "now";
         nowEl.setAttribute("role", "status");
-        nowEl.innerHTML = '<i class="now-dot" aria-hidden="true"></i><span class="now-t"></span>';
+        nowEl.innerHTML = '<span class="now-av" aria-hidden="true"></span><span class="now-t"></span><span class="now-n" hidden></span>';
         host.innerHTML = "";
         host.appendChild(nowEl);
+        // The Blink itself sits beside what it is doing, and works with it.
+        var c = who(bm.companion);
+        track(c.id, Creatures.mount(nowEl.querySelector(".now-av"), look(c), { label: c.name, mood: nowMood }));
+        var t0 = Date.now(), n = nowEl.querySelector(".now-n"), box0 = nowEl;
+        var tick = setInterval(function () {
+          if (!box0.isConnected) return clearInterval(tick);
+          var sec = Math.round((Date.now() - t0) / 1000);
+          if (sec >= 3) { n.hidden = false; n.textContent = sec < 60 ? sec + "s" : Math.floor(sec / 60) + "m " + (sec % 60) + "s"; }
+        }, 1000);
       }
       var box = nowEl.querySelector(".now-t");
       var old = box.querySelector("span:not(.out)");
@@ -747,7 +753,7 @@
         if (ev.step.state === "run" && ev.step.label) nowSay(ev.step.label);
         if (!bm.care) {
           var t = ev.step.tool;
-          if (ev.step.state === "run") mood(t === "web_search" || t === "read_page" || t === "recall" ? "search" : "think");
+          if (ev.step.state === "run") mood(t === "web_search" || t === "read_page" || t === "recall" ? "search" : "work");
           else if (t === "remember" && ev.step.state !== "blocked") each("nod");
         }
         scrollEnd();
@@ -780,7 +786,19 @@
         try { await demo(text, onEvent, state.ctrl.signal); } catch (e2) {}
       }
     }
+    var left = state.ctrl && state.ctrl.signal.aborted;
     state.ctrl = null;
+    if (left) {
+      // You moved to another Blink: the brain is finishing this one. Its
+      // reply arrives in this chat by itself.
+      um.read = um.read || Date.now();
+      ch.updated = Date.now();
+      save();
+      if (window.Sync) Sync.push(ch);
+      setBusy(false);
+      setTimeout(catchUp, 4000);
+      return;
+    }
     markRead();
     onText(true);
     await chain;
@@ -810,15 +828,15 @@
     ch.updated = Date.now();
     receipt();
     save();
-    var pvRow = document.querySelector('#comps .comp[data-id="' + ch.companion + '"] .comp-tx span');
-    if (pvRow) pvRow.textContent = preview(ch.companion) || "";
+    refreshRows();
     if (window.Sync) Sync.push(ch);
+    setTimeout(catchUp, 600); // anything your Blinks said to each other meanwhile
     setBusy(false);
     // Settle: stay soft if care is showing, otherwise back to idle.
     if (bm.care) mood("care"); else { mood("idle"); if (ch.messages.length === 2 && !bm.onRead) cheer(); }
     scrollEnd();
     // Anything you sent meanwhile goes now, as the next turn.
-    if (state.queue.length && state.chatId === ch.id) {
+    if (state.queue.length && state.companion === mine) {
       var next = state.queue.splice(0);
       next.forEach(function (q) { q.el.remove(); });
       send(next.map(function (q) { return q.text; }));
@@ -828,6 +846,7 @@
   // What the model sees: its own tags kept, your tapbacks noted on your next text.
   function history(ch) {
     return ch.messages.map(function (m, i) {
+      if (m.from) return { role: "user", content: "[A message from " + m.from + ", another of this person's Blinks]\n" + m.content };
       if (m.role === "user") {
         var prev = ch.messages[i - 1], note = "";
         if (prev && prev.role === "assistant" && prev.taps) {
@@ -874,6 +893,8 @@
         chat_id: ch.id,
         companion: state.companion,
         bot: who(state.companion).bot || undefined,
+        // Your other Blinks, so this one can message them.
+        blinks: C.filter(function (c) { return c.custom && c.bot; }).map(function (c) { return { id: c.id, name: c.name, purpose: c.bot.purpose, persona: c.bot.persona, lane: c.bot.lane }; }),
         brand: Kit.brand,
         mode: state.mode,
         user: { name: state.user.name, about: state.user.about, tz: TZ },
@@ -1007,6 +1028,61 @@
     fetch(Kit.api + "/v1/status", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (s) { setPower(s.mode); }).catch(function () {});
   }
 
+  /* ── Catching up with the brain ─────────────────────────────────── */
+  // Replies that finished after you left, task results, and messages your
+  // Blinks sent each other all live in each Blink's chat on the brain.
+  var synced = +Kit.get("pv_synced") || Date.now() - 864e5, catching = false;
+  function norm(t) { return parseReply(String(t || "")).text.replace(/\s+/g, " ").trim(); }
+  function fromLog(e, id) {
+    if (e.from) return { role: "user", from: e.from, content: e.content, at: e.at };
+    var p = parseReply(e.content);
+    var m = { role: "assistant", content: p.text, companion: id, at: e.at, meta: { lane: "brain", lane_label: e.task ? "Scheduled task" : "Finished on the brain" } };
+    if (p.react) m.react = p.react;
+    if (!p.text && p.read) m.onRead = true;
+    if (e.task) m.task = e.task;
+    return m;
+  }
+  function seen(ch, m) {
+    var k = norm(m.content);
+    return ch.messages.slice(-40).some(function (x) {
+      if (!!x.from !== !!m.from || (x.role === "assistant") !== (m.role === "assistant")) return false;
+      if (m.onRead) return !!x.onRead && Math.abs((x.at || 0) - m.at) < 120000;
+      return norm(x.content) === k;
+    });
+  }
+  function catchUp() {
+    if (catching || state.busy || state.power === "lowlight" || !window.Sync || !Sync.user()) return;
+    catching = true;
+    api("/v1/blink/since?t=" + synced).then(function (d) {
+      if (!d || !d.chats) return;
+      var redraw = false;
+      Object.keys(d.chats).forEach(function (id) {
+        if (!byId[id]) return;
+        var ch = chatFor(id), added = 0;
+        d.chats[id].forEach(function (e) {
+          if (e.role === "user" && !e.from) return; // yours: the app already has them
+          var m = fromLog(e, id);
+          if (!ch) ch = newChatFor(id);
+          if (seen(ch, m)) return;
+          ch.messages.push(m);
+          ch.messages.sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
+          ch.updated = Math.max(ch.updated, e.at);
+          added++;
+        });
+        if (!added) return;
+        if (window.Sync) Sync.push(ch);
+        if (id === state.companion && !document.hidden) redraw = true;
+        else state.unread[id] = (state.unread[id] || 0) + added;
+      });
+      synced = d.now || Date.now();
+      Kit.set("pv_synced", String(synced));
+      Kit.set("pv_unread", JSON.stringify(state.unread));
+      save();
+      refreshRows();
+      if (redraw) { renderThread(); pulse(0.8); }
+    }).catch(function () {}).then(function () { catching = false; });
+  }
+
   /* ── Settings ──────────────────────────────────────────────────── */
   function openSettings() {
     $("setName").value = state.user.name || "";
@@ -1015,40 +1091,111 @@
     $("settings").showModal();
     loadMind();
   }
-  // Memory, scheduled tasks and the inbox, from the person's Mind on the server.
+  // The Blink you are with: its own files (SOUL.md is yours to edit), what it
+  // remembers, and what it has scheduled.
+  var FILES = [["soul", "SOUL.md"], ["user", "USER.md"], ["memory", "MEMORY.md"], ["history", "HISTORY.md"]];
   function loadMind() {
-    var host = $("mind");
-    host.innerHTML = '<p class="help">Loading what Cloak remembers.</p>';
-    api("/v1/me").then(function (d) {
+    var host = $("mind"), id = state.companion, c = who(id), q = "?blink=" + encodeURIComponent(id);
+    host.innerHTML = '<p class="help">Loading ' + Kit.esc(c.name) + "'s files.</p>";
+    api("/v1/me" + q).then(function (d) {
+      if (d.power === "lowlight" || !d.files) {
+        host.innerHTML = '<p class="lbl">' + Kit.esc(c.name) + '\'s files</p><p class="help">They live on Cloak\'s brain, which is resting in Low Light. They will be back when it wakes up.</p>';
+        return;
+      }
+      var f = d.files, tab = "soul";
       var when = function (ms) { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
-      var row = function (text, sub, kind, id) { return '<li><div><span>' + Kit.esc(text) + "</span>" + (sub ? "<small>" + Kit.esc(sub) + "</small>" : "") + '</div><button type="button" class="iconbtn" data-del="' + kind + ":" + id + '" aria-label="Delete">' + Kit.icon("trash") + "</button></li>"; };
+      var row = function (text, sub, kind, rid) { return '<li><div><span>' + Kit.esc(text) + "</span>" + (sub ? "<small>" + Kit.esc(sub) + "</small>" : "") + '</div><button type="button" class="iconbtn" data-del="' + kind + ":" + rid + '" aria-label="Delete">' + Kit.icon("trash") + "</button></li>"; };
       host.innerHTML =
-        '<p class="lbl">Inbox</p>' + (d.inbox.length ? '<ul class="mind">' + d.inbox.map(function (i) { return row((i.kind === "task" ? "Task: " : "Finished while you were away: ") + i.title, byId[i.companion] ? byId[i.companion].name + ", " + when(i.created) : when(i.created), "inbox", i.id).replace("<li>", '<li data-open="' + i.id + '">'); }).join("") + "</ul>" : '<p class="help">Results from scheduled tasks, and replies that finished after you left, land here.</p>') +
-        '<p class="lbl">Scheduled</p>' + (d.tasks.length ? '<ul class="mind">' + d.tasks.map(function (t) { return row(t.title, "Next " + when(t.at) + (t.repeat !== "none" ? ", " + t.repeat : ""), "tasks", t.id); }).join("") + "</ul>" : '<p class="help">Nothing scheduled. Ask a companion to remind you or to check on something later.</p>') +
-        '<p class="lbl">Memory</p>' + (d.memories.length ? '<ul class="mind">' + d.memories.map(function (m) { return row(m.fact, m.kind + ", " + m.day, "memory", m.id); }).join("") + "</ul>" : '<p class="help">Nothing remembered yet. The companions keep lasting things you tell them, and you can delete any of it here.</p>');
-      var unseen = d.inbox.filter(function (i) { return !i.seen; }).map(function (i) { return i.id; });
-      if (unseen.length) api("/v1/inbox/seen", { method: "POST", body: JSON.stringify({ ids: unseen }) }).then(badge);
-      host.onclick = function (e) {
-        var del = e.target.closest("[data-del]");
-        if (del) { var p = del.getAttribute("data-del").split(":"); api("/v1/" + p[0] + "/" + p[1], { method: "DELETE" }).then(loadMind); return; }
-        var open = e.target.closest("[data-open]");
-        if (open) {
-          var item = d.inbox.find(function (i) { return String(i.id) === open.getAttribute("data-open"); });
-          if (!item) return;
-          // Open the result as a chat so it can be continued.
-          var c = { id: uid(), companion: byId[item.companion] ? item.companion : "cloak", title: item.title.slice(0, 60), updated: Date.now(), messages: [{ role: "user", content: item.title }, { role: "assistant", content: item.body, companion: item.companion, sources: (item.meta || {}).sources, meta: { lane: (item.meta || {}).lane || "task", lane_label: item.kind === "task" ? "Scheduled task" : "Finished in the background", impact: (item.meta || {}).impact } }] };
-          state.chats.unshift(c); save(); $("settings").close(); openChat(c.id);
-        }
+        '<p class="lbl">' + Kit.esc(c.name) + "'s files</p>" +
+        '<p class="help">' + f.messages + " messages in your chat" + (f.compacted ? ", the oldest " + f.compacted + " summarized in HISTORY.md" : "") + ". Everything lives on Cloak's brain.</p>" +
+        '<div class="files-tabs" role="tablist">' + FILES.map(function (x) { return '<button type="button" role="tab" data-tab="' + x[0] + '" aria-selected="' + (x[0] === tab) + '">' + x[1] + "</button>"; }).join("") + "</div>" +
+        '<textarea class="md-file" id="mdFile" spellcheck="false" aria-label="File contents"></textarea>' +
+        '<div class="dlg-row" id="soulRow"><button type="button" class="btn btn-sm" id="soulSave">Save SOUL.md</button></div>' +
+        '<p class="lbl">Scheduled</p>' + (d.tasks.length ? '<ul class="mind">' + d.tasks.map(function (t) { return row(t.title, "Next " + when(t.at) + (t.repeat !== "none" ? ", " + t.repeat : ""), "tasks", t.id); }).join("") + "</ul>" : '<p class="help">Nothing scheduled. Ask ' + Kit.esc(c.name) + " to remind you or to check on something later.</p>") +
+        '<p class="lbl">Remembers</p>' + (d.memories.length ? '<ul class="mind">' + d.memories.map(function (m) { return row(m.fact, m.kind + ", " + m.day, "memory", m.id); }).join("") + "</ul>" : '<p class="help">Nothing yet. ' + Kit.esc(c.name) + " keeps lasting things you say in USER.md and MEMORY.md, and you can delete any of it here.</p>");
+      var ta = $("mdFile");
+      function show(k) {
+        tab = k;
+        host.querySelectorAll("[data-tab]").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-tab") === k ? "true" : "false"); });
+        ta.value = f[k] || "(empty)";
+        ta.readOnly = k !== "soul";
+        $("soulRow").hidden = k !== "soul";
+      }
+      show("soul");
+      $("soulSave").onclick = function () {
+        var b = this;
+        b.disabled = true;
+        api("/v1/blink/soul" + q, { method: "POST", body: JSON.stringify({ text: ta.value }) }).then(function (r) {
+          b.disabled = false;
+          b.textContent = r.ok ? "Saved" : "Too short to save";
+          if (r.ok) { f.soul = ta.value; cheer(); }
+          setTimeout(function () { b.textContent = "Save SOUL.md"; }, 1600);
+        }).catch(function () { b.disabled = false; });
       };
-    }).catch(function () { host.innerHTML = '<p class="help">Memory, tasks and the inbox need the preview backend, which is not connected.</p>'; });
+      host.onclick = function (e) {
+        var t = e.target.closest("[data-tab]");
+        if (t) { show(t.getAttribute("data-tab")); return; }
+        var del = e.target.closest("[data-del]");
+        if (del) { var p = del.getAttribute("data-del").split(":"); api("/v1/" + p[0] + "/" + p[1] + q, { method: "DELETE" }).then(loadMind); }
+      };
+    }).catch(function () { host.innerHTML = '<p class="help">Could not reach Cloak\'s brain just now.</p>'; });
   }
+  // Results that finished while the brain was away (Low Light) wait in the
+  // Worker's inbox; they move into their Blink's chat when you come back.
   function badge() {
     api("/v1/me").then(function (d) {
-      var n = d.inbox.filter(function (i) { return !i.seen; }).length;
-      var b = $("inboxBadge"); b.hidden = !n; b.textContent = n;
+      var items = (d.inbox || []).filter(function (i) { return !i.seen; });
+      if (!items.length) { $("inboxBadge").hidden = true; return; }
+      items.forEach(function (i) {
+        var id = byId[i.companion] ? i.companion : "cloak", ch = chatFor(id) || newChatFor(id);
+        var m = { role: "assistant", content: i.body, companion: id, at: i.created, task: i.kind === "task" ? i.title : undefined, sources: (i.meta || {}).sources, meta: { lane: (i.meta || {}).lane || "task", lane_label: i.kind === "task" ? "Scheduled task" : "Finished in the background", impact: (i.meta || {}).impact } };
+        if (!seen(ch, m)) { ch.messages.push(m); ch.updated = Math.max(ch.updated, i.created); if (id !== state.companion) state.unread[id] = (state.unread[id] || 0) + 1; if (window.Sync) Sync.push(ch); }
+      });
+      api("/v1/inbox/seen", { method: "POST", body: JSON.stringify({ ids: items.map(function (i) { return i.id; }) }) });
+      Kit.set("pv_unread", JSON.stringify(state.unread));
+      save();
+      refreshRows();
+      if (items.some(function (i) { return (byId[i.companion] ? i.companion : "cloak") === state.companion; }) && !state.busy) renderThread();
     }).catch(function () {});
   }
-  function whoLabel() { $("whoName").textContent = (state.user.name || "").trim() || "You"; }
+  // The account row: your initials, your name, your email.
+  function whoLabel() {
+    var u = window.Sync && Sync.user ? Sync.user() : null;
+    var meta = (u && u.user_metadata) || {};
+    var name = (state.user.name || "").trim() || meta.display_name || meta.full_name || (u && u.email ? u.email.split("@")[0] : "") || "You";
+    $("whoName").textContent = name;
+    $("whoEmail").textContent = (u && u.email) || "Signed in";
+    $("userAv").textContent = name.split(/\s+/).map(function (w) { return w[0] || ""; }).join("").slice(0, 2).toUpperCase() || "?";
+  }
+
+  /* ── Sidebar: rail on desktop, drawer on phones ─────────────────── */
+  var phone = matchMedia("(max-width:780px)");
+  function toggleSide() {
+    var app = $("app");
+    if (phone.matches) { app.classList.toggle("open"); return; }
+    var rail = !app.classList.contains("rail");
+    app.classList.toggle("rail", rail);
+    Kit.set("pv_rail", rail ? "1" : "");
+    hideTip();
+    setTimeout(function () { inkTo(true); }, 600);
+  }
+  // On the rail, hovering an item flies its name out beside it.
+  var tip = null;
+  function hideTip() { if (tip) tip.classList.remove("show"); }
+  function showTip(el) {
+    if (phone.matches || !$("app").classList.contains("rail")) return;
+    var label = el.getAttribute("data-tip");
+    if (!label) return;
+    if (!tip) { tip = document.createElement("div"); tip.className = "sb-tip"; tip.setAttribute("aria-hidden", "true"); document.body.appendChild(tip); }
+    var r = el.getBoundingClientRect(), was = tip.classList.contains("show");
+    tip.textContent = label;
+    tip.classList.toggle("jump", !was);
+    tip.style.left = ($("side").getBoundingClientRect().right + 10) + "px";
+    tip.style.setProperty("--tip-y", (r.top + r.height / 2) + "px");
+    void tip.offsetWidth;
+    tip.classList.remove("jump");
+    tip.classList.add("show");
+  }
 
   /* ── Wire up ───────────────────────────────────────────────────── */
   function init() {
@@ -1060,7 +1207,6 @@
     if (byId[q.get("c")]) { state.companion = q.get("c"); Kit.set("pv_companion", state.companion); renderComps(); mountFigs(); }
     if (q.get("make")) { history.replaceState(null, "", location.pathname); setTimeout(function () { editBlink(null); }, 300); }
     renderThread();
-    renderHist();
 
     var sp = SPONSORS[Math.floor(Math.random() * SPONSORS.length)];
     $("spTitle").textContent = sp.title;
@@ -1093,17 +1239,26 @@
       this.value = "";
       renderThumbs();
     });
-    $("newChat").addEventListener("click", function () { newChat(); closeSide(); });
+    $("newBlink").addEventListener("click", function () { editBlink(null); closeSide(); });
     $("searchBtn").addEventListener("click", function () {
       var r = $("searchRow");
+      if ($("app").classList.contains("rail")) toggleSide();
       r.hidden = !r.hidden;
-      if (!r.hidden) $("search").focus(); else { $("search").value = ""; renderComps(); renderHist(); }
+      this.setAttribute("aria-expanded", r.hidden ? "false" : "true");
+      if (!r.hidden) $("search").focus(); else { $("search").value = ""; renderComps(); }
     });
-    $("search").addEventListener("input", function () { renderComps(); renderHist(); });
+    $("search").addEventListener("input", function () { renderComps(); });
     $("feature").addEventListener("click", function () { cheer(); });
     window.addEventListener("resize", function () { inkTo(true); });
-    $("menu").addEventListener("click", function () { $("app").classList.add("open"); });
+    if (Kit.get("pv_rail") && !phone.matches) $("app").classList.add("rail");
+    $("menu").addEventListener("click", toggleSide);
     $("scrim").addEventListener("click", closeSide);
+    $("side").addEventListener("pointerover", function (e) { var t = e.target.closest("[data-tip]"); if (t) showTip(t); });
+    $("side").addEventListener("pointerleave", hideTip);
+    $("side").addEventListener("focusin", function (e) { var t = e.target.closest("[data-tip]"); if (t) showTip(t); });
+    $("side").addEventListener("focusout", hideTip);
+    // The bottom band is exactly the composer's height: one line across.
+    if (window.ResizeObserver) new ResizeObserver(function (es) { $("app").style.setProperty("--input-h", Math.round(es[0].target.getBoundingClientRect().height) + "px"); }).observe(document.querySelector(".composer"));
     // Thinking mode: one quiet button, the choices in a menu.
     var modeBtn = $("modeBtn"), modeMenu = $("modeMenu");
     function modeOpen(on) {
@@ -1150,6 +1305,7 @@
         if (!byId[state.companion]) state.companion = "cloak";
         renderComps();
         mountFigs();
+        catchUp();
       },
       onChats: function (remote) {
         // Merge by id, newest copy wins.
@@ -1158,18 +1314,23 @@
           if (i === -1) state.chats.push(r); else if (r.updated > state.chats[i].updated) state.chats[i] = r;
         });
         save();
-        renderHist();
+        renderComps();
+        if (!state.busy) renderThread();
+        catchUp();
       },
       local: function () { return state.chats; },
     };
 
     pollPower();
     setInterval(pollPower, 60000);
-    document.addEventListener("visibilitychange", function () { if (!document.hidden) { badge(); pollPower(); } });
+    setInterval(function () { if (!document.hidden) catchUp(); }, 20000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) { badge(); pollPower(); catchUp(); } });
     // Blinks needs a Cloak account: sign in first, then everything syncs.
     function go() {
       Sync.init(hooks);
+      whoLabel();
       badge();
+      catchUp();
       if (q.get("q")) { history.replaceState(null, "", location.pathname); send(q.get("q")); }
       else if (matchMedia("(min-width: 781px)").matches) $("input").focus();
     }

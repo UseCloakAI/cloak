@@ -24,6 +24,7 @@
       el.setAttribute("aria-label", "Cloak Blinks");
     });
     document.querySelectorAll("[data-brand-tag]").forEach(function (el) { el.textContent = BRANDS[brand].tag; });
+    document.querySelectorAll("[data-brand-o]").forEach(function (el) { el.outerHTML = MARK; });
   }
 
   // Every O on the page looks toward the pointer. One rAF per move, no loop.

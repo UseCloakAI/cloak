@@ -30,34 +30,36 @@
 </div>
 
 <div class="app" id="app">
-  <aside class="side" id="side" aria-label="Your Blinks and chats">
-    <div class="side-head">
-      <a class="brand" href="index.html" data-brand>Cloak</a>
-      <span class="sp"></span>
-      <button class="iconbtn round" id="searchBtn" aria-label="Search chats"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#magnifying-glass"/></svg></button>
-      <button class="iconbtn round" id="newChat" aria-label="New chat"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#plus"/></svg></button>
+  <div class="scrim" id="scrim"></div>
+  <aside class="sidebar" id="side" aria-label="Your Blinks">
+    <div class="sb-logo">
+      <a class="sb-word" href="index.html" aria-label="Cloak Blinks"><span class="sb-c">C</span><span>L</span><span class="sb-o"><span data-brand-o></span></span><span>A</span><span>K</span><span class="sub">blinks</span></a>
     </div>
-    <div class="side-search" id="searchRow" hidden><input class="field" id="search" type="search" placeholder="Search Blinks and chats" aria-label="Search Blinks and chats"></div>
-    <button class="feature" id="feature" type="button" aria-label="Talk to your Blink">
+    <button class="sb-feature" id="feature" type="button" data-tip="Your Blink">
       <span class="feature-fig" id="featFig"></span>
       <span class="feature-tx"><b id="featName">Cloak</b><span class="mood" id="mood">Here</span></span>
     </button>
-    <div class="side-scroll">
-      <div class="blist" id="comps"></div>
-      <p class="sb-label">Recent</p>
-      <div id="hist"></div>
-    </div>
-    <div class="side-foot">
-      <button class="who" id="openSettings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#user-circle"/></svg><span id="whoName">You</span><b class="badge" id="inboxBadge" hidden></b></button>
-      <button class="iconbtn" data-mode-toggle aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
-      <button class="iconbtn" id="openSettings2" aria-label="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg></button>
+    <button class="sb-btn sb-new" id="newBlink" type="button" data-tip="New Blink"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#plus"/></svg><span class="sbl">New Blink</span></button>
+    <button class="sb-btn sb-find" id="searchBtn" type="button" data-tip="Find a Blink" aria-expanded="false"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#magnifying-glass"/></svg><span class="sbl">Find a Blink</span></button>
+    <div class="side-search" id="searchRow" hidden><input class="field" id="search" type="search" placeholder="Search your Blinks" aria-label="Search your Blinks"></div>
+    <div class="sb-label">Blinks</div>
+    <div class="conv-list blist" id="comps"></div>
+    <div class="sb-footer">
+      <button class="user-row" id="openSettings" type="button" aria-label="Account and settings" data-tip="Account">
+        <span class="user-av" id="userAv">?</span>
+        <span class="user-info"><span class="user-name" id="whoName">You</span><span class="user-email" id="whoEmail"></span></span>
+        <b class="badge" id="inboxBadge" hidden></b>
+      </button>
+      <div class="sb-actions">
+        <button class="sb-btn sb-util" id="openSettings2" type="button" data-tip="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg><span class="sbl">Settings</span></button>
+        <a class="sb-btn sb-util" href="https://usecloak.org/values.html" data-tip="Our Values"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#seal-check"/></svg><span class="sbl">Our Values</span></a>
+      </div>
     </div>
   </aside>
-  <div class="scrim" id="scrim"></div>
 
   <main class="main">
     <header class="top">
-      <button class="iconbtn menu" id="menu" aria-label="Open menu"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#list"/></svg></button>
+      <button class="iconbtn sb-toggle" id="menu" type="button" aria-label="Toggle sidebar" aria-controls="side"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#list"/></svg></button>
       <div class="chip-who"><span class="top-av" id="topAv"></span><span class="top-who"><b id="topName">Cloak</b><span id="topRole">Your Blink</span></span></div>
       <span class="sp"></span>
       <div class="modes">
@@ -70,6 +72,7 @@
           <button role="menuitemradio" aria-checked="false" data-mode="team"><b>Team</b><span>Several helpers work in parallel, then one answer comes back.</span></button>
         </div>
       </div>
+      <button class="iconbtn top-mode" data-mode-toggle type="button" aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
       <a class="sponsor-pill" id="sponsor" href="impact.html#sponsors" title=""><small>Sponsor</small><b id="spTitle"></b></a>
     </header>
 

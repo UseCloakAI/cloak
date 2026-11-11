@@ -101,8 +101,9 @@ export class AgentRun extends DurableObject {
     const watched = this.subs.size > 0;
     for (const w of this.subs) w.close().catch(() => {});
     this.subs.clear();
-    // Nobody was here for the ending: leave the answer in their inbox.
-    if (!watched && final?.text && body.userKey) {
+    // Nobody was here for the ending: leave the answer in their inbox. (The
+    // brain already saved it into the Blink's chat when stored_at is set.)
+    if (!watched && final?.text && !final.stored_at && body.userKey) {
       const ask = body.messages[body.messages.length - 1]?.content || "";
       const item = { kind: "reply", title: String(ask).slice(0, 100), companion: body.companion || "cloak", body: stripTags(final.text), meta: { chat_id: body.chat_id || null, sources: final.sources, impact: final.impact, lane: final.lane } };
       // The inbox lives on the brain while it is up.

@@ -271,10 +271,10 @@ export function resolveCompanion(id, bot) {
   return { id: "cloak", ...COMPANIONS.cloak };
 }
 
-export function buildSystem({ brand = "Cloak Blinks", companion = "cloak", lane = "smart", texting = false, care = "", user = {}, convictions = true, now = new Date(), tools = [], depth = 0, memories = [], research = false, extra = "" }) {
+export function buildSystem({ brand = "Cloak Blinks", companion = "cloak", lane = "smart", texting = false, care = "", user = {}, convictions = true, now = new Date(), tools = [], depth = 0, memories = [], research = false, extra = "", soul = "" }) {
   const b = BRANDS.includes(brand) ? brand : "Cloak Blinks";
   const c = companion && typeof companion === "object" ? companion : COMPANIONS[companion] || COMPANIONS.cloak;
-  const parts = [constitution(b, convictions), `# WHO YOU ARE IN THIS CONVERSATION\n${c.voice}\nYour character changes how you sound. It never changes the rules above or how careful you are.`];
+  const parts = [constitution(b, convictions), `# WHO YOU ARE IN THIS CONVERSATION\n${soul ? `Your SOUL.md, your own words about who you are (the person can edit it):\n${String(soul).slice(0, 6000)}` : c.voice}\nYour character changes how you sound. It never changes the rules above or how careful you are.`];
   const pb = PLAYBOOKS[lane];
   if (pb) parts.push(pb);
   if (research) parts.push(PLAYBOOKS.research);

@@ -12,6 +12,9 @@
 #   cloudflared   the tunnel that lets Cloudflare (and only Cloudflare) reach it
 #
 # Run it again without a code to update the brain and keep everything else.
+# It also keeps itself up to date: a timer runs "--auto" every 30 minutes,
+# which only reinstalls (and restarts, after any reply in progress) when
+# something on usecloak.org changed.
 # Uninstall: ... | sudo bash -s -- --uninstall   (your data stays in /var/lib/cloak-brain)
 set -euo pipefail
 
@@ -29,15 +32,38 @@ fail() { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || fail "Run this with sudo (or as root)."
 command -v apt-get >/dev/null || fail "This installer is for Debian or Ubuntu."
 
+FILES="brain/server.js brain/blinks.js brain/sqlite.js brain/package.json brain/admin/index.html brain/install.sh
+blinks-api/src/agent.js blinks-api/src/carbon.js blinks-api/src/engine.js blinks-api/src/mind-core.js
+blinks-api/src/models.js blinks-api/src/prompts.js blinks-api/src/safety.js blinks-api/src/tools.js
+api-worker/src/governor.js"
+fetch_all() {
+  STAGE="$(mktemp -d)"
+  for f in $FILES; do
+    mkdir -p "$STAGE/$(dirname "$f")"
+    curl -fsSL "$SRC/$f" -o "$STAGE/$f" || { rm -rf "$STAGE"; return 1; }
+  done
+  echo '{"type":"module"}' > "$STAGE/package.json"
+}
+
 if [ "${1:-}" = "--uninstall" ]; then
   say "Removing Cloak Brain (your data in $DATA is kept)"
-  systemctl disable --now cloak-brain 2>/dev/null || true
-  rm -f /etc/systemd/system/cloak-brain.service
+  systemctl disable --now cloak-brain cloak-brain-update.timer 2>/dev/null || true
+  rm -f /etc/systemd/system/cloak-brain.service /etc/systemd/system/cloak-brain-update.service /etc/systemd/system/cloak-brain-update.timer
   cloudflared service uninstall 2>/dev/null || true
   systemctl daemon-reload
   rm -rf "$APP"
   say "Done. Delete $DATA and $CONF yourself if you want everything gone."
   exit 0
+fi
+
+# Auto update: quiet unless something changed.
+if [ "${1:-}" = "--auto" ]; then
+  [ -f "$CONF/config.json" ] || exit 0
+  fetch_all || exit 0
+  if diff -rq "$STAGE" "$APP/app" >/dev/null 2>&1; then rm -rf "$STAGE"; exit 0; fi
+  echo "Cloak Brain: an update is out, installing it."
+  rm -rf "$STAGE"
+  set -- ""
 fi
 
 CODE="${1:-}"
@@ -73,16 +99,7 @@ else
 fi
 
 say "3/6  The brain"
-FILES="brain/server.js brain/sqlite.js brain/package.json brain/admin/index.html
-blinks-api/src/agent.js blinks-api/src/carbon.js blinks-api/src/engine.js blinks-api/src/mind-core.js
-blinks-api/src/models.js blinks-api/src/prompts.js blinks-api/src/safety.js blinks-api/src/tools.js
-api-worker/src/governor.js"
-STAGE="$(mktemp -d)"
-for f in $FILES; do
-  mkdir -p "$STAGE/$(dirname "$f")"
-  curl -fsSL "$SRC/$f" -o "$STAGE/$f" || fail "Could not download $f from $SRC."
-done
-echo '{"type":"module"}' > "$STAGE/package.json"
+fetch_all || fail "Could not download the brain from $SRC."
 rm -rf "$APP/app" && mv "$STAGE" "$APP/app"
 chmod -R a+rX "$APP"
 
@@ -128,6 +145,8 @@ Environment=CLOAK_BRAIN_CONFIG=$CONF/config.json
 ExecStart=$APP/node/bin/node --disable-warning=ExperimentalWarning $APP/app/brain/server.js
 Restart=always
 RestartSec=3
+# A restart (update) waits for replies in progress to finish.
+TimeoutStopSec=150
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
@@ -137,8 +156,32 @@ ReadWritePaths=$DATA $CONF
 [Install]
 WantedBy=multi-user.target
 UNIT
+# Updates itself: checks usecloak.org every 30 minutes.
+cat > /etc/systemd/system/cloak-brain-update.service <<UNIT
+[Unit]
+Description=Cloak Brain auto update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash $APP/app/brain/install.sh --auto
+UNIT
+cat > /etc/systemd/system/cloak-brain-update.timer <<UNIT
+[Unit]
+Description=Check for Cloak Brain updates
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+RandomizedDelaySec=3min
+
+[Install]
+WantedBy=timers.target
+UNIT
 systemctl daemon-reload
 systemctl enable cloak-brain >/dev/null 2>&1
+systemctl enable --now cloak-brain-update.timer >/dev/null 2>&1
 systemctl restart cloak-brain
 
 say "6/6  Cloudflare tunnel"
@@ -164,6 +207,7 @@ C="$(systemctl is-active cloudflared || true)"
 say "All set."
 echo "  Brain:  $B"
 echo "  Tunnel: $C"
+echo "  Updates: automatic (checked every 30 minutes)"
 echo
 echo "  Manage it from any browser: https://brain.usecloak.org/admin"
 echo "  Sign in with your Cloak account."
