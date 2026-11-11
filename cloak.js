@@ -1109,7 +1109,7 @@ async function confirmOnboarding(){const m=document.getElementById('onboard-moda
 /* ── AD CONSENT ── */
 let _adDisagreeClicks=0;
 function checkAdConsent(){const c=localStorage.getItem('cloak_ad_consent');if(c==='yes')loadAdSense();else if(!c)document.getElementById('ad-modal').style.display='flex';}
-function loadAdSense(){if(document.getElementById('adsense-script'))return;const s=document.createElement('script');s.id='adsense-script';s.async=true;s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6774734854152622';s.crossOrigin='anonymous';document.head.appendChild(s);}
+function loadAdSense(){if(document.readyState!=='complete'){window.addEventListener('load',()=>loadAdSense(),{once:true});return;}if(!loadAdSense._idle){loadAdSense._idle=1;(window.requestIdleCallback||(f=>setTimeout(f,1500)))(()=>loadAdSense(),{timeout:4000});return;}if(document.getElementById('adsense-script'))return;const s=document.createElement('script');s.id='adsense-script';s.async=true;s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6774734854152622';s.crossOrigin='anonymous';document.head.appendChild(s);}
 function closeAdModal(){const m=document.getElementById('ad-modal');mLeave(m,()=>{m.style.display='none';});}
 function handleAdAgree(){localStorage.setItem('cloak_ad_consent','yes');closeAdModal();loadAdSense();}
 function handleAdDisagree(){_adDisagreeClicks++;const btn=document.getElementById('ad-disagree-btn');if(_adDisagreeClicks===1){btn.classList.add('sure');mRoll(btn,'Are you sure?');}else{localStorage.setItem('cloak_ad_consent','no');closeAdModal();}}
