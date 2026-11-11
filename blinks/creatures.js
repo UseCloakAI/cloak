@@ -188,7 +188,7 @@
   var VARIANTS = {
     idle: ["breathe", "float"],
     listen: ["lean", "nudge"],
-    think: ["pendulum", "orbit"],
+    think: ["arc", "pendulum", "orbit"],
     search: ["arc", "peek"],
     work: ["hop", "bounce"],
     talk: ["bob", "pulse"],
@@ -337,7 +337,15 @@
           leanX = Math.sin(t * 2.6 * Math.PI) * 4;
         }
       } else if (mood === "think") {
-        if (v === "orbit") {
+        if (v === "arc") {
+          // The eyes travel an arc around the bottom of the face, side to side
+          // (unhurried: it is thinking, not reading).
+          var tha = Math.PI * (0.5 - 0.5 * Math.cos(t * 1.5));
+          lx = -Math.cos(tha); ly = 0.1 + 0.9 * Math.sin(tha);
+          reach = 1.5;
+          tiltX = lx * 5; leanX = lx * 2.5;
+          hopY -= Math.abs(Math.sin(t * 3)) * 2;
+        } else if (v === "orbit") {
           // Eyes roll up and around while the body tips after them.
           lx = Math.cos(t * 2.2) * 0.9; ly = -0.45 + Math.sin(t * 2.2) * 0.45;
           reach = 1.35;

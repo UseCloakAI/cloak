@@ -1049,3 +1049,23 @@ html.resizing iframe{pointer-events:none}
 .bub .prose pre{max-width:100%;overflow-x:auto}
 .bub .prose table{max-width:100%;overflow-x:auto}
 .turn.them .stack{min-width:0;max-width:100%}
+
+/* ════ Status: in, between and out, cleanly ═══════════════════════════ */
+.now{animation:nowIn .34s var(--ease-out) both}
+@keyframes nowIn{from{opacity:0;translate:0 6px}}
+.now.now-out{animation:nowOut .22s var(--ease-in) both}
+@keyframes nowOut{to{opacity:0;translate:0 -4px;filter:blur(2px)}}
+.now-t span{will-change:transform,opacity}
+.did-in{animation:fade-in .3s var(--ease-out) both}
+@keyframes fade-in{from{opacity:0}}
+/* Pill mood label rolls between states */
+.mood-tx.rt{display:inline-grid;overflow:hidden;vertical-align:bottom}
+.mood-tx.rt>span{grid-area:1/1;white-space:nowrap}
+.mood-tx .rt-in{animation:rtIn .32s var(--ease-out) both}
+.mood-tx .rt-out{animation:rtOut .24s var(--ease-in) both}
+@keyframes rtIn{from{opacity:0;translate:0 70%}}
+@keyframes rtOut{to{opacity:0;translate:0 -70%}}
+@media (prefers-reduced-motion:reduce){.now,.now.now-out,.mood-tx .rt-in,.mood-tx .rt-out,.did-in{animation:none}}
+/* A Blink added after the list is drawn slides in on its own. */
+.sidebar .comp.row-in{animation:convIn .46s var(--ease-out) backwards}
+.sidebar .comp.conv-in{animation:convIn .46s var(--ease-out) backwards;animation-delay:calc(var(--k,0) * 28ms + .1s)}
