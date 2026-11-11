@@ -674,3 +674,141 @@ figure.drawn .note{font-size:1.05rem;rotate:-2deg}
 .files-tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .md-file{width:100%;min-height:180px;max-height:46vh;padding:10px 12px;border:var(--bd);background:var(--surface);color:var(--ink);font:400 .8rem/1.5 var(--fm);resize:vertical;white-space:pre-wrap}
 .md-file[readonly]{background:var(--sunk)}
+
+/* ════ v5: chat.usecloak.org's top bar, toggle, theme switch and Settings ═══ */
+/* The Blink you are with sits dead center in the top bar. */
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;padding:0 16px;background:var(--surface)}
+.top-l,.top-r{display:flex;align-items:center;gap:8px;min-width:0}
+.top-r{justify-content:flex-end}
+.top .chip-who{justify-self:center;max-width:min(46vw,360px)}
+.top .chip-who .top-who{min-width:0;flex:0 1 auto}
+.top .chip-who .top-who b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.page-title{margin:0;font:800 15px/1.1 var(--fd);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+
+/* Square buttons that lift off their shadow, exactly like the main app's */
+.icon-btn{width:36px;height:36px;border:var(--bd);background:var(--surface);color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift),background-color .15s;text-decoration:none}
+.icon-btn:hover{box-shadow:var(--shadow);transform:translate(-2px,-2px)}
+.icon-btn:active{box-shadow:none;transform:translate(2px,2px);transition-duration:var(--tp)}
+.icon-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.top .sb-toggle .ic,.app.rail .top .sb-toggle .ic{rotate:none}
+/* Sun and moon spin in when they swap */
+.moon{display:block}.sun{display:none}
+[data-mode="dark"] .moon{display:none}[data-mode="dark"] .sun{display:block}
+.icon-btn :is(.moon,.sun){transform-box:fill-box;transform-origin:center;animation:iconSwap .6s var(--sp-pop) backwards}
+@keyframes iconSwap{from{opacity:0;transform:rotate(-100deg) scale(.3)}}
+/* Theme wipe: the new mode grows out of the control you pressed as a hard-edged rectangle */
+html.vt-theme,html.vt-theme *,html.vt-theme *::before,html.vt-theme *::after{transition:none!important}
+html.vt-theme::view-transition-old(root),html.vt-theme::view-transition-new(root){animation:none;mix-blend-mode:normal}
+html.vt-theme::view-transition-new(root){animation:vtWipe .72s cubic-bezier(.65,0,.35,1) both}
+@keyframes vtWipe{from{clip-path:inset(var(--vt-t) var(--vt-r) var(--vt-b) var(--vt-l))}to{clip-path:inset(0)}}
+
+/* Pages in one shell: the leaving page dissolves on top, the next one's
+   header drops in and its body rises. The toggle holds still. */
+.main{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
+.page{flex:1;min-height:0;display:flex;flex-direction:column;position:relative;--pg-d:40ms}
+.page[hidden]{display:none}
+.page:focus{outline:none}
+.page.pg-out{position:absolute;inset:0;z-index:3;pointer-events:none;background:var(--bg);animation:pgOut .13s var(--ease-out) forwards}
+@keyframes pgOut{to{opacity:0}}
+@keyframes navIn{from{opacity:0;translate:0 -8px}}
+@keyframes pgRise{from{opacity:0;translate:0 12px}}
+@keyframes rvRise{from{opacity:0;translate:var(--rise,6px) calc(var(--rise,6px) + 16px);box-shadow:none}}
+@keyframes rvUp{from{opacity:0;translate:0 18px}}
+@keyframes paneIn{from{opacity:0;translate:16px 0}}
+@keyframes checkPop{from{opacity:0;scale:.2;rotate:-45deg}}
+.page.shown .top-l>:not(.sb-toggle),.page.shown .top-r,.page.shown .chip-who{animation:navIn .5s var(--ease-out) var(--pg-d) backwards}
+.page.shown .top-r{animation-delay:calc(var(--pg-d) + .06s)}
+#page-chat.shown .thread,#page-chat.shown .composer{animation:pgRise .5s var(--ease-out) calc(var(--pg-d) + 20ms) backwards}
+
+/* Settings: a card on the drifting hatch, nav on the left, panes on the right */
+.settings-page{isolation:isolate}
+.settings-page::before{content:"";position:absolute;top:0;bottom:0;left:-40px;right:0;z-index:-1;background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(0,0,0,.025) 24px,rgba(0,0,0,.025) 26px);pointer-events:none;animation:hatch 1.6s linear infinite}
+[data-mode="dark"] .settings-page::before{background-image:repeating-linear-gradient(45deg,transparent,transparent 24px,rgba(255,255,255,.03) 24px,rgba(255,255,255,.03) 26px)}
+@keyframes hatch{to{transform:translateX(36.77px)}}
+.settings-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;min-height:0;padding-bottom:max(24px,calc(env(safe-area-inset-bottom,0px) + 20px))}
+.settings-layout{display:flex;min-height:0;border:var(--bd);box-shadow:var(--shadow);background:var(--surface);max-width:880px;margin:26px auto;width:calc(100% - 52px)}
+.page.shown .settings-layout{animation:rvRise .62s var(--sp-snap) calc(var(--pg-d) + 20ms) backwards;--rise:4px}
+.settings-nav{width:172px;flex-shrink:0;border-right:var(--bd);background:var(--sunk);display:flex;flex-direction:column;padding:8px 6px;gap:2px;position:sticky;top:14px;align-self:flex-start}
+.snav-btn{display:flex;align-items:center;gap:9px;padding:10px;border:1.5px solid transparent;background:transparent;color:var(--ink);font:700 11px/1.1 var(--fb);text-transform:uppercase;letter-spacing:.08em;cursor:pointer;width:100%;text-align:left;transition:background-color .2s,border-color .2s,color .2s;position:relative;isolation:isolate}
+.snav-btn::before{content:"";position:absolute;inset:-1.5px;background:var(--ink);z-index:-1;transform:scaleX(0);transform-origin:0 50%;transition:transform .38s var(--ease-out)}
+.snav-btn::after{content:"";position:absolute;right:0;top:4px;bottom:4px;width:0;background:var(--accent);transition:width .4s var(--sp-pop)}
+.snav-btn:hover{background:var(--p3);border-color:var(--ink)}
+.snav-btn.on{color:var(--bg);border-color:var(--ink)}
+.snav-btn.on::before{transform:none}
+.snav-btn.on::after{width:3px;transition-delay:.12s}
+.snav-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.snav-btn>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.snav-icon{flex-shrink:0;display:flex;align-items:center;opacity:.65}
+.snav-btn.on .snav-icon{opacity:1}
+.snav-blink{width:18px;height:18px;margin:-3px -2px;opacity:1}
+.settings-body{flex:1;min-width:0}
+.spane{display:none;padding:22px;flex-direction:column}
+.spane.on{display:flex;animation:paneIn .42s var(--ease-out)}
+.spane.on>.srow,.spane.on #mind>.srow{animation:rvUp .5s var(--ease-out) backwards;animation-delay:calc(var(--k,0) * 45ms + 60ms)}
+.spane>.srow:nth-child(2),#mind>.srow:nth-child(2){--k:1}.spane>.srow:nth-child(3),#mind>.srow:nth-child(3){--k:2}.spane>.srow:nth-child(4),#mind>.srow:nth-child(4){--k:3}.spane>.srow:nth-child(5),#mind>.srow:nth-child(5){--k:4}
+.srow{display:grid;gap:8px;justify-items:start;padding:16px 0;border-bottom:1px solid var(--line)}
+.srow:last-child{border-bottom:none}
+.srow>*{max-width:100%}
+.srow .inp-field,.srow textarea.inp-field,.srow .md-file,.srow .mind,.srow .files-tabs,.srow-line{justify-self:stretch}
+.srow-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.srow-name{font:700 10px/1.3 var(--fb);text-transform:uppercase;letter-spacing:.13em;color:var(--ink)}
+.srow-desc{font-size:12px;line-height:1.58;color:var(--ink);opacity:.55;margin:-4px 0 0}
+.srow-line{display:flex;gap:8px}
+.inp-field{width:100%;height:44px;padding:0 13px;background:var(--bg);border:var(--bd);color:var(--ink);font:500 13px/1.4 var(--fb);outline:none;transition:box-shadow var(--lift),border-color .15s}
+.inp-field:focus{box-shadow:var(--shsm);border-color:var(--accent)}
+.inp-field::placeholder{color:var(--ink);opacity:.3}
+textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
+.cta{display:inline-flex;align-items:center;justify-content:center;flex:none;height:38px;padding:0 15px;background:var(--ink);border:var(--bd);box-shadow:var(--shsm);color:var(--bg);font:700 10px/1 var(--fb);text-transform:uppercase;letter-spacing:.1em;cursor:pointer;width:fit-content;transition:box-shadow var(--lift),transform var(--lift),background-color .15s,border-color .15s}
+.cta:hover{box-shadow:var(--shadow);transform:translate(-2px,-2px);background:var(--accent)}
+.cta:active{box-shadow:none;transform:translate(2px,2px);transition-duration:var(--tp)}
+.cta:disabled{opacity:.5;pointer-events:none}
+.danger{display:inline-flex;align-items:center;height:38px;padding:0 15px;background:transparent;border:2px solid var(--accent);color:var(--accent);font:700 10px/1 var(--fb);text-transform:uppercase;letter-spacing:.1em;cursor:pointer;width:fit-content;transition:color .15s,box-shadow var(--lift),transform var(--lift);position:relative;isolation:isolate}
+.danger::before{content:"";position:absolute;inset:0;background:var(--accent);z-index:-1;transform:scaleX(0);transform-origin:100% 50%;transition:transform .36s var(--ease-out)}
+.danger:hover{color:#fff;box-shadow:var(--shsm);transform:translate(-2px,-2px)}
+.danger:hover::before{transform:none;transform-origin:0 50%}
+.danger:active{box-shadow:none;transform:none;transition-duration:var(--tp)}
+.info-box{font-size:13px;padding:10px 13px;background:var(--sunk);border:var(--bd)}
+.acct-box{display:flex;align-items:center;gap:10px;justify-self:stretch}
+.user-av.big{width:36px;height:36px;font-size:13px}
+.acct-name{font-size:14px;font-weight:600}
+.acct-email{font-size:12px;opacity:.5}
+#mind{display:flex;flex-direction:column}
+.files-tabs button{transition:background-color .15s,color .15s,box-shadow var(--lift),transform var(--lift)}
+.files-tabs button:hover{transform:translate(-1px,-1px);box-shadow:var(--shsm)}
+.files-tabs button[aria-selected="true"]{animation:pop .4s var(--sp-snap)}
+@media (max-width:780px){
+  .settings-layout{flex-direction:column;margin:14px auto;width:calc(100% - 24px)}
+  .settings-nav{width:auto;flex-direction:row;overflow-x:auto;position:static;border-right:0;border-bottom:var(--bd);align-self:stretch}
+  .snav-btn{width:auto;flex:none}
+  .spane{padding:16px}
+  .top{padding:0 10px;gap:6px}
+  .top .chip-who{max-width:46vw}
+  .top-r .modes,.top-r .icon-btn[data-dark-toggle]{display:none}
+  #page-chat .top-r .modes{display:block}
+}
+
+/* ════ Sidebar, steadier: nothing reflows while it folds ════════════════
+   Labels have fixed widths (the open panel's) and are clipped by the panel
+   instead of squeezing, the Blink block keeps its height, and rows only
+   slide in the first time the list is drawn. */
+.sidebar .comp-tx{flex:none;width:calc(var(--sw) - 2 * var(--sb-pad) - 96px)}
+.sidebar .sbl{flex:none;width:calc(var(--sw) - 2 * var(--sb-pad) - 52px)}
+.sidebar .user-info{flex:none;width:calc(var(--sw) - 2 * var(--sb-pad) - 80px)}
+.sb-feature{height:88px;overflow:hidden}
+.sb-feature .feature-tx{flex:none;width:calc(var(--sw) - 2 * var(--sb-pad) - 104px)}
+.sb-feature .feature-tx b{display:block;white-space:nowrap;text-overflow:ellipsis;-webkit-line-clamp:unset}
+.app.rail .sb-feature{padding:2px 2px 2px 2px;justify-content:flex-start}
+.app.rail .sb-feature .feature-fig{width:36px;height:36px;margin-left:1px}
+.sidebar .comp.conv-in{animation:none}
+.sidebar.first .comp.conv-in{animation:convIn .46s var(--ease-out) backwards;animation-delay:calc(var(--k,0) * 28ms + .16s)}
+.sidebar :is(.sb-word,.sb-feature,.sb-new,.sb-find,.sb-label,.user-row,.sb-actions>.sb-btn){animation:none}
+.sidebar.first :is(.sb-word,.sb-feature,.sb-new,.sb-find,.sb-label,.user-row,.sb-actions>.sb-btn){animation:sbIn .6s var(--ease-out) backwards}
+.sidebar.first .sb-feature{animation-delay:.04s}.sidebar.first .sb-new{animation-delay:.09s}.sidebar.first .sb-find{animation-delay:.12s}.sidebar.first .sb-label{animation-delay:.15s}
+.sidebar.first .user-row{animation-delay:.1s}.sidebar.first .sb-actions>.sb-btn:first-child{animation-delay:.14s}.sidebar.first .sb-actions>.sb-btn:last-child{animation-delay:.18s}
+/* Settings marked in the sidebar like the main app: a soft tint, never the ink */
+.sb-util[data-nav]{isolation:isolate}
+.sb-util[data-nav]::before{content:"";position:absolute;inset:-1.5px;z-index:-1;background:var(--p3);opacity:0;clip-path:inset(0 100% 0 0);transition:opacity .2s ease,clip-path 0s .2s}
+.sb-util[data-nav].on{opacity:1;color:var(--accent);border-color:var(--ink)}
+.sb-util[data-nav].on::before{opacity:1;clip-path:inset(0);transition:clip-path .38s var(--ease-out)}
+.settings-page .top{grid-template-columns:minmax(0,1fr) auto}
+.sb-feature .feature-tx b.long{font-size:.88rem}
