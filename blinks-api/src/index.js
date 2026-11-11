@@ -306,6 +306,15 @@ async function handleAdmin(request, env, ctx, cors, path) {
     return json(r, cors, r.ok ? 200 : 400);
   }
   if (path === "/admin/revenue") return json(await ledger(env).bookRevenue(body), cors);
+  // A one-time pairing code for the brain installer (the payload holds its
+  // tunnel token and settings; the brain token is filled in here).
+  if (path === "/admin/pair") {
+    const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const bytes = crypto.getRandomValues(new Uint8Array(12));
+    const raw = Array.from(bytes, (b) => abc[b % abc.length]).join("");
+    const code = `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+    return json(await ledger(env).putPair(code, { ...body, brainToken: env.BRAIN_TOKEN }), cors);
+  }
   return json({ error: "Not found" }, cors, 404);
 }
 
@@ -321,6 +330,12 @@ export default {
       if (path === "/v1/status" && request.method === "GET") return json(statusBody(await brainState(env)), cors, 200, { "Cache-Control": "no-store" });
       if (path === "/v1/files" || path.startsWith("/v1/files/")) return await handleFiles(request, env, cors, path);
       if (path.startsWith("/internal/")) return await handleInternal(request, env, ctx, path);
+      let pm;
+      if ((pm = /^\/v1\/pair\/([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})$/.exec(path)) && request.method === "GET") {
+        if (limited(`pair:${request.headers.get("CF-Connecting-IP") || "anon"}`, 5)) return json({ error: "Too many tries. Wait a minute." }, cors, 429);
+        const payload = await ledger(env).takePair(pm[1]);
+        return payload ? json(payload, cors, 200, { "Cache-Control": "no-store" }) : json({ error: "That code is wrong, used or expired. Make a new one." }, cors, 404);
+      }
       let m;
       if ((m = /^\/v1\/runs\/([\w-]{16,64})(?:\/(cancel))?$/.exec(path))) return await handleRun(request, env, cors, m[1], m[2]);
       if (path === "/v1/me" || path.startsWith("/v1/memory") || path.startsWith("/v1/tasks") || path.startsWith("/v1/inbox")) return await handleMe(request, env, cors, path);

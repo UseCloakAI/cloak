@@ -63,6 +63,21 @@ export class Ledger extends DurableObject {
     return s;
   }
 
+  // One-time pairing codes for the brain installer: short to type, used
+  // once, gone after an hour.
+  putPair(code, payload, ttlMs = 3600_000) {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pair (code TEXT PRIMARY KEY, payload TEXT NOT NULL, until INTEGER NOT NULL)`);
+    this.sql.exec(`DELETE FROM pair WHERE until < ?`, Date.now());
+    this.sql.exec(`INSERT OR REPLACE INTO pair (code, payload, until) VALUES (?, ?, ?)`, code, JSON.stringify(payload), Date.now() + ttlMs);
+    return { code, until: new Date(Date.now() + ttlMs).toISOString() };
+  }
+  takePair(code) {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pair (code TEXT PRIMARY KEY, payload TEXT NOT NULL, until INTEGER NOT NULL)`);
+    const row = this.sql.exec(`SELECT payload, until FROM pair WHERE code = ?`, code).toArray()[0];
+    this.sql.exec(`DELETE FROM pair WHERE code = ? OR until < ?`, code, Date.now());
+    return row && row.until > Date.now() ? JSON.parse(row.payload) : null;
+  }
+
   recordReply({ lane = "smart", tokensIn = 0, tokensOut = 0, wh = 0, g = 0 }) {
     const d = today();
     this.sql.exec(

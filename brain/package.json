@@ -1,0 +1,10 @@
+{
+  "name": "cloak-brain",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cloak Blinks' home-PC brain: agent, memory, tasks, files and the management site.",
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": { "start": "node server.js" }
+}
