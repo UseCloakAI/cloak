@@ -195,6 +195,60 @@ export const TOOLS = {
       }
     },
   },
+  computer_look: {
+    spec: fn("computer_look", "Look at the screen of your computer (a Linux desktop with Firefox and a terminal, 1280x800). Returns what is on screen with x,y coordinates read off a 100px grid. Wakes the computer if it is asleep (that takes about a minute). Always look before clicking, and look again after to check what happened.", { question: str("What you need to find or check, for example: where is the address bar, did the page load, what does the error say.") }, ["question"]),
+    label: () => "Looking at the screen",
+    needs: "computer", top: true,
+    async run(a, cx) {
+      const r = await cx.computer.look(String(a.question || "Describe the screen."));
+      return { text: `Screen ${r.w}x${r.h}.\n${clip(r.text, RESULT_CHARS)}`, summary: "looked" };
+    },
+  },
+  computer_click: {
+    spec: fn("computer_click", "Click on the computer's screen at x,y (pixels, from computer_look).", { x: { type: "integer" }, y: { type: "integer" }, button: str("left (default), right, or double.", { enum: ["left", "right", "double"] }) }, ["x", "y"]),
+    label: (a) => `Clicking at ${a.x}, ${a.y}`,
+    needs: "computer", top: true,
+    async run(a, cx) {
+      await cx.computer.input({ action: a.button === "right" ? "right" : a.button === "double" ? "double" : "click", x: a.x, y: a.y });
+      return { text: "Clicked. Look again to see what happened.", summary: "clicked" };
+    },
+  },
+  computer_type: {
+    spec: fn("computer_type", "Type text on the computer, into whatever has focus (click the field first).", { text: str("The text to type. Use computer_key for Enter, Tab and shortcuts.") }, ["text"]),
+    label: () => "Typing",
+    needs: "computer", top: true, outward: (a) => a.text,
+    async run(a, cx) { await cx.computer.input({ action: "type", text: String(a.text || "") }); return { text: "Typed.", summary: "typed" }; },
+  },
+  computer_key: {
+    spec: fn("computer_key", "Press keys on the computer, xdotool style, separated by spaces: Return, Tab, Escape, BackSpace, ctrl+l, ctrl+c, alt+F4, super, Down.", { keys: str("For example: ctrl+l or Return or ctrl+shift+t") }, ["keys"]),
+    label: (a) => `Pressing ${String(a.keys || "").slice(0, 30)}`,
+    needs: "computer", top: true,
+    async run(a, cx) { await cx.computer.input({ action: "key", keys: String(a.keys || "") }); return { text: "Pressed.", summary: "pressed" }; },
+  },
+  computer_scroll: {
+    spec: fn("computer_scroll", "Scroll on the computer's screen, optionally at x,y.", { direction: str("up, down, left or right.", { enum: ["up", "down", "left", "right"] }), amount: { type: "integer", description: "Notches, 1 to 25 (default 3)." }, x: { type: "integer" }, y: { type: "integer" } }, ["direction"]),
+    label: (a) => `Scrolling ${a.direction || "down"}`,
+    needs: "computer", top: true,
+    async run(a, cx) { await cx.computer.input({ action: "scroll", direction: a.direction, amount: a.amount, x: a.x, y: a.y }); return { text: "Scrolled.", summary: "scrolled" }; },
+  },
+  computer_drag: {
+    spec: fn("computer_drag", "Drag with the mouse on the computer from x,y to to_x,to_y.", { x: { type: "integer" }, y: { type: "integer" }, to_x: { type: "integer" }, to_y: { type: "integer" } }, ["x", "y", "to_x", "to_y"]),
+    label: () => "Dragging",
+    needs: "computer", top: true,
+    async run(a, cx) { await cx.computer.input({ action: "drag", x: a.x, y: a.y, to_x: a.to_x, to_y: a.to_y }); return { text: "Dragged.", summary: "dragged" }; },
+  },
+  computer_run: {
+    spec: fn("computer_run", "Run a bash command on the computer (the desktop machine), as this person's own Linux account, in their home folder. Programs you start can open windows on the screen (end the command with & to leave them running). For code and packages with no screen, prefer server_run.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
+    label: (a) => `Running ${String(a.command || "").slice(0, 40)}`,
+    needs: "computer", top: true, outward: (a) => a.command,
+    async run(a, cx) { return ranText(await cx.computer.run("desktop", String(a.command || ""), a.timeout)); },
+  },
+  server_run: {
+    spec: fn("server_run", "Run a bash command on your server (headless Debian with Python, Node, git, build tools), as this person's own Linux account, in their home folder, which they keep between chats. Install packages with: sudo cloak-apt install NAME (Debian packages), pip install --user, or npm in a project folder. Memory limit 2.5 GB, up to 600 seconds.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
+    label: (a) => `Running ${String(a.command || "").slice(0, 40)}`,
+    needs: "computer", top: true, outward: (a) => a.command,
+    async run(a, cx) { return ranText(await cx.computer.run("server", String(a.command || ""), a.timeout)); },
+  },
   create_blink: {
     spec: fn("create_blink", "Make a new Blink for this person: a companion with its own look, name, purpose and personality. It appears in their sidebar right away with its own chat. Use when they ask you to make, build or design a Blink (or a bot or assistant inside Blinks). Design it thoughtfully to fit the purpose; fill in what they did not say.", {
       name: str("Its name, one or two words."),
@@ -360,9 +414,16 @@ export const TOOLS = {
 
 // The tools on offer for this call. Sub-agents (depth > 0) cannot delegate or
 // schedule; without a user key there is no memory.
-export function toolbox({ depth = 0, hasMind = false, hasTalk = false, hasFiles = false }) {
+function ranText(r) {
+  const parts = [`exit code ${r.code} after ${r.seconds}s`];
+  if (r.stdout) parts.push(`stdout:\n${clip(r.stdout, 4000)}`);
+  if (r.stderr) parts.push(`stderr:\n${clip(r.stderr, 2000)}`);
+  if (r.truncated) parts.push("(output was long; only the end is shown)");
+  return { text: parts.join("\n"), summary: r.code === 0 ? "done" : `exit ${r.code}` };
+}
+export function toolbox({ depth = 0, hasMind = false, hasTalk = false, hasFiles = false, hasComputer = false }) {
   return Object.entries(TOOLS)
-    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind) && !(t.needs === "talk" && !hasTalk) && !(t.needs === "files" && !hasFiles))
+    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind) && !(t.needs === "talk" && !hasTalk) && !(t.needs === "files" && !hasFiles) && !(t.needs === "computer" && !hasComputer))
     .map(([name]) => name);
 }
 // Every tool also takes "status": the line the person sees while it runs,

@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { openSql } from "./sqlite.js";
 import { runAgent, setIO, collect } from "../blinks-api/src/agent.js";
 import { makeBlinks } from "./blinks.js";
+import { makeComputer, Busy } from "./computer.js";
 import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
@@ -163,6 +164,16 @@ function legacy(user) {
 }
 const blinks = makeBlinks({ DATA, userDir, env, utility, runAgent, collect, log, legacy });
 
+// ── Cloak Computer: the VMs (brain/vm/setup.sh), when installed ─────────────
+async function vision(b64, mime, question, w, h) {
+  const system = `You are the eyes of an AI agent controlling a Linux desktop (${w}x${h}). The screenshot has a labelled grid every 100 pixels; read coordinates off it. Describe what is on screen that matters for the question: the open windows, what has focus, any text (exactly), and the clickable things with the x,y centre of each, for example: "Firefox address bar at (640, 64)". Be precise and brief.`;
+  let out = "";
+  for await (const ev of workerLane(env, "vision", { system, messages: [{ role: "user", content: [{ type: "text", text: question }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } }] }], maxTokens: 900 })) if (ev.done) out = ev.text;
+  return out || "The screen could not be read just now.";
+}
+const isAdmin = (email) => !!email && config.admins.map((a) => String(a).toLowerCase()).includes(String(email).toLowerCase());
+const computer = makeComputer({ log, isAdmin, vision });
+
 // ── Files ────────────────────────────────────────────────────────────────────
 const FILE_MAX = 100 * 1024 * 1024; // Cloudflare's request limit on the free plan
 const fileDir = (key) => path.join(DATA, "files", userDir(key));
@@ -236,6 +247,7 @@ async function handleTurn(req, res) {
   try {
     const turn = await blinks.prepare(body, out);
     turn.bindTalk(ctx, ctrl.signal);
+    if (computer.available && computer.allowed(body.email)) turn.body.computer = computer.forUser(body.userKey, out);
     for await (const ev of runAgent(env, ctx, turn.body, ctrl.signal)) {
       if (ev.step?.label) stats.active.get(id).step = ev.step.label;
       if (ev.done) {
@@ -268,6 +280,24 @@ async function handleMe(req, res, p) {
   const method = req.method;
   const body = method === "POST" ? await readJson(req) : {};
   let r;
+  if (p.startsWith("/v1/computer")) {
+    const email = String(req.headers["x-user-email"] || "");
+    if (p === "/v1/computer" && method === "GET") return send(res, 200, computer.status(key, email));
+    if (!computer.available || !computer.allowed(email)) return send(res, 403, { error: "The computer is not available to this account." });
+    try {
+      if (p === "/v1/computer/wake" && method === "POST") { computer.wakeFor(key, body.kind === "server" ? "server" : "desktop").catch((e) => log("error", `wake failed: ${e.message}`)); return send(res, 200, computer.status(key, email)); }
+      if (p === "/v1/computer/release" && method === "POST") { computer.release(key); return send(res, 200, computer.status(key, email)); }
+      if (p === "/v1/computer/screen" && method === "GET") {
+        const png = await computer.frameFor(key);
+        if (!png) return send(res, 409, { error: "not driving" });
+        res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store", "Content-Length": png.length });
+        return res.end(png);
+      }
+    } catch (e) {
+      return send(res, e instanceof Busy ? 409 : 500, { error: e.message, ...computer.status(key, email) });
+    }
+    return send(res, 404, { error: "Not found" });
+  }
   if (p === "/v1/blink/all" && method === "DELETE") {
     blinks.wipe(key);
     minds.delete(key);
@@ -397,13 +427,15 @@ async function handleAdmin(req, res, p) {
   if (p === "/admin/api/settings" && req.method === "POST") {
     const patch = {};
     if (typeof body.paused === "boolean") patch.paused = body.paused;
+    if (body.computerAccess === "everyone" || body.computerAccess === "admins") computer.setAccess(body.computerAccess);
+    if (body.computerSleep === true) { computer.sleep("desktop").catch(() => {}); computer.sleep("server").catch(() => {}); }
     if (Array.isArray(body.admins)) patch.admins = body.admins.map((a) => String(a).trim().toLowerCase()).filter((a) => /@/.test(a)).slice(0, 10);
     if (patch.admins && !patch.admins.includes(who)) patch.admins.push(who); // never lock yourself out
     await saveConfig(patch);
     log("info", `${who} changed settings: ${JSON.stringify(patch)}`);
     return send(res, 200, { ok: true, paused: config.paused, admins: config.admins });
   }
-  if (p === "/admin/api/settings") return send(res, 200, { paused: config.paused, admins: config.admins, api: config.api, dataDir: DATA, port: config.port });
+  if (p === "/admin/api/settings") return send(res, 200, { paused: config.paused, admins: config.admins, api: config.api, dataDir: DATA, port: config.port, computer: computer.status(null, who) });
   if (p === "/admin/api/restart" && req.method === "POST") {
     log("info", `${who} restarted the brain`);
     send(res, 200, { ok: true });

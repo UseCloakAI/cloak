@@ -34,6 +34,22 @@ The agent itself is not copied here: the installer fetches `blinks-api/src` and 
 - **Files.** Chat files upload through the Worker to `/v1/files` and live in `/var/lib/cloak-brain/files/<person>/` (100 MB each). In Low Light they are unavailable.
 - **Security.** Every brain route needs the shared `BRAIN_TOKEN` (only the Worker has it), except `/admin`, which needs a Cloak account on the admin list. The service runs as an unprivileged user with a read-only system.
 
+## Cloak Computer (optional): two VMs for the agent
+
+`curl -fsSL https://usecloak.org/brain/install.sh | sudo bash -s -- --with-computer` adds, through `vm/setup.sh` (KVM/libvirt):
+
+| VM | OS | Size | For |
+|---|---|---|---|
+| `cloak-computer` | Debian 13 + minimal XFCE, 1280x800 | 6 GB RAM, 4 vCPU, 40 GB disk | The agent sees the screen (screenshots with a coordinate grid, read by the vision models), clicks, types, presses keys, runs commands |
+| `cloak-server` | Debian 13 cloud image, no desktop | 1.5 GB RAM, 2 vCPU, 20 GB disk | Packages, scripts, small servers |
+
+- **Asleep until needed.** The first tool call (or Wake in the app's Computer panel) boots one (about a minute on a hard drive). After 10 unused minutes it shuts down again.
+- **Everyone gets their own account** (`cl-<hash>`, home folder kept between chats) on both machines. One person drives the desktop at a time (a lease renewed by each action, 4 minutes); others see "In use by someone else". The server serves everyone at once.
+- **Kept off your network.** The VMs sit on `cloak-vm` (10.77.0.0/24, NAT). An nftables table (`cloak_vm`, applied by `cloak-vm-firewall.service`) lets them reach the internet only: no LAN, no router, nothing on this PC but DNS/DHCP. Commands run unprivileged with memory, CPU, process and time limits; packages install through `sudo cloak-apt install NAME` (Debian repositories, by name).
+- **The agent inside each VM** (`vm/agent.py`) answers only the brain, with a token, and updates itself when the brain does.
+- **Who can use it:** admins only by default; switch to everyone on /admin.
+- Tools: `computer_look`, `computer_click`, `computer_type`, `computer_key`, `computer_scroll`, `computer_drag`, `computer_run`, `server_run`.
+
 ## Install
 
 1. Prep the PC (Debian or Ubuntu, internet, a login). `SETUP-GUIDE-PROMPT.md` covers it.

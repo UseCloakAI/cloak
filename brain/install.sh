@@ -32,7 +32,7 @@ fail() { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || fail "Run this with sudo (or as root)."
 command -v apt-get >/dev/null || fail "This installer is for Debian or Ubuntu."
 
-FILES="brain/server.js brain/blinks.js brain/sqlite.js brain/package.json brain/admin/index.html brain/install.sh
+FILES="brain/server.js brain/blinks.js brain/computer.js brain/vm/agent.py brain/vm/setup.sh brain/sqlite.js brain/package.json brain/admin/index.html brain/install.sh
 blinks-api/src/agent.js blinks-api/src/carbon.js blinks-api/src/engine.js blinks-api/src/mind-core.js
 blinks-api/src/models.js blinks-api/src/prompts.js blinks-api/src/safety.js blinks-api/src/tools.js
 api-worker/src/governor.js"
@@ -66,6 +66,11 @@ if [ "${1:-}" = "--auto" ]; then
   set -- ""
 fi
 
+# --with-computer also sets up Cloak Computer (two VMs for the agent).
+WITH_COMPUTER=0
+ARGS=()
+for a in "$@"; do if [ "$a" = --with-computer ]; then WITH_COMPUTER=1; else ARGS+=("$a"); fi; done
+set -- "${ARGS[@]:-}"
 CODE="${1:-}"
 if [ -z "$CODE" ] && [ ! -f "$CONF/config.json" ]; then
   fail "Add your pairing code: curl -fsSL $SRC/brain/install.sh | sudo bash -s -- YOUR_CODE"
@@ -197,6 +202,12 @@ if [ -n "$TUNNEL" ]; then
 fi
 systemctl enable cloudflared >/dev/null 2>&1 || true
 systemctl restart cloudflared || true
+
+# Cloak Computer: set up on request, kept current on every update after.
+if [ "$WITH_COMPUTER" = 1 ] || [ -f "$CONF/computer.json" ]; then
+  say "Cloak Computer"
+  bash "$APP/app/brain/vm/setup.sh" || echo "  Cloak Computer setup did not finish. See the message above; the brain keeps working without it."
+fi
 
 # Never sleep: this is a server now.
 systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target >/dev/null 2>&1 || true
