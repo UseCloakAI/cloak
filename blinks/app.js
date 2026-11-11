@@ -582,6 +582,7 @@
       else if (!m.onRead) botTurn(m);
     });
     receipt();
+    if (resuming) drawResume();
     scrollEnd(true);
   }
   function scrollEnd(force) {
@@ -856,6 +857,7 @@
       }
     }
     var left = state.ctrl && state.ctrl.signal.aborted;
+    Kit.set("pv_live_run", "");
     state.ctrl = null;
     if (left) {
       // You moved to another Blink: the brain is finishing this one. Its
@@ -937,6 +939,8 @@
   // from the last event seen. Stop cancels the run on the server too.
   async function stream(ch, images, onEvent, signal) {
     var runId = "r-" + uid().replace(/[^\w-]/g, "");
+    // Remembered until the reply is in, so a reload can pick the run back up.
+    Kit.set("pv_live_run", JSON.stringify({ id: runId, companion: state.companion, chat: ch.id, at: Date.now() }));
     var seen = 0, finished = false;
     var cancel = function () { fetch(Kit.api + "/v1/runs/" + runId + "/cancel", { method: "POST" }).catch(function () {}); };
     signal.addEventListener("abort", cancel, { once: true });
@@ -1103,17 +1107,92 @@
     fetch(Kit.api + "/v1/status", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (s) { setPower(s.mode); }).catch(function () {});
   }
 
+  /* ── Picking a reply back up after a reload ────────────────────── */
+  // The run keeps going in the cloud; re-attach, show the Blink working
+  // again, and drop the reply in when it is done.
+  var resuming = null;
+  function resumeRun() {
+    var lr = null;
+    try { lr = JSON.parse(Kit.get("pv_live_run") || "null"); } catch (e) {}
+    if (!lr || !lr.id || Date.now() - lr.at > 9 * 60000 || !byId[lr.companion]) { Kit.set("pv_live_run", ""); return false; }
+    var ch = state.chats.find(function (c) { return c.id === lr.chat; }) || chatFor(lr.companion);
+    if (!ch) { Kit.set("pv_live_run", ""); return false; }
+    resuming = { id: lr.id, companion: lr.companion, label: "Picking up where it left off", raw: "" };
+    drawResume();
+    var finish = function (ok) {
+      var r = resuming;
+      resuming = null;
+      Kit.set("pv_live_run", "");
+      if (ok && r && r.raw.trim()) {
+        var p = parseReply(r.raw);
+        var m = { role: "assistant", content: p.text, companion: r.companion, at: Date.now(), meta: { lane_label: "Finished while the page reloaded" } };
+        if (p.react) m.react = p.react;
+        if (!p.text && p.read) m.onRead = true;
+        var last = null;
+        for (var i = ch.messages.length - 1; i >= 0; i--) if (ch.messages[i].role === "user" && !ch.messages[i].from) { last = ch.messages[i]; break; }
+        if (last && !last.read) last.read = Date.now();
+        if (!seen(ch, m)) { ch.messages.push(m); ch.updated = Date.now(); save(); if (window.Sync) Sync.push(ch); }
+      }
+      if (state.companion === ch.companion) { renderThread(); mood("idle"); }
+      refreshRows();
+      setTimeout(catchUp, 800);
+    };
+    fetch(Kit.api + "/v1/runs/" + encodeURIComponent(lr.id) + "?from=0").then(function (res) {
+      if (!res.ok || !res.body) return finish(false);
+      var reader = res.body.getReader(), dec = new TextDecoder(), buf = "", ended = false;
+      var pump = function () {
+        return reader.read().then(function (x) {
+          if (x.done) return finish(ended || !!(resuming && resuming.raw));
+          buf += dec.decode(x.value, { stream: true });
+          var i;
+          while ((i = buf.indexOf("\n\n")) !== -1) {
+            var line = buf.slice(0, i).trim();
+            buf = buf.slice(i + 2);
+            if (line.indexOf("data:") !== 0 || !resuming) continue;
+            var ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
+            if (ev.reset) resuming.raw = "";
+            if (ev.delta) resuming.raw += ev.delta;
+            if (ev.step && ev.step.state === "run" && ev.step.label) { resuming.label = ev.step.label; drawResume(); }
+            if (ev.done || ev.error) ended = true;
+          }
+          return pump();
+        });
+      };
+      return pump();
+    }).catch(function () { finish(false); });
+    return true;
+  }
+  // The Blink, working, under your last message (kept across re-renders).
+  function drawResume() {
+    var old = $("threadIn").querySelector(".turn.resumed");
+    if (!resuming || resuming.companion !== state.companion) { if (old) old.remove(); return; }
+    var c = who(resuming.companion);
+    if (!old) {
+      old = document.createElement("div");
+      old.className = "turn them resumed";
+      old.innerHTML = '<div class="steps-host"><div class="now" role="status"><span class="now-av" aria-hidden="true"></span><span class="now-t"><span></span></span></div></div>';
+      $("threadIn").appendChild(old);
+      track(c.id, Creatures.mount(old.querySelector(".now-av"), look(c), { label: c.name, mood: "work" }));
+      mood("work");
+      var rc = $("threadIn").querySelector(".receipt");
+      if (rc && !/Read/.test(rc.textContent)) rc.innerHTML = "<b>Read</b>";
+    }
+    old.querySelector(".now-t span").textContent = resuming.label + "...";
+    scrollEnd(true);
+  }
+
   /* ── Catching up with the brain ─────────────────────────────────── */
   // Replies that finished after you left, task results, and messages your
   // Blinks sent each other all live in each Blink's chat on the brain.
   var synced = +Kit.get("pv_synced") || Date.now() - 864e5, catching = false;
   // Once: look back two days, to bring back messages an earlier version lost.
   if (!Kit.get("pv_resync1")) { synced = Math.min(synced, Date.now() - 2 * 864e5); Kit.set("pv_resync1", "1"); }
-  function norm(t) { return parseReply(String(t || "")).text.replace(/\s+/g, " ").trim(); }
+  // Loose on purpose: spacing, punctuation and case never make a duplicate.
+  function norm(t) { return parseReply(String(t || "")).text.replace(/^\(I tapped [^)]*\)\n/, "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 400); }
   function fromLog(e, id) {
     if (e.from) return { role: "user", from: e.from, content: e.content, at: e.at };
     // Yours, as the brain kept it (the tapback note the app adds is not part of what you wrote).
-    if (e.role === "user") return { role: "user", content: String(e.content || "").replace(/^\(I tapped [^)]*\)\n/, ""), at: e.at, mine: true };
+    if (e.role === "user") return { role: "user", content: String(e.content || "").replace(/^\(I tapped [^)]*\)\n/, ""), at: e.at, read: e.at, mine: true };
     var p = parseReply(e.content);
     var m = { role: "assistant", content: p.text, companion: id, at: e.at, meta: { lane: "brain", lane_label: e.task ? "Scheduled task" : "Finished on the brain" } };
     if (p.react) m.react = p.react;
@@ -1130,11 +1209,11 @@
     });
   }
   function catchUp() {
-    if (catching || state.busy || state.power === "lowlight" || !window.Sync || !Sync.user()) return;
+    if (catching || state.busy || resuming || state.power === "lowlight" || !window.Sync || !Sync.user()) return;
     catching = true;
     api("/v1/blink/since?t=" + synced).then(function (d) {
       if (!d || !d.chats) return;
-      var redraw = false;
+      var redraw = false, fresh = [];
       Object.keys(d.chats).forEach(function (id) {
         if (!byId[id]) return;
         var ch = chatFor(id), added = 0, theirs = 0;
@@ -1145,6 +1224,7 @@
           if (!m.mine) theirs++;
           delete m.mine;
           ch.messages.push(m);
+          if (id === state.companion) fresh.push(m);
           ch.messages.sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
           ch.updated = Math.max(ch.updated, e.at);
           added++;
@@ -1159,7 +1239,23 @@
       Kit.set("pv_unread", JSON.stringify(state.unread));
       save();
       refreshRows();
-      if (redraw) { renderThread(); pulse(0.8); }
+      if (redraw) {
+        // New messages at the end pop in where you are; anything older means a redraw.
+        var ch0 = chat(), tail = ch0 ? ch0.messages.slice(-fresh.length) : [];
+        var atEnd = fresh.length && fresh.every(function (m, i) { return tail[i] === m; });
+        if (!atEnd) renderThread();
+        else {
+          codeState();
+          fresh.forEach(function (m) {
+            if (m.from) relayTurn(m);
+            else if (m.role === "user") userTurn(m, null).classList.add("sent");
+            else if (!m.onRead) { var t = botTurn(m); t.querySelectorAll(".bub").forEach(function (b) { b.classList.add("pop"); }); }
+          });
+          receipt();
+          scrollEnd();
+        }
+        pulse(0.8);
+      }
     }).catch(function () {}).then(function () { catching = false; });
   }
 
@@ -1377,7 +1473,7 @@
     return html.replace(/<p>CODECHIP(\d+)<\/p>/g, function (all, i) {
       var c = chips[+i];
       if (!c) return "";
-      var sub = c.edit ? (c.failed && !c.changes ? "Edit did not apply" : "Edited" + (c.changes ? ", " + c.changes + (c.changes === 1 ? " change" : " changes") : "") + (c.v ? " · v" + c.v : "")) : c.lines + " lines" + (c.v > 1 ? " · v" + c.v : "");
+      var sub = c.edit ? (c.failed && !c.changes ? "Edit did not apply" : "Edited" + (c.changes ? ", " + c.changes + (c.changes === 1 ? " change" : " changes") : "") + (c.v ? " · v" + c.v : "")) : c.lines + " lines" + (c.v > 1 ? " · v" + c.v : "") + (c.cut ? " · cut off before the end" : "");
       return '<button type="button" class="code-chip' + (c.edit ? " edit" : "") + '" data-file="' + Kit.esc(c.name) + '" data-v="' + (c.v || 0) + '"><span class="cc-ic" aria-hidden="true"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="' + (c.edit ? "M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4z" : "M8 7l-5 5 5 5M16 7l5 5-5 5") + '"/></svg></span><span class="cc-tx"><b>' + Kit.esc(c.name) + "</b><small>" + Kit.esc(sub) + '</small></span><span class="cc-go">Open</span></button>';
     });
   }
@@ -1532,6 +1628,7 @@
     whoLabel();
 
     var q = new URLSearchParams(location.search);
+    if (q.has("sw")) { q.delete("sw"); window.history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "")); }
     if (byId[q.get("c")]) { state.companion = q.get("c"); Kit.set("pv_companion", state.companion); renderComps(); mountFigs(); }
     if (q.get("make")) { window.history.replaceState(null, "", location.pathname); setTimeout(function () { editBlink(null); }, 300); }
     renderThread();
@@ -1693,7 +1790,7 @@
       Sync.init(hooks);
       whoLabel();
       badge();
-      catchUp();
+      if (!resumeRun()) catchUp();
       if (q.get("q")) { window.history.replaceState(null, "", location.pathname); send(q.get("q")); }
       else if (matchMedia("(min-width: 781px)").matches) $("input").focus();
     }

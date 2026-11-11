@@ -238,7 +238,7 @@ async function handleMe(request, env, cors, path) {
       const res = await toBrain(env, path + new URL(request.url).search, { method: request.method, headers: { "Content-Type": "application/json", "X-User-Key": key }, body: request.method === "GET" || request.method === "DELETE" ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
       return new Response(res.body, { status: res.status, headers: { ...cors, "Content-Type": res.headers.get("Content-Type") || "application/json" } });
     } catch (e) {
-      ctxWait(markDown(env, e?.message));
+      ctxWait(checkBrain(env));
       return json({ power: "lowlight", memories: [], tasks: [], inbox: [] }, cors, request.method === "GET" ? 200 : 503);
     }
   }
@@ -275,7 +275,7 @@ async function handleFiles(request, env, cors, path) {
     for (const h of ["Content-Type", "Content-Length", "Content-Disposition", "Cache-Control"]) if (res.headers.get(h)) out[h] = res.headers.get(h);
     return new Response(res.body, { status: res.status, headers: out });
   } catch (e) {
-    ctxWait(markDown(env, e?.message));
+    ctxWait(checkBrain(env));
     return json({ error: "Could not reach Cloak's files right now. Try again in a moment.", power: "lowlight" }, cors, 503);
   }
 }
