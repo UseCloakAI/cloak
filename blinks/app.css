@@ -852,8 +852,8 @@ textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
 .bp-scrim.out{animation:bpFadeOut .22s var(--ease-in) both}
 @keyframes bpFade{from{opacity:0;backdrop-filter:blur(0)}}
 @keyframes bpFadeOut{to{opacity:0}}
-.bpanel{position:fixed;top:0;right:0;bottom:0;z-index:250;width:min(440px,100vw);display:flex;flex-direction:column;background:var(--surface);border-left:var(--bd);box-shadow:-6px 0 0 color-mix(in srgb,var(--blink,#D44D2A) 70%,transparent);padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) 0;animation:bpIn .62s var(--sp-snap) both}
-.bpanel.out{animation:bpOut .26s var(--ease-in) both}
+.dock{--dock-w:420px;position:fixed;top:0;right:0;bottom:0;z-index:250;width:min(var(--dock-w),100vw);display:flex;flex-direction:column;background:var(--surface);border-left:var(--bd);box-shadow:-6px 0 0 color-mix(in srgb,var(--blink,#D44D2A) 70%,transparent);padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) 0;animation:bpIn .62s var(--sp-snap) both}
+.dock.out{animation:bpOut .26s var(--ease-in) both}
 @keyframes bpIn{from{translate:104% 0}}
 @keyframes bpOut{to{translate:104% 0;opacity:.6}}
 .bp-head{display:flex;align-items:center;gap:14px;flex:none;min-height:96px;padding:16px 18px;border-bottom:var(--bd);background:color-mix(in srgb,var(--blink,#D44D2A) 14%,var(--surface))}
@@ -863,35 +863,160 @@ textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
 .bp-who span{display:block;margin-top:4px;font-size:.84rem;color:var(--ink-3)}
 .bp-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 20px 24px}
 .bp-actions:not(:empty){padding:16px 0 4px}
-.app.bp-open .bp-head{animation:bpDrop .5s var(--ease-out) .14s backwards}
-.app.bp-open .bp-av{animation:bpPop .62s var(--sp-pop) .2s backwards}
-.app.bp-open .bp-who{animation:bpSlide .5s var(--ease-out) .24s backwards}
-.app.bp-open #bpClose{animation:bpSpin .5s var(--sp-pop) .3s backwards}
-.app.bp-open .bp-actions>*{animation:rvUp .5s var(--ease-out) .3s backwards}
-.app.bp-open .bpanel #mind>.srow{animation:rvUp .5s var(--ease-out) backwards;animation-delay:calc(.32s + var(--k,0) * 60ms)}
-.bpanel #mind>.srow:nth-child(2){--k:1}.bpanel #mind>.srow:nth-child(3){--k:2}.bpanel #mind>.srow:nth-child(4){--k:3}
+.dock.on .bp-head{animation:bpDrop .5s var(--ease-out) .14s backwards}
+.dock.on .bp-av{animation:bpPop .62s var(--sp-pop) .2s backwards}
+.dock.on .bp-who{animation:bpSlide .5s var(--ease-out) .24s backwards}
+.dock.on #bpClose{animation:bpSpin .5s var(--sp-pop) .3s backwards}
+.dock.on .bp-actions>*{animation:rvUp .5s var(--ease-out) .3s backwards}
+.dock.on #mind>.srow{animation:rvUp .5s var(--ease-out) backwards;animation-delay:calc(.32s + var(--k,0) * 60ms)}
+#mind>.srow:nth-child(2){--k:1}#mind>.srow:nth-child(3){--k:2}#mind>.srow:nth-child(4){--k:3}
 @keyframes bpDrop{from{opacity:0;translate:0 -10px}}
 @keyframes bpPop{from{opacity:0;scale:.4;rotate:-14deg}}
 @keyframes bpSlide{from{opacity:0;translate:14px 0}}
 @keyframes bpSpin{from{opacity:0;rotate:-90deg;scale:.5}}
 #bpClose:hover svg{rotate:90deg;transition:rotate .5s var(--sp-pop)}
-@media (max-width:780px){.bpanel{width:100vw;border-left:0;box-shadow:none}.top .chip-who{max-width:62vw}.top .chip-who .mood-tx{display:none}}
-@media (prefers-reduced-motion:reduce){.bpanel,.bp-scrim,.bpanel *,.chip-who{animation:none!important}}
+@media (max-width:780px){.dock{width:100vw;border-left:0;box-shadow:none}.top .chip-who{max-width:62vw}.top .chip-who .mood-tx{display:none}}
+@media (prefers-reduced-motion:reduce){.dock,.bp-scrim,.dock *,.chip-who{animation:none!important}}
 
 /* Desktop: the panel is a column like the sidebar. It opens by growing
    (pushing the chat over) and folds the same way; its contents keep their
    full width the whole time, so nothing inside reflows. */
 @media (min-width:781px){
   .bp-scrim{display:none!important}
-  .bpanel,.bpanel.out{position:relative;inset:auto;z-index:2;flex:none;width:0;padding:0;overflow:hidden;border-left-width:0;box-shadow:none;animation:none;transition:width .44s cubic-bezier(.65,0,.35,1) .04s,border-left-width 0s .48s}
-  .app.bp-open .bpanel{width:420px;border-left-width:2px;transition:width .56s var(--ease-out),border-left-width 0s}
-  .bpanel>.bp-head,.bpanel>.bp-body{width:418px;flex-shrink:0}
-  .bpanel>.bp-body{flex:1}
-  .app:not(.bp-open) .bpanel>*{opacity:0;translate:14px 0;transition:opacity .16s ease,translate .22s var(--ease-in)}
-  .app.bp-open .bpanel>*{transition:opacity .3s var(--ease-out) .08s,translate .5s var(--sp-snap) .08s}
+  .dock,.dock.out{position:relative;inset:auto;z-index:2;flex:none;width:0;padding:0;overflow:hidden;border-left-width:0;box-shadow:none;animation:none;transition:width .44s cubic-bezier(.65,0,.35,1) .04s,border-left-width 0s .48s}
+  .dock.on{width:var(--dock-w);border-left-width:2px;transition:width .56s var(--ease-out),border-left-width 0s}
+  .dock>*{width:calc(var(--dock-w) - 2px);flex-shrink:0}
+  .dock>.bp-body,.dock>.cp-body{flex:1}
+  .dock:not(.on)>*{opacity:0;translate:14px 0;transition:opacity .16s ease,translate .22s var(--ease-in)}
+  .dock.on>*{transition:opacity .3s var(--ease-out) .08s,translate .5s var(--sp-snap) .08s}
 }
 /* No avatar beside replies: the Blink appears only next to its status line. */
 .turn.them .row>.av{display:none}
 .turn.them .row{grid-template-columns:minmax(0,1fr);gap:0}
 .turn.them .now{margin-left:-4px}
 .turn.them .steps-host,.turn.them .tfoot,.turn.them .care{margin-left:0}
+
+/* Panel headers sit on the top bar's line: same height, same rule. */
+.bp-head,.cp-head{min-height:0;height:var(--bar-h,52px);padding:0 10px 0 14px;gap:10px;box-sizing:border-box}
+.bp-av{width:34px;height:34px}
+.bp-who{display:flex;align-items:baseline;gap:8px}
+.bp-who h2{font-size:15px;letter-spacing:.03em}
+.bp-who span{margin:0;font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .icon-btn{width:34px;height:34px}
+
+/* ════ The code canvas ════════════════════════════════════════════════ */
+.cpanel{--dock-w:620px}
+.cp-head{display:flex;align-items:center;flex:none;border-bottom:var(--bd);background:var(--surface)}
+.cp-mark{display:grid;place-items:center;width:34px;height:34px;flex:none;border:var(--bd);background:var(--ink);color:var(--bg)}
+.cp-who{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px}
+.cp-who h2{margin:0;font:800 15px/1 var(--fd);text-transform:uppercase;letter-spacing:.03em}
+.cp-who span{font-size:.76rem;color:var(--ink-3);white-space:nowrap}
+.cp-tabs{display:flex;gap:0;flex:none;overflow-x:auto;scrollbar-width:none;border-bottom:var(--bd);background:var(--sunk)}
+.cp-tabs button{position:relative;display:flex;align-items:center;gap:7px;flex:none;height:38px;padding:0 14px;border:0;border-right:1.5px solid var(--line);background:transparent;color:var(--ink);font:600 12px/1 var(--fm);cursor:pointer;isolation:isolate;transition:color .15s}
+.cp-tabs button::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--surface);transform:scaleY(0);transform-origin:50% 100%;transition:transform .32s var(--ease-out)}
+.cp-tabs button[aria-selected="true"]::before{transform:none}
+.cp-tabs button::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:3px;background:var(--accent);transform:scaleX(0);transition:transform .4s var(--sp-snap)}
+.cp-tabs button[aria-selected="true"]::after{transform:none}
+.cp-tabs button small{font:600 10px/1 var(--fb);color:var(--ink-3)}
+.cp-tabs button.fresh small{color:var(--accent)}
+.cp-bar{display:flex;align-items:center;gap:8px;flex:none;padding:8px 12px;border-bottom:1px solid var(--line)}
+.cp-bar .sp{flex:1}
+.cp-ver{display:flex;align-items:center;border:1.5px solid var(--ink);height:30px}
+.cp-ver button{display:grid;place-items:center;width:28px;height:100%;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.cp-ver button:disabled{opacity:.3;cursor:default}
+.cp-ver span{min-width:64px;text-align:center;font:600 11px/1 var(--fm);font-variant-numeric:tabular-nums}
+.cp-view{display:flex;border:1.5px solid var(--ink);height:30px}
+.cp-view button{border:0;background:transparent;color:var(--ink);padding:0 10px;font:700 10px/1 var(--fb);letter-spacing:.09em;text-transform:uppercase;cursor:pointer;transition:background-color .15s,color .15s}
+.cp-view button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.cp-view button:disabled{opacity:.35;cursor:default}
+.cp-act{height:30px;padding:0 11px;border:1.5px solid var(--ink);background:var(--surface);color:var(--ink);font:700 10px/1 var(--fb);letter-spacing:.09em;text-transform:uppercase;cursor:pointer;box-shadow:var(--shsm);transition:transform var(--lift),box-shadow var(--lift)}
+.cp-act:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.cp-act:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--tp)}
+.cp-body{position:relative;flex:1;min-height:0;display:flex;background:var(--bg)}
+.cp-code{flex:1;min-width:0;display:flex;overflow:auto;font:400 12.5px/1.6 var(--fm)}
+.cp-gut{flex:none;padding:12px 0;text-align:right;user-select:none;color:var(--ink-3);border-right:1px solid var(--line);background:var(--sunk);position:sticky;left:0}
+.cp-gut i{display:block;padding:0 10px 0 12px;font-style:normal;font-variant-numeric:tabular-nums}
+.cp-gut i.chg{color:var(--accent);box-shadow:inset 3px 0 0 var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.cp-code pre{margin:0;padding:12px 14px;flex:1;min-width:max-content}
+.cp-code code{font:inherit;white-space:pre;tab-size:2;color:var(--ink)}
+.cp-code.swap{animation:cpSwap .36s var(--ease-out)}
+@keyframes cpSwap{from{opacity:0;translate:10px 0}}
+.cp-frame{flex:1;width:100%;border:0;background:#fff;animation:cpSwap .36s var(--ease-out)}
+.cp-empty{position:absolute;inset:0;display:grid;place-content:center;gap:6px;padding:24px;text-align:center;color:var(--ink-3);font-size:.9rem}
+.cp-empty b{font:800 1rem/1 var(--fd);text-transform:uppercase;color:var(--ink)}
+.dock.on .cp-head{animation:bpDrop .5s var(--ease-out) .14s backwards}
+.dock.on .cp-mark{animation:bpPop .62s var(--sp-pop) .2s backwards}
+.dock.on .cp-tabs button{animation:rvUp .45s var(--ease-out) backwards;animation-delay:calc(.24s + var(--k,0) * 40ms)}
+.dock.on .cp-bar{animation:bpDrop .45s var(--ease-out) .28s backwards}
+.dock.on #cpClose{animation:bpSpin .5s var(--sp-pop) .3s backwards}
+#cpClose:hover svg{rotate:90deg;transition:rotate .5s var(--sp-pop)}
+/* syntax colours (highlight.js classes), Cloak's palette */
+.cp-code .hljs-keyword,.cp-code .hljs-built_in,.cp-code .hljs-selector-tag{color:var(--accent);font-weight:500}
+.cp-code .hljs-string,.cp-code .hljs-attr,.cp-code .hljs-template-variable{color:var(--good)}
+.cp-code .hljs-number,.cp-code .hljs-literal{color:#5B9BF8}
+.cp-code .hljs-comment{color:var(--ink-3);font-style:italic}
+.cp-code .hljs-title,.cp-code .hljs-name,.cp-code .hljs-section{color:var(--ink);font-weight:600}
+.cp-code .hljs-tag,.cp-code .hljs-meta,.cp-code .hljs-punctuation{color:var(--ink-2)}
+
+/* Cards where code used to be in a message */
+.code-chip{display:flex;align-items:center;gap:10px;width:100%;min-width:220px;margin:4px 0;padding:8px 10px;border:var(--bd);background:var(--surface);color:var(--ink);text-align:left;cursor:pointer;box-shadow:var(--shsm);transition:transform var(--lift),box-shadow var(--lift)}
+.code-chip:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.code-chip:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--tp)}
+.code-chip .cc-ic{display:grid;place-items:center;width:30px;height:30px;flex:none;background:var(--ink);color:var(--bg)}
+.code-chip.edit .cc-ic{background:var(--accent);color:#fff}
+.code-chip .cc-tx{flex:1;min-width:0;display:grid;gap:2px}
+.code-chip b{font:600 13px/1.2 var(--fm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.code-chip small{font-size:11px;color:var(--ink-3)}
+.code-chip .cc-go{font:700 10px/1 var(--fb);letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+.code-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#codeBtn{position:relative}
+#codeBtn[aria-expanded="true"]{background:var(--ink);color:var(--bg)}
+.code-badge{position:absolute;top:-5px;right:-5px;width:11px;height:11px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);animation:pop .5s var(--sp-snap) both}
+@media (max-width:780px){.cp-bar{flex-wrap:wrap}.cpanel{--dock-w:100vw}}
+/* The pill never runs under the controls on either side: it gets the room
+   between them (--side-w, measured in app.js), and on a narrow chat the
+   sponsor and the mood text make way first. */
+.main{container-type:inline-size;container-name:main}
+.top .chip-who{max-width:max(150px,calc(100% - 2 * var(--side-w,200px) - 28px))}
+@container main (max-width:980px){.top .sponsor-pill{display:none}}
+@container main (max-width:640px){.top .chip-who .mood-tx{display:none}}
+@container main (max-width:520px){.top .modes{display:none}}
+/* A bubble that is only a code card drops its own box: the card is the box. */
+.bub:has(>.prose>.code-chip:only-child){padding:0;border:0;background:none;box-shadow:none;min-width:min(320px,100%)}
+.bub:has(>.prose>.code-chip:only-child) .code-chip{margin:0}
+.bub:has(>.prose>.code-chip:only-child) .tapbtn{display:none}
+/* On a narrow chat (a panel open), the theme switch and then the mode menu
+   make way so the Blink's name always fits in the pill. */
+@container main (max-width:760px){.top-r .icon-btn[data-dark-toggle]{display:none}}
+@container main (max-width:600px){.top .modes{display:none}}
+.top .chip-who{min-width:min(150px,60cqw)}
+
+/* ════ Code panel: drag to resize, or full screen ═════════════════════
+   A pill on the panel's left edge, centred vertically, drags its width
+   between 360px and 1100px (keyboard: arrows; double-click resets). Full
+   screen grows the panel over the chat while the sidebar folds to its rail;
+   both move on the same curves as the sidebar. */
+.cpanel{position:relative}
+.dock-grip{position:absolute;left:-1px;top:0;bottom:0;z-index:3;width:16px;display:grid;place-items:center;cursor:col-resize;touch-action:none;outline:none;width:16px!important}
+.dock-grip i{display:block;width:6px;height:52px;border:1.5px solid var(--ink);border-radius:999px;background:var(--surface);box-shadow:var(--shsm);transition:height .4s var(--sp-snap),background-color .15s,scale .3s var(--sp-pop)}
+.dock-grip:hover i,.dock-grip:focus-visible i,.cpanel.dragging .dock-grip i{height:84px;background:var(--accent);border-color:var(--ink)}
+.dock-grip:focus-visible i{outline:2px solid var(--accent);outline-offset:3px}
+.cpanel.dragging,.cpanel.dragging>*{transition:none!important}
+html.resizing,html.resizing *{cursor:col-resize!important;user-select:none!important}
+html.resizing iframe{pointer-events:none}
+.cp-head .icon-btn+.icon-btn{margin-left:6px}
+#cpFull .shrink{display:none}
+.app.code-full #cpFull .grow{display:none}
+.app.code-full #cpFull .shrink{display:block}
+#cpFull[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+@media (min-width:781px){
+  .app.code-full #cpanel.on{width:calc(100vw - var(--sw-c));transition:width .56s var(--ease-out),border-left-width 0s}
+  .app.code-full #cpanel.on>*:not(.dock-grip){width:calc(100vw - var(--sw-c) - 2px)}
+  .app.code-full .main{min-width:0;overflow:hidden}
+  .app.code-full .dock-grip{display:none}
+  .cpanel.on{transition:width .44s var(--ease-out),border-left-width 0s}
+}
+@media (max-width:780px){.dock-grip,#cpFull{display:none}}
+.top .top-l{justify-self:start;width:max-content;max-width:100%}
+.top .top-r{justify-self:end;width:max-content;max-width:100%}
+.app.code-full .sb-footer{height:118px}

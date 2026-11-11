@@ -113,7 +113,7 @@
     bpFig = track(c.id, Creatures.mount($("bpAv"), look(c), { label: c.name, mood: nowMood }));
     $("bpName").textContent = c.name;
     $("bpRole").textContent = c.role;
-    setTimeout(favicon, 60);
+    whenLoaded(favicon);
     $("topName").textContent = c.name;
     $("blinkBtn").setAttribute("aria-label", c.name + ", " + ($("mood").textContent || "Here") + ". Open " + c.name + "'s settings");
 
@@ -125,6 +125,11 @@
     setTimeout(function () { each("wave"); }, 250);
   }
 
+  // After the page has finished loading (so the tab never spins for it).
+  function whenLoaded(fn) {
+    var go = function () { if (window.requestIdleCallback) requestIdleCallback(function () { fn(); }, { timeout: 600 }); else setTimeout(fn, 200); };
+    if (document.readyState === "complete") go(); else window.addEventListener("load", go, { once: true });
+  }
   // The tab icon is the Blink you are with: its still drawing, crisp at 32px.
   function favicon() {
     var svg = $("topAv").querySelector("svg");
@@ -239,7 +244,7 @@
     }
     if (state.unread[id]) { delete state.unread[id]; Kit.set("pv_unread", JSON.stringify(state.unread)); refreshRows(); }
     renderThread();
-    if ($("app").classList.contains("bp-open")) loadMind();
+    if (dock === "blink") loadMind();
   }
   function editBlink(id) {
     var bot = id ? Maker.load().find(function (b) { return b.id === id; }) : null;
@@ -308,13 +313,14 @@
     if (m.partial) s += "<span>Cut short</span>";
     return s;
   }
-  var TOOL_ICON = { message_blink: "chat-circle", compact: "stack", web_search: "magnifying-glass", read_page: "file-text", calculate: "gauge", remember: "brain", recall: "brain", forget: "brain", ask_companion: "chat-circle", schedule_task: "hourglass-medium", list_tasks: "hourglass-medium", cancel_task: "hourglass-medium", look: "eye", team: "stack" };
+  var TOOL_ICON = { read_file: "file-text", grep_files: "magnifying-glass", message_blink: "chat-circle", compact: "stack", web_search: "magnifying-glass", read_page: "file-text", calculate: "gauge", remember: "brain", recall: "brain", forget: "brain", ask_companion: "chat-circle", schedule_task: "hourglass-medium", list_tasks: "hourglass-medium", cancel_task: "hourglass-medium", look: "eye", team: "stack" };
   function didHtml(steps) {
     if (!steps || !steps.length) return "";
     var tool = function (n) { return steps.filter(function (s) { return s.tool === n; }).length; };
     var parts = [];
     if (tool("web_search")) parts.push("searched " + tool("web_search") + (tool("web_search") === 1 ? " time" : " times"));
     if (tool("read_page")) parts.push("read " + tool("read_page") + (tool("read_page") === 1 ? " page" : " pages"));
+    if (tool("read_file") || tool("grep_files")) parts.push("looked through the code");
     if (tool("remember")) parts.push("saved " + tool("remember") + (tool("remember") === 1 ? " memory" : " memories"));
     var talked = steps.filter(function (s) { return s.tool === "message_blink" && s.label; }).map(function (s) { return s.label.replace(/^Messaging\s+/, ""); });
     talked = talked.filter(function (n, i) { return talked.indexOf(n) === i; });
@@ -442,7 +448,10 @@
     b.setAttribute("data-i", i);
     b.innerHTML = '<div class="prose"></div><button type="button" class="tapbtn" aria-label="React">' + Kit.icon("hand-heart") + "</button>";
     var p = b.firstChild;
-    p.innerHTML = md(text);
+    var ch0 = chat(), st0 = ch0 && ch0.messages.indexOf(m) !== -1 ? codeSt : CodeCanvas.replay((ch0 ? ch0.messages : []).concat([m]));
+    var cz = CodeCanvas.chipify(text, st0);
+    p.innerHTML = chipHtml(md(cz.text), cz.chips);
+    if (cz.chips.length) b.classList.add("has-code");
     dress(p);
     if (m.taps && m.taps[i]) b.insertAdjacentHTML("beforeend", reactHtml(m.taps[i]));
     hookTap(b, m);
@@ -517,6 +526,8 @@
   }
 
   function renderThread() {
+    codeState();
+    if (dock === "code") renderCode();
     var host = $("threadIn");
     if (fig.empty) { fig.empty.destroy(); fig.empty = null; }
     closePicker();
@@ -863,6 +874,11 @@
     save();
     refreshRows();
     if (window.Sync) Sync.push(ch);
+    // New or changed files: open the canvas on the newest one.
+    var before = codeSt, after = codeState(), fresh = null;
+    after.order.forEach(function (n) { var a = after.files[n].versions.length, b0 = before.files[n] ? before.files[n].versions.length : 0; if (a > b0) fresh = n; });
+    if (fresh && state.companion === ch.companion) { if (dock === "code" || !dock) showFile(fresh, 0); else { $("codeBadge").hidden = false; } }
+    else if (dock === "code") renderCode();
     setTimeout(catchUp, 600); // anything your Blinks said to each other meanwhile
     setBusy(false);
     // Settle: stay soft if care is showing, otherwise back to idle.
@@ -926,6 +942,7 @@
         chat_id: ch.id,
         companion: state.companion,
         bot: who(state.companion).bot || undefined,
+        files: CodeCanvas.latest(codeSt),
         // Your other Blinks, so this one can message them.
         blinks: C.filter(function (c) { return c.custom && c.bot; }).map(function (c) { return { id: c.id, name: c.name, purpose: c.bot.purpose, persona: c.bot.persona, lane: c.bot.lane }; }),
         brand: Kit.brand,
@@ -1159,29 +1176,175 @@
     host.innerHTML = c.custom ? '<button type="button" class="cta" id="bpEdit">Edit look and personality</button>' : "";
     if (c.custom) $("bpEdit").addEventListener("click", function () { closePanel(); editBlink(c.id); });
   }
-  function openPanel() {
-    clearTimeout(bpT);
-    var p = $("bpanel"), sc = $("bpScrim"), wide = !phone.matches;
-    p.hidden = false; sc.hidden = wide;
-    p.classList.remove("out"); sc.classList.remove("out");
+  // One dock on the right holds either the Blink's panel or the code canvas,
+  // never both: opening one while the other is open slides that one out and
+  // this one in, at the same time.
+  var DOCKS = { blink: "bpanel", code: "cpanel" }, dock = null, dockT = {};
+  function openDock(k) {
+    if (dock === k) return;
+    var prev = dock;
+    dock = k;
+    if (prev) hideDock(prev, true);
+    var p = $(DOCKS[k]), sc = $("bpScrim"), wide = !phone.matches;
+    clearTimeout(dockT[k]);
+    p.hidden = false;
+    p.classList.remove("out");
+    sc.hidden = wide; sc.classList.remove("out");
     p.setAttribute("aria-modal", wide ? "false" : "true");
     void p.offsetWidth; // start from closed so the width can grow
-    $("app").classList.add("bp-open");
-    $("blinkBtn").setAttribute("aria-expanded", "true");
-    loadMind();
-    setTimeout(function () { $("bpClose").focus({ preventScroll: true }); }, 60);
-    each("wave");
+    p.classList.add("on");
+    $(k === "blink" ? "blinkBtn" : "codeBtn").setAttribute("aria-expanded", "true");
+    if (k === "blink") { loadMind(); each("wave"); }
+    else { $("codeBadge").hidden = true; renderCode(); }
+    setTimeout(function () { var c = $(k === "blink" ? "bpClose" : "cpClose"); if (c) c.focus({ preventScroll: true }); }, 60);
   }
-  function closePanel() {
-    var p = $("bpanel"), sc = $("bpScrim"), app = $("app");
-    if (!app.classList.contains("bp-open")) return;
-    app.classList.remove("bp-open");
-    $("blinkBtn").setAttribute("aria-expanded", "false");
-    $("blinkBtn").focus({ preventScroll: true });
-    clearTimeout(bpT);
-    if (!phone.matches) { bpT = setTimeout(function () { if (!app.classList.contains("bp-open")) p.hidden = true; }, 520); return; }
-    p.classList.add("out"); sc.classList.add("out");
-    bpT = setTimeout(function () { p.hidden = true; sc.hidden = true; p.classList.remove("out"); sc.classList.remove("out"); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 260);
+  function hideDock(k, swapping) {
+    var p = $(DOCKS[k]);
+    if (k === "code") codeFull(false);
+    p.classList.remove("on");
+    $(k === "blink" ? "blinkBtn" : "codeBtn").setAttribute("aria-expanded", "false");
+    clearTimeout(dockT[k]);
+    if (!phone.matches) { dockT[k] = setTimeout(function () { if (!p.classList.contains("on")) p.hidden = true; }, 520); return; }
+    p.classList.add("out");
+    dockT[k] = setTimeout(function () { if (!p.classList.contains("on")) { p.hidden = true; p.classList.remove("out"); } }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 260);
+    if (!swapping) { var sc = $("bpScrim"); sc.classList.add("out"); setTimeout(function () { if (!dock) { sc.hidden = true; sc.classList.remove("out"); } }, 240); }
+  }
+  function closeDock() {
+    if (!dock) return;
+    if (dock === "code") codeFull(false);
+    var k = dock;
+    dock = null;
+    hideDock(k, false);
+    $(k === "blink" ? "blinkBtn" : "codeBtn").focus({ preventScroll: true });
+  }
+  function openPanel() { openDock("blink"); }
+  function closePanel() { closeDock(); }
+
+  /* ── Code panel size: drag the pill on its edge; or go full screen ── */
+  var CODE_MIN = 360, CODE_MAX = 1100;
+  function codeMax() { return Math.max(CODE_MIN, Math.min(CODE_MAX, innerWidth - $("side").offsetWidth - 340)); }
+  function setCodeW(w, save) {
+    w = Math.round(Math.max(CODE_MIN, Math.min(codeMax(), w)));
+    $("cpanel").style.setProperty("--dock-w", w + "px");
+    $("cpGrip").setAttribute("aria-valuenow", w);
+    if (save) Kit.set("pv_code_w", String(w));
+    return w;
+  }
+  function initGrip() {
+    var g = $("cpGrip"), p = $("cpanel"), saved = +Kit.get("pv_code_w");
+    g.setAttribute("aria-valuemin", CODE_MIN); g.setAttribute("aria-valuemax", CODE_MAX);
+    if (saved) setCodeW(saved, false);
+    g.addEventListener("pointerdown", function (e) {
+      if (phone.matches || $("app").classList.contains("code-full")) return;
+      e.preventDefault();
+      g.setPointerCapture(e.pointerId);
+      p.classList.add("dragging");
+      document.documentElement.classList.add("resizing");
+      var move = function (ev) { setCodeW(innerWidth - ev.clientX, false); };
+      var up = function () {
+        p.classList.remove("dragging");
+        document.documentElement.classList.remove("resizing");
+        g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up);
+        setCodeW(p.getBoundingClientRect().width, true);
+      };
+      g.addEventListener("pointermove", move); g.addEventListener("pointerup", up); g.addEventListener("pointercancel", up);
+    });
+    g.addEventListener("dblclick", function () { setCodeW(620, true); });
+    g.addEventListener("keydown", function (e) {
+      var w = p.getBoundingClientRect().width;
+      if (e.key === "ArrowLeft") { e.preventDefault(); setCodeW(w + 32, true); }
+      if (e.key === "ArrowRight") { e.preventDefault(); setCodeW(w - 32, true); }
+    });
+    window.addEventListener("resize", function () { var w = parseFloat(getComputedStyle(p).getPropertyValue("--dock-w")); if (w) setCodeW(w, false); });
+  }
+  // Full screen: the canvas covers the chat and the sidebar folds to its rail.
+  var railBefore = false;
+  function codeFull(on) {
+    var app = $("app");
+    if (on === app.classList.contains("code-full")) return;
+    if (on) { railBefore = app.classList.contains("rail"); if (!phone.matches) app.classList.add("rail"); }
+    else if (!railBefore) app.classList.remove("rail");
+    app.classList.toggle("code-full", on);
+    $("cpFull").setAttribute("aria-pressed", String(on));
+    $("cpFull").setAttribute("aria-label", on ? "Exit full screen" : "Full screen");
+    setTimeout(function () { inkTo(true); }, 600);
+  }
+
+  /* ── The code canvas (code.js): files live here, not in the messages ── */
+  var codeSt = CodeCanvas.replay([]), cv = { file: null, v: 0, view: "code" }, hlLoad = null;
+  function codeState() { var ch = chat(); codeSt = CodeCanvas.replay(ch ? ch.messages : []); return codeSt; }
+  function hl() {
+    if (window.hljs) return Promise.resolve(window.hljs);
+    if (!hlLoad) hlLoad = new Promise(function (res) {
+      var sc = document.createElement("script");
+      sc.src = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js";
+      sc.onload = function () { res(window.hljs || null); };
+      sc.onerror = function () { res(null); };
+      document.head.appendChild(sc);
+    });
+    return hlLoad;
+  }
+  function previewable(name) { return /\.(html?|svg)$/i.test(name || ""); }
+  function showFile(name, v) {
+    cv.file = name; cv.v = v || 0;
+    if (!previewable(name)) cv.view = "code";
+    openDock("code");
+    renderCode(true);
+  }
+  function renderCode(swap) {
+    var st = codeSt, names = st.order;
+    $("cpCount").textContent = names.length ? names.length + (names.length === 1 ? " file" : " files") : "No files yet";
+    $("cpEmpty").hidden = !!names.length;
+    $("cpCode").hidden = !names.length || cv.view === "preview";
+    if (!names.length) { $("cpTabs").innerHTML = ""; $("cpFrame").hidden = true; return; }
+    if (!st.files[cv.file]) { cv.file = names[names.length - 1]; cv.v = 0; }
+    var f = st.files[cv.file], n = f.versions.length;
+    var v = cv.v && cv.v <= n ? cv.v : n;
+    $("cpTabs").innerHTML = names.map(function (x, i) {
+      var vs = st.files[x].versions.length;
+      return '<button type="button" role="tab" style="--k:' + i + '" data-file="' + Kit.esc(x) + '" aria-selected="' + (x === cv.file) + '">' + Kit.esc(x) + (vs > 1 ? "<small>v" + vs + "</small>" : "") + "</button>";
+    }).join("");
+    var tab = $("cpTabs").querySelector('[aria-selected="true"]');
+    if (tab) tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    $("cpVer").textContent = "v" + v + " of " + n;
+    $("cpOlder").disabled = v <= 1; $("cpNewer").disabled = v >= n;
+    var canPrev = previewable(cv.file);
+    $("cpanel").querySelector('[data-view="preview"]').disabled = !canPrev;
+    if (!canPrev) cv.view = "code";
+    $("cpanel").querySelectorAll("[data-view]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.view === cv.view)); });
+    var code = f.versions[v - 1].code, prev = v > 1 ? f.versions[v - 2].code.split("\n") : null;
+    if (cv.view === "preview") {
+      $("cpCode").hidden = true;
+      var fr = $("cpFrame");
+      fr.hidden = false;
+      fr.srcdoc = /\.svg$/i.test(cv.file) ? '<!doctype html><body style="margin:0;display:grid;place-items:center;min-height:100vh">' + code + "</body>" : code;
+      return;
+    }
+    $("cpFrame").hidden = true; $("cpFrame").removeAttribute("srcdoc");
+    $("cpCode").hidden = false;
+    // Lines that changed from the version before get marked in the gutter.
+    var had = {};
+    if (prev) prev.forEach(function (l) { had[l] = (had[l] || 0) + 1; });
+    var lines = code.split("\n");
+    $("cpGut").innerHTML = lines.map(function (l, i) { var chg = prev && !(had[l]-- > 0); return "<i" + (chg ? ' class="chg"' : "") + ">" + (i + 1) + "</i>"; }).join("");
+    var src = $("cpSrc");
+    src.textContent = code;
+    src.className = "";
+    hl().then(function (h) {
+      if (!h || src.textContent !== code) return;
+      var lang = (f.lang || "").toLowerCase();
+      try { src.innerHTML = h.getLanguage(lang) ? h.highlight(code, { language: lang }).value : h.highlightAuto(code).value; } catch (e) {}
+    });
+    if (swap) { var cc = $("cpCode"); cc.classList.remove("swap"); void cc.offsetWidth; cc.classList.add("swap"); }
+  }
+  // A card where a file used to be in a message.
+  function chipHtml(html, chips) {
+    return html.replace(/<p>CODECHIP(\d+)<\/p>/g, function (all, i) {
+      var c = chips[+i];
+      if (!c) return "";
+      var sub = c.edit ? (c.failed && !c.changes ? "Edit did not apply" : "Edited" + (c.changes ? ", " + c.changes + (c.changes === 1 ? " change" : " changes") : "") + (c.v ? " · v" + c.v : "")) : c.lines + " lines" + (c.v > 1 ? " · v" + c.v : "");
+      return '<button type="button" class="code-chip' + (c.edit ? " edit" : "") + '" data-file="' + Kit.esc(c.name) + '" data-v="' + (c.v || 0) + '"><span class="cc-ic" aria-hidden="true"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="' + (c.edit ? "M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4z" : "M8 7l-5 5 5 5M16 7l5 5-5 5") + '"/></svg></span><span class="cc-tx"><b>' + Kit.esc(c.name) + "</b><small>" + Kit.esc(sub) + '</small></span><span class="cc-go">Open</span></button>';
+    });
   }
 
   /* ── Settings ──────────────────────────────────────────────────── */
@@ -1378,10 +1541,32 @@
       if (!r.hidden) $("search").focus(); else { $("search").value = ""; renderComps(); }
     });
     $("search").addEventListener("input", function () { renderComps(); });
-    $("blinkBtn").addEventListener("click", function () { if ($("app").classList.contains("bp-open")) closePanel(); else openPanel(); });
-    $("bpClose").addEventListener("click", closePanel);
-    $("bpScrim").addEventListener("click", closePanel);
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && $("app").classList.contains("bp-open")) closePanel(); });
+    $("blinkBtn").addEventListener("click", function () { if (dock === "blink") closeDock(); else openDock("blink"); });
+    $("codeBtn").addEventListener("click", function () { if (dock === "code") closeDock(); else openDock("code"); });
+    $("bpClose").addEventListener("click", closeDock);
+    $("cpClose").addEventListener("click", closeDock);
+    $("cpFull").addEventListener("click", function () { codeFull(!$("app").classList.contains("code-full")); });
+    initGrip();
+    $("bpScrim").addEventListener("click", closeDock);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && dock) { if ($("app").classList.contains("code-full")) codeFull(false); else closeDock(); } });
+    $("threadIn").addEventListener("click", function (e) { var c = e.target.closest(".code-chip"); if (c) showFile(c.dataset.file, +c.dataset.v || 0); });
+    $("cpTabs").addEventListener("click", function (e) { var b = e.target.closest("[data-file]"); if (b) { cv.file = b.dataset.file; cv.v = 0; renderCode(true); } });
+    $("cpOlder").addEventListener("click", function () { var n = codeSt.files[cv.file].versions.length; cv.v = Math.max(1, (cv.v || n) - 1); renderCode(true); });
+    $("cpNewer").addEventListener("click", function () { var n = codeSt.files[cv.file].versions.length; cv.v = Math.min(n, (cv.v || n) + 1); if (cv.v === n) cv.v = 0; renderCode(true); });
+    $("cpanel").querySelectorAll("[data-view]").forEach(function (b) { b.addEventListener("click", function () { cv.view = b.dataset.view; renderCode(true); }); });
+    $("cpCopy").addEventListener("click", function () {
+      var f = codeSt.files[cv.file]; if (!f) return;
+      var b = this, v = cv.v || f.versions.length;
+      navigator.clipboard.writeText(f.versions[v - 1].code).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1400); }).catch(function () {});
+    });
+    $("cpDl").addEventListener("click", function () {
+      var f = codeSt.files[cv.file]; if (!f) return;
+      var v = cv.v || f.versions.length, a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([f.versions[v - 1].code], { type: "text/plain" }));
+      a.download = cv.file.split("/").pop();
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    });
     window.addEventListener("resize", function () { inkTo(true); });
     if (Kit.get("pv_rail") && !phone.matches) $("app").classList.add("rail");
     document.querySelectorAll("[data-side-toggle]").forEach(function (b) { b.addEventListener("click", toggleSide); });
@@ -1398,6 +1583,15 @@
     $("side").addEventListener("pointerleave", hideTip);
     $("side").addEventListener("focusin", function (e) { var t = e.target.closest("[data-tip]"); if (t) showTip(t); });
     $("side").addEventListener("focusout", hideTip);
+    // The pill gets the room between the top bar's left and right controls.
+    function fitTop() {
+      document.querySelectorAll(".page .top").forEach(function (t) {
+        var l = t.querySelector(".top-l"), r = t.querySelector(".top-r");
+        t.style.setProperty("--side-w", Math.max(l ? l.offsetWidth : 0, r ? r.offsetWidth : 0) + "px");
+      });
+    }
+    fitTop();
+    if (window.ResizeObserver) new ResizeObserver(fitTop).observe($("main"));
     // The bottom band is exactly the composer's height: one line across.
     if (window.ResizeObserver) new ResizeObserver(function (es) { $("app").style.setProperty("--input-h", Math.round(es[0].target.getBoundingClientRect().height) + "px"); }).observe(document.querySelector(".composer"));
     // Thinking mode: one quiet button, the choices in a menu.

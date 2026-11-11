@@ -195,6 +195,33 @@ export const TOOLS = {
       }
     },
   },
+  grep_files: {
+    spec: fn("grep_files", "Search the code files in this chat (the canvas) for a word, name or regular expression. Returns matching lines with line numbers. Use before editing to find the exact lines.", { pattern: str("Text or a regular expression, for example: function render|onClick"), file: str("Optional: only this file, by name.") }, ["pattern"]),
+    label: (a) => `Searching the code for ${String(a.pattern || "").slice(0, 40)}`,
+    needs: "files",
+    async run(a, cx) {
+      let re;
+      try { re = new RegExp(String(a.pattern || "").slice(0, 200), "i"); } catch { re = new RegExp(String(a.pattern || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); }
+      const out = [];
+      for (const f of cx.files) {
+        if (a.file && f.name !== a.file) continue;
+        f.code.split("\n").forEach((l, i) => { if (out.length < 80 && re.test(l)) out.push(`${f.name}:${i + 1}: ${l.slice(0, 200)}`); });
+      }
+      return { text: out.length ? out.join("\n") : "No matches.", summary: `${out.length} ${out.length === 1 ? "match" : "matches"}` };
+    },
+  },
+  read_file: {
+    spec: fn("read_file", "Read lines from a code file in this chat (the canvas), with line numbers.", { file: str("The file's name, as listed under CODE FILES."), from: { type: "integer", description: "First line (1-based). Optional." }, to: { type: "integer", description: "Last line. Optional; at most 400 lines at a time." } }, ["file"]),
+    label: (a) => `Reading ${String(a.file || "a file").slice(0, 40)}`,
+    needs: "files",
+    async run(a, cx) {
+      const f = cx.files.find((x) => x.name === a.file) || cx.files.find((x) => x.name.toLowerCase() === String(a.file || "").toLowerCase());
+      if (!f) return { text: `No file called ${a.file}. Files: ${cx.files.map((x) => x.name).join(", ")}`, summary: "not found" };
+      const lines = f.code.split("\n");
+      const from = Math.max(1, Number(a.from) || 1), to = Math.min(lines.length, Number(a.to) || from + 399, from + 399);
+      return { text: lines.slice(from - 1, to).map((l, i) => `${from + i}: ${l}`).join("\n"), summary: `lines ${from}-${to} of ${lines.length}` };
+    },
+  },
   calculate: {
     spec: fn("calculate", "Evaluate arithmetic exactly. Use for any calculation where a wrong digit would matter. Supports + - * / % ^ ! parentheses, sqrt, abs, ln, log, exp, sin, cos, tan, round, floor, ceil, min, max, pow, pi, e.", { expression: str("For example: (1250 * 1.07^10) / 12") }, ["expression"]),
     label: (a) => `Calculating ${String(a.expression || "").slice(0, 60)}`,
@@ -294,9 +321,9 @@ export const TOOLS = {
 
 // The tools on offer for this call. Sub-agents (depth > 0) cannot delegate or
 // schedule; without a user key there is no memory.
-export function toolbox({ depth = 0, hasMind = false, hasTalk = false }) {
+export function toolbox({ depth = 0, hasMind = false, hasTalk = false, hasFiles = false }) {
   return Object.entries(TOOLS)
-    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind) && !(t.needs === "talk" && !hasTalk))
+    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind) && !(t.needs === "talk" && !hasTalk) && !(t.needs === "files" && !hasFiles))
     .map(([name]) => name);
 }
 // Every tool also takes "status": the line the person sees while it runs,
