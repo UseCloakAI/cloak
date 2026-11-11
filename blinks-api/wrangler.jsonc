@@ -40,7 +40,8 @@
     // the site's sign-in ships). BRAIN_URL: the home-PC brain through its
     // Cloudflare Tunnel; leave it out and this Worker does everything itself.
     // Secret: BRAIN_TOKEN, shared with the brain.
-    "REQUIRE_AUTH": "off",
+    "REQUIRE_AUTH": "on",
+    "BRAIN_URL": "https://brain.usecloak.org",
     "SUPABASE_URL": "https://kdawsqrrmwirilyhcolk.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkYXdzcXJybXdpcmlseWhjb2xrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NjUxNjAsImV4cCI6MjA4OTU0MTE2MH0.cMN9V51J3042DrdaDmL7-ro-AMaw-IU47wQLnW2NMBE"
   },

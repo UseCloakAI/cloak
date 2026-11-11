@@ -30,23 +30,27 @@
 </div>
 
 <div class="app" id="app">
-  <aside class="side" id="side" aria-label="Companions and chats">
+  <aside class="side" id="side" aria-label="Your Blinks and chats">
     <div class="side-head">
       <a class="brand" href="index.html" data-brand>Cloak</a>
-      <button class="iconbtn" data-mode-toggle aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
+      <span class="sp"></span>
+      <button class="iconbtn round" id="searchBtn" aria-label="Search chats"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#magnifying-glass"/></svg></button>
+      <button class="iconbtn round" id="newChat" aria-label="New chat"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#plus"/></svg></button>
     </div>
+    <div class="side-search" id="searchRow" hidden><input class="field" id="search" type="search" placeholder="Search Blinks and chats" aria-label="Search Blinks and chats"></div>
+    <button class="feature" id="feature" type="button" aria-label="Talk to your Blink">
+      <span class="feature-fig" id="featFig"></span>
+      <span class="feature-tx"><b id="featName">Cloak</b><span class="mood" id="mood">Here</span></span>
+    </button>
     <div class="side-scroll">
-      <button class="new" id="newChat"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#plus"/></svg>New chat</button>
-      <h2>Blinks</h2>
-      <div id="comps"></div>
-      <h2>Recent</h2>
+      <div class="blist" id="comps"></div>
+      <p class="sb-label">Recent</p>
       <div id="hist"></div>
     </div>
     <div class="side-foot">
-      <div class="foot-row">
-        <button class="who" id="openSettings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#user-circle"/></svg><span id="whoName">You</span><b class="badge" id="inboxBadge" hidden></b></button>
-        <button class="iconbtn" id="openSettings2" aria-label="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg></button>
-      </div>
+      <button class="who" id="openSettings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#user-circle"/></svg><span id="whoName">You</span><b class="badge" id="inboxBadge" hidden></b></button>
+      <button class="iconbtn" data-mode-toggle aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
+      <button class="iconbtn" id="openSettings2" aria-label="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg></button>
     </div>
   </aside>
   <div class="scrim" id="scrim"></div>
@@ -54,8 +58,8 @@
   <main class="main">
     <header class="top">
       <button class="iconbtn menu" id="menu" aria-label="Open menu"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#list"/></svg></button>
-      <div class="top-av" id="topAv"></div>
-      <div class="top-who"><b id="topName">Cloak</b><span id="topRole">Your Blink</span></div>
+      <div class="chip-who"><span class="top-av" id="topAv"></span><span class="top-who"><b id="topName">Cloak</b><span id="topRole">Your Blink</span></span></div>
+      <span class="sp"></span>
       <div class="modes">
         <button class="mode-btn" id="modeBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="modeMenu"><span class="sr">Thinking mode: </span><span id="modeName">Auto</span><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#caret-down"/></svg></button>
         <div class="mode-menu" id="modeMenu" role="menu" hidden>
@@ -66,6 +70,7 @@
           <button role="menuitemradio" aria-checked="false" data-mode="team"><b>Team</b><span>Several helpers work in parallel, then one answer comes back.</span></button>
         </div>
       </div>
+      <a class="sponsor-pill" id="sponsor" href="impact.html#sponsors" title=""><small>Sponsor</small><b id="spTitle"></b></a>
     </header>
 
     <div class="power" id="power" role="status" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg><span><b>Cloak is in Low Light.</b> Chat works; memory, agents and files are resting until it wakes up.</span></div>
@@ -78,29 +83,15 @@
       <p class="notice" id="notice" role="alert" hidden></p>
       <div class="thumbs" id="thumbs" hidden></div>
       <form class="box" id="form">
+        <button type="button" class="plus" id="attach" aria-label="Attach files or images"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#plus"/></svg></button>
         <label class="sr" for="input">Message</label>
-        <textarea id="input" rows="1" placeholder="Say anything"></textarea>
+        <textarea id="input" rows="1" placeholder="Message Cloak"></textarea>
         <input type="file" id="file" hidden multiple>
-        <button type="button" class="iconbtn" id="attach" aria-label="Attach files or images"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#paperclip"/></svg></button>
         <button class="send" id="send" aria-label="Send" disabled><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-up"/></svg></button>
       </form>
-      <p class="fine">AI can be wrong. Check anything that matters.</p>
+      <p class="fine"><span id="stSess">0 Wh</span> this session, removed ten times over. AI can be wrong; check anything that matters.</p>
     </div>
   </main>
-
-  <aside class="stage" aria-label="Your Blink">
-    <div class="stage-fig"><div id="stageFig"></div><span class="mood" id="mood">Here</span></div>
-    <div>
-      <h2 id="stName">Cloak</h2>
-      <p class="line" id="stLine"></p>
-    </div>
-    <a class="stage-ledger" href="impact.html" title="Open the public ledger"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#leaf"/></svg><span>This session used <b id="stSess">0 Wh</b>. We remove ten times its carbon.</span></a>
-    <a class="sponsor" id="sponsor" href="impact.html#sponsors">
-      <small><span>Sponsor</span><span>Sample</span></small>
-      <b id="spTitle"></b>
-      <span id="spBody"></span>
-    </a>
-  </aside>
 </div>
 
 <dialog id="settings" aria-labelledby="setTitle">
