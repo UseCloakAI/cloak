@@ -492,11 +492,24 @@
     hookDid(el);
     var segs = bubbles(m.content);
     segs.forEach(function (t, i) { addBubble(el, m, t, i, false); });
+    if (m.made) madeCard(el, m.made);
     if (segs.length) avatar(el, c);
     return el;
   }
   // Replies carry no avatar: the Blink only shows up beside its status line
   // while it works (nowSay), like Grok's bot.
+  // "Meet Biscuit": the card for a Blink this one made.
+  function madeCard(el, made) {
+    var c = byId[made.id];
+    if (!c || el.querySelector(".made-card")) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "made-card";
+    b.innerHTML = '<span class="mc-av" aria-hidden="true"></span><span class="mc-tx"><small>New Blink</small><b>Meet ' + Kit.esc(c.name) + "</b><span>" + Kit.esc(c.role) + '</span></span><span class="cc-go">Say hi</span>';
+    el.querySelector(".stack").appendChild(b);
+    Creatures.mount(b.querySelector(".mc-av"), look(c), { label: c.name, mood: "happy" });
+    b.addEventListener("click", function () { openBlink(c.id); });
+  }
   function avatar(el, c) {
     return;
     var av = el.querySelector(".av");
@@ -877,6 +890,16 @@
         }
         scrollEnd();
       }
+      if (ev.blink && window.Maker) {
+        // A Blink made a Blink: it joins the sidebar at once.
+        var nb = Maker.add(ev.blink);
+        if (nb) {
+          rebuild(); renderComps();
+          bm.made = { id: nb.id, name: nb.name };
+          var row = document.querySelector('#comps .comp[data-id="' + nb.id + '"]');
+          if (row) { row.classList.remove("row-in"); void row.offsetWidth; row.classList.add("row-in", "made"); }
+        } else showNotice("You have " + Maker.MAX + " Blinks already. Delete one to make room for " + ev.blink.name + ".");
+      }
       if (ev.sources) { bm.sources = ev.sources; turn().querySelector(".sources-host").innerHTML = sourcesHtml(bm.sources); }
       if (ev.reset) {
         gen++;
@@ -937,6 +960,7 @@
       avatar(el, who(bm.companion));
     }
     if (el) el.querySelector(".meta").innerHTML = metaHtml(bm.meta);
+    if (el && bm.made) madeCard(el, bm.made);
     if (bm.meta.impact) {
       state.sess.wh += bm.meta.impact.wh;
       state.sess.g += bm.meta.impact.g;
@@ -1756,6 +1780,18 @@
     $("saveName").addEventListener("click", function () { state.user.name = $("setName").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); whoLabel(); prepSettings(); this.textContent = "Saved"; var b = this; setTimeout(function () { b.textContent = "Save"; }, 1400); });
     $("saveAbout").addEventListener("click", function () { state.user.about = $("setAbout").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); this.textContent = "Saved"; var b = this; setTimeout(function () { b.textContent = "Save"; }, 1400); });
     $("signOut").addEventListener("click", function () { if (window.Sync && Sync.signOut) Sync.signOut(); });
+    $("resetAll").addEventListener("click", function () { $("resetConfirm").hidden = false; this.hidden = true; $("resetNo").focus({ preventScroll: true }); });
+    $("resetNo").addEventListener("click", function () { $("resetConfirm").hidden = true; $("resetAll").hidden = false; });
+    $("resetYes").addEventListener("click", function () {
+      var b = this, bots = $("resetBots").checked;
+      b.disabled = true; b.textContent = "Deleting";
+      var brain = api("/v1/blink/all", { method: "DELETE" }).then(function (r) { return !!(r && r.ok); }).catch(function () { return false; });
+      Promise.all([brain, window.Sync && Sync.removeAll ? Sync.removeAll() : null, bots && window.Sync ? Promise.resolve(Sync.pushBots([])) : null]).then(function (out) {
+        ["pv_chats", "pv_unread", "pv_synced", "pv_live_run", "pv_code_w"].concat(bots ? ["pv_bots", "pv_companion"] : []).forEach(function (k) { Kit.set(k, ""); });
+        if (!out[0]) Kit.set("pv_reset_pending", "1"); // the brain was away: finish the job when it is back
+        location.reload();
+      });
+    });
     $("side").classList.add("first");
     setTimeout(function () { $("side").classList.remove("first"); }, 1400);
     $("page-chat").classList.add("shown");
@@ -1839,6 +1875,7 @@
       Sync.init(hooks);
       whoLabel();
       badge();
+      if (Kit.get("pv_reset_pending")) api("/v1/blink/all", { method: "DELETE" }).then(function (r) { if (r && r.ok) Kit.set("pv_reset_pending", ""); }).catch(function () {});
       if (!resumeRun()) catchUp();
       if (q.get("q")) { window.history.replaceState(null, "", location.pathname); send(q.get("q")); }
       else if (matchMedia("(min-width: 781px)").matches) $("input").focus();

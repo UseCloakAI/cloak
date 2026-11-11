@@ -134,6 +134,7 @@
     },
     init: function (h) { hooks = h; if (user) pull().catch(function () {}); },
     push: function (c) { if (user && sb) sb.from("pv_chats").upsert(row(c)).then(function () {}); },
+    removeAll: function () { return user && sb ? sb.from("pv_chats").delete().eq("user_id", user.id) : Promise.resolve(); },
     remove: function (id) { if (user && sb) sb.from("pv_chats").delete().eq("id", id).then(function () {}); },
     pushBots: function (list) { if (user && sb) sb.from("pv_bots").upsert({ user_id: user.id, bots: list.slice(0, 12), updated_at: new Date().toISOString() }).then(function () {}); },
     renderAccount: function (el) { host = el; render(); },

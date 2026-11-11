@@ -195,6 +195,45 @@ export const TOOLS = {
       }
     },
   },
+  create_blink: {
+    spec: fn("create_blink", "Make a new Blink for this person: a companion with its own look, name, purpose and personality. It appears in their sidebar right away with its own chat. Use when they ask you to make, build or design a Blink (or a bot or assistant inside Blinks). Design it thoughtfully to fit the purpose; fill in what they did not say.", {
+      name: str("Its name, one or two words."),
+      purpose: str("What it is for, in one short sentence, in their words where possible."),
+      persona: str("How it talks and behaves, a few sentences (tone, focus, format)."),
+      shape: str("One of: orb, slab, spark, bloom, dome, drop, pill.", { enum: ["orb", "slab", "spark", "bloom", "dome", "drop", "pill"] }),
+      color: str("Body colour as a hex code, for example #4CBF73."),
+      eyes: str("One of: dots, big, small, wide, one, sleepy.", { enum: ["dots", "big", "small", "wide", "one", "sleepy"] }),
+      topper: str("One of: none, curl, sprout, sparks, rays, antenna, bow, star.", { enum: ["none", "curl", "sprout", "sparks", "rays", "antenna", "bow", "star"] }),
+      glasses: { type: "boolean", description: "Glasses on or off." },
+      cheeks: { type: "boolean", description: "Rosy cheeks on or off." },
+      lane: str("Its usual brain: swift (fast, simple), smart (balanced), deep (hard thinking), code (programming).", { enum: ["swift", "smart", "deep", "code"] }),
+      hello: str("Its first line when they open it, short and in character."),
+    }, ["name", "purpose", "shape", "color", "eyes"]),
+    label: (a) => `Making ${String(a.name || "a new Blink").slice(0, 32)}`,
+    top: true,
+    outward: (a) => `${a.name} ${a.purpose} ${a.persona}`,
+    async run(a) {
+      const pick = (v, list, d) => (list.includes(v) ? v : d);
+      const name = String(a.name || "").replace(/[^\p{L}\p{N} '\-]/gu, "").trim().slice(0, 24);
+      if (!name) return { text: "It needs a name.", summary: "no name" };
+      const blink = {
+        name,
+        purpose: String(a.purpose || "").trim().slice(0, 140),
+        persona: String(a.persona || "").trim().slice(0, 900),
+        lane: pick(a.lane, ["swift", "smart", "deep", "code"], "smart"),
+        hello: String(a.hello || "").trim().slice(0, 120),
+        look: {
+          shape: pick(a.shape, ["orb", "slab", "spark", "bloom", "dome", "drop", "pill"], "orb"),
+          color: /^#[0-9a-f]{6}$/i.test(a.color || "") ? a.color : "#5B9BF8",
+          eyes: pick(a.eyes, ["dots", "big", "small", "wide", "one", "sleepy"], "dots"),
+          topper: pick(a.topper, ["none", "curl", "sprout", "sparks", "rays", "antenna", "bow", "star"], "none"),
+          glasses: !!a.glasses,
+          cheeks: !!a.cheeks,
+        },
+      };
+      return { text: `Made ${name}. It is in their sidebar now with its own chat, and they can change anything about it with the pencil next to its name. Tell them in a sentence or two, in your own voice.`, summary: "made", event: { blink: blink } };
+    },
+  },
   grep_files: {
     spec: fn("grep_files", "Search the code files in this chat (the canvas) for a word, name or regular expression. Returns matching lines with line numbers. Use before editing to find the exact lines.", { pattern: str("Text or a regular expression, for example: function render|onClick"), file: str("Optional: only this file, by name.") }, ["pattern"]),
     label: (a) => `Searching the code for ${String(a.pattern || "").slice(0, 40)}`,
