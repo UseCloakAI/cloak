@@ -900,6 +900,11 @@
           if (row) { row.classList.remove("row-in"); void row.offsetWidth; row.classList.add("row-in", "made"); }
         } else showNotice("You have " + Maker.MAX + " Blinks already. Delete one to make room for " + ev.blink.name + ".");
       }
+      if (ev.computer) {
+        // The Blink is using the computer: show it, and let you watch.
+        compStatus().then(function () { if (dock === "computer") pullFrame(); });
+        if (dock !== "computer") { $("compDot").hidden = false; $("compDot").className = "comp-dot live"; }
+      }
       if (ev.sources) { bm.sources = ev.sources; turn().querySelector(".sources-host").innerHTML = sourcesHtml(bm.sources); }
       if (ev.reset) {
         gen++;
@@ -1403,7 +1408,8 @@
   // One dock on the right holds either the Blink's panel or the code canvas,
   // never both: opening one while the other is open slides that one out and
   // this one in, at the same time.
-  var DOCKS = { blink: "bpanel", code: "cpanel" }, dock = null, dockT = {};
+  var DOCKS = { blink: "bpanel", code: "cpanel", computer: "kpanel" }, dock = null, dockT = {};
+  var DOCK_BTN = { blink: "blinkBtn", code: "codeBtn", computer: "compBtn" }, DOCK_CLOSE = { blink: "bpClose", code: "cpClose", computer: "kClose" };
   function openDock(k) {
     if (dock === k) return;
     var prev = dock;
@@ -1417,16 +1423,18 @@
     p.setAttribute("aria-modal", wide ? "false" : "true");
     void p.offsetWidth; // start from closed so the width can grow
     p.classList.add("on");
-    $(k === "blink" ? "blinkBtn" : "codeBtn").setAttribute("aria-expanded", "true");
+    $(DOCK_BTN[k]).setAttribute("aria-expanded", "true");
     if (k === "blink") { loadMind(); each("wave"); }
-    else { $("codeBadge").hidden = true; renderCode(); }
-    setTimeout(function () { var c = $(k === "blink" ? "bpClose" : "cpClose"); if (c) c.focus({ preventScroll: true }); }, 60);
+    else if (k === "code") { $("codeBadge").hidden = true; renderCode(); }
+    else compOpen();
+    setTimeout(function () { var c = $(DOCK_CLOSE[k]); if (c) c.focus({ preventScroll: true }); }, 60);
   }
   function hideDock(k, swapping) {
     var p = $(DOCKS[k]);
+    if (k === "computer") compClose();
     if (k === "code") codeFull(false);
     p.classList.remove("on");
-    $(k === "blink" ? "blinkBtn" : "codeBtn").setAttribute("aria-expanded", "false");
+    $(DOCK_BTN[k]).setAttribute("aria-expanded", "false");
     clearTimeout(dockT[k]);
     if (!phone.matches) { dockT[k] = setTimeout(function () { if (!p.classList.contains("on")) p.hidden = true; }, 520); return; }
     p.classList.add("out");
@@ -1439,10 +1447,74 @@
     var k = dock;
     dock = null;
     hideDock(k, false);
-    $(k === "blink" ? "blinkBtn" : "codeBtn").focus({ preventScroll: true });
+    $(DOCK_BTN[k]).focus({ preventScroll: true });
   }
   function openPanel() { openDock("blink"); }
   function closePanel() { closeDock(); }
+
+  /* ── Cloak Computer: the VMs on the brain, watched from here ─────── */
+  var comp = { st: null, poll: 0, frame: 0, busyImg: false };
+  var COMP_TEXT = {
+    asleep: ["The computer is asleep", "It wakes up when your Blink needs it, or now if you want to watch. Waking takes about a minute."],
+    waking: ["Waking up", "Starting the desktop. This takes about a minute."],
+    sleeping: ["Going to sleep", "Nobody used it for a while."],
+    someone: ["In use by someone else", "Someone else is using the desktop right now. Your Blink can still use the server, and the desktop frees up when they are done."],
+  };
+  function compStatus() {
+    return api("/v1/computer").then(function (st) {
+      comp.st = st;
+      var ok = !!(st && st.available && st.allowed);
+      $("compBtn").hidden = !ok;
+      if (!ok) { if (dock === "computer") closeDock(); return st; }
+      var d = st.desktop || {}, mine = d.holder === "you", other = d.holder === "someone";
+      var dot = $("compDot");
+      dot.hidden = !(d.state === "waking" || (d.state === "ready" && mine) || other);
+      dot.className = "comp-dot" + (d.state === "waking" ? " waking" : other ? " busy" : "");
+      if (dock === "computer") paintComp();
+      return st;
+    }).catch(function () { return null; });
+  }
+  function paintComp() {
+    var st = comp.st || {}, d = st.desktop || { state: "asleep" }, sv = st.server || { state: "asleep" };
+    var mine = d.holder === "you", other = d.holder === "someone";
+    var view = other ? "someone" : d.state === "ready" ? (mine ? "live" : "asleep") : d.state;
+    var words = { asleep: "Asleep", waking: "Waking up", sleeping: "Going to sleep", ready: mine ? "Yours right now" : "Awake" };
+    rollText($("kState"), other ? "In use by someone else" : words[d.state] || "Asleep");
+    $("kDesk").textContent = other ? "in use by someone else" : (words[d.state] || "asleep").toLowerCase();
+    $("kServ").textContent = ({ asleep: "asleep", waking: "waking up", sleeping: "going to sleep", ready: "awake" })[sv.state] || "asleep";
+    $("kLedD").className = "k-led " + (other ? "busy" : d.state);
+    $("kLedS").className = "k-led " + sv.state;
+    $("kScreen").setAttribute("data-state", view);
+    var cover = COMP_TEXT[view];
+    $("kCover").hidden = !cover;
+    if (cover) { $("kCoverTitle").textContent = cover[0]; $("kCoverText").textContent = cover[1]; }
+    $("kWake").hidden = view !== "asleep";
+    $("kRelease").hidden = !mine;
+    $("kImg").hidden = view !== "live";
+  }
+  // The screen, refreshed about once a second while it is yours and open.
+  function pullFrame() {
+    if (dock !== "computer" || comp.busyImg) return;
+    var d = (comp.st || {}).desktop || {};
+    if (!(d.state === "ready" && d.holder === "you")) return;
+    comp.busyImg = true;
+    authHeaders().then(function (h) { return fetch(Kit.api + "/v1/computer/screen", { headers: h }); }).then(function (r) {
+      if (!r.ok) throw 0;
+      return r.blob();
+    }).then(function (b) {
+      var url = URL.createObjectURL(b), img = new Image();
+      img.onload = function () { var el = $("kImg"), old = el.src; el.src = url; if (old && old.indexOf("blob:") === 0) URL.revokeObjectURL(old); };
+      img.src = url;
+    }).catch(function () {}).then(function () { comp.busyImg = false; });
+  }
+  function compOpen() {
+    paintComp();
+    compStatus().then(pullFrame);
+    clearInterval(comp.poll); clearInterval(comp.frame);
+    comp.poll = setInterval(compStatus, 3000);
+    comp.frame = setInterval(pullFrame, 1200);
+  }
+  function compClose() { clearInterval(comp.poll); clearInterval(comp.frame); }
 
   /* ── Code panel size: drag the pill on its edge; or go full screen ── */
   var CODE_MIN = 360, CODE_MAX = 1100;
@@ -1780,6 +1852,13 @@
     $("codeBtn").addEventListener("click", function () { if (dock === "code") closeDock(); else openDock("code"); });
     $("bpClose").addEventListener("click", closeDock);
     $("cpClose").addEventListener("click", closeDock);
+    $("kClose").addEventListener("click", closeDock);
+    $("compBtn").addEventListener("click", function () { if (dock === "computer") closeDock(); else openDock("computer"); });
+    $("kWake").addEventListener("click", function () {
+      var b = this; b.disabled = true;
+      api("/v1/computer/wake", { method: "POST", body: JSON.stringify({ kind: "desktop" }) }).then(function (st) { if (st && st.desktop) { comp.st = st; comp.st.desktop.state = "waking"; paintComp(); } }).catch(function () {}).then(function () { b.disabled = false; });
+    });
+    $("kRelease").addEventListener("click", function () { api("/v1/computer/release", { method: "POST", body: "{}" }).then(function (st) { comp.st = st; paintComp(); }); });
     $("cpFull").addEventListener("click", function () { codeFull(!$("app").classList.contains("code-full")); });
     initGrip();
     $("bpScrim").addEventListener("click", closeDock);
@@ -1905,6 +1984,8 @@
       Sync.init(hooks);
       whoLabel();
       badge();
+      compStatus();
+      setInterval(function () { if (!document.hidden && dock !== "computer") compStatus(); }, 30000);
       if (Kit.get("pv_reset_pending")) api("/v1/blink/all", { method: "DELETE" }).then(function (r) { if (r && r.ok) Kit.set("pv_reset_pending", ""); }).catch(function () {});
       if (!resumeRun()) catchUp();
       if (q.get("q")) { window.history.replaceState(null, "", location.pathname); send(q.get("q")); }

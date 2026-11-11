@@ -123,6 +123,8 @@ function readImages(body) {
 // Who is asking. Signed in: the Supabase user id (token verified with
 // Supabase). Otherwise: the device id, a random secret the app generated.
 const tokenCache = new Map();
+// Signed-in people's emails, by key: the brain's admins-only features check them.
+const emails = new Map();
 async function identify(request, body, env) {
   const auth = request.headers.get("Authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : typeof body?.token === "string" ? body.token : "";
@@ -135,6 +137,7 @@ async function identify(request, body, env) {
         const u = await r.json();
         if (u?.id) {
           const key = `u:${u.id}`;
+          if (u.email) { if (emails.size > 4000) emails.clear(); emails.set(key, String(u.email).toLowerCase()); }
           if (tokenCache.size > 2000) tokenCache.clear();
           tokenCache.set(token, { key, until: Date.now() + 5 * 60_000 });
           return key;
@@ -198,6 +201,7 @@ async function handleChat(request, env, ctx, cors) {
     images: readImages(body),
     user: body.user && typeof body.user === "object" ? { name: body.user.name, about: body.user.about, tz: body.user.tz } : {},
     userKey,
+    email: emails.get(userKey) || null,
     country: request.cf?.country || null,
     max_tokens: body.max_tokens,
     chat_id: typeof body.chat_id === "string" ? body.chat_id.slice(0, 64) : null,
@@ -235,7 +239,7 @@ async function handleMe(request, env, cors, path) {
       return json({ error: "Memory and tasks are resting while Cloak is in Low Light.", power: "lowlight" }, cors, 503);
     }
     try {
-      const res = await toBrain(env, path + new URL(request.url).search, { method: request.method, headers: { "Content-Type": "application/json", "X-User-Key": key }, body: request.method === "GET" || request.method === "DELETE" ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
+      const res = await toBrain(env, path + new URL(request.url).search, { method: request.method, headers: { "Content-Type": "application/json", "X-User-Key": key, "X-User-Email": emails.get(key) || "" }, body: request.method === "GET" || request.method === "DELETE" ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
       return new Response(res.body, { status: res.status, headers: { ...cors, "Content-Type": res.headers.get("Content-Type") || "application/json" } });
     } catch (e) {
       ctxWait(checkBrain(env));
@@ -354,7 +358,7 @@ export default {
       }
       let m;
       if ((m = /^\/v1\/runs\/([\w-]{16,64})(?:\/(cancel))?$/.exec(path))) return await handleRun(request, env, cors, m[1], m[2]);
-      if (path === "/v1/me" || path.startsWith("/v1/memory") || path.startsWith("/v1/tasks") || path.startsWith("/v1/inbox") || path.startsWith("/v1/blink/")) return await handleMe(request, env, cors, path);
+      if (path === "/v1/me" || path.startsWith("/v1/memory") || path.startsWith("/v1/tasks") || path.startsWith("/v1/inbox") || path.startsWith("/v1/blink/") || path.startsWith("/v1/computer")) return await handleMe(request, env, cors, path);
       if (path === "/v1/tools" && request.method === "GET") return json({ tools: catalog(), modes: ["auto", "swift", "deep", "research", "team"] }, cors, 200, { "Cache-Control": "public, max-age=300" });
       if (path === "/v1/speech" || path === "/v1/speech/voices") {
         if (path === "/v1/speech" && limited(`tts:${request.headers.get("CF-Connecting-IP") || "anon"}`, 20)) return json({ error: "Slow down a little." }, cors, 429);

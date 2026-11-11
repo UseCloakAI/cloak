@@ -115,6 +115,11 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
         <div><p class="lbl">Admins (one email per line)</p><textarea class="field" id="admins"></textarea></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="saveAdmins">Save admins</button><button class="btn ghost" id="restart">Restart brain</button></div>
         <p class="muted mono" id="facts"></p>
+        <div id="compBox" hidden style="display:grid;gap:8px;border-top:1px solid rgba(127,127,127,.3);padding-top:12px">
+          <p class="lbl">Cloak Computer (the two VMs)</p>
+          <p class="muted" id="compState"></p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap"><select class="field" id="compAccess" style="width:auto"><option value="admins">Admins only</option><option value="everyone">Everyone signed in</option></select><button class="btn ghost" id="compSleep">Put both to sleep</button></div>
+        </div>
       </div>
     </section>
   </div>
@@ -173,6 +178,12 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
   async function loadSettings() {
     var s = await api("/admin/api/settings");
     $("admins").value = s.admins.join("\n");
+    var c = s.computer || {};
+    $("compBox").hidden = !c.available;
+    if (c.available) {
+      $("compState").textContent = "Desktop: " + c.desktop.state + (c.desktop.holder ? " (in use)" : "") + ". Server: " + c.server.state + ".";
+      $("compAccess").value = c.access || "admins";
+    }
   }
   async function openPerson(id) {
     var d = await api("/admin/api/people/" + id);
@@ -220,6 +231,8 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
     var s = await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ admins: $("admins").value.split(/\s+/).filter(Boolean) }) });
     $("admins").value = s.admins.join("\n");
   };
+  $("compAccess").onchange = async function () { await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ computerAccess: this.value }) }); loadSettings(); };
+  $("compSleep").onclick = async function () { await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ computerSleep: true }) }); setTimeout(loadSettings, 1500); };
   $("restart").onclick = async function () {
     if (!confirm("Restart the brain? Replies in progress will move to Low Light.")) return;
     await api("/admin/api/restart", { method: "POST" });

@@ -15,7 +15,7 @@
 // tasks (mind.js).
 
 import { LANES, routeLane } from "./models.js";
-import { buildSystem, COMPANIONS, BRANDS, resolveCompanion, stripTags, codeGuide } from "./prompts.js";
+import { buildSystem, COMPANIONS, BRANDS, resolveCompanion, stripTags, codeGuide, COMPUTER_GUIDE } from "./prompts.js";
 import { detect, resources, careProtocol } from "./safety.js";
 import { estimate } from "./carbon.js";
 import { streamLane } from "./engine.js";
@@ -113,12 +113,16 @@ export async function* runAgent(env, ctx, req, signal) {
   const memories = mind && !depth ? await mind.context(textOf(last)).catch(() => []) : [];
 
   // No tools for a life at risk (the reply is the person, not a search) or for hellos.
-  let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind, hasTalk: typeof req.talk === "function" && !depth, hasFiles: !depth && Array.isArray(req.files) && req.files.length > 0 });
+  let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind, hasTalk: typeof req.talk === "function" && !depth, hasFiles: !depth && Array.isArray(req.files) && req.files.length > 0, hasComputer: !depth && !!req.computer && typeof req.computer.run === "function" });
   // The smallest models get a short toolbelt: they plan poorly with a long one.
   if (lane === "swift") tools = tools.filter((t) => ["web_search", "calculate", "remember", "schedule_task", "create_blink"].includes(t));
   // A scheduled task must not schedule more work or rewrite the task list.
   if (req.background) tools = tools.filter((t) => !["schedule_task", "cancel_task", "list_tasks"].includes(t));
-  const budget = depth ? STEPS.sub : research ? STEPS.research : req.background ? STEPS.background : STEPS.auto;
+  const computing = tools.includes("server_run");
+  const budget = depth ? STEPS.sub : computing ? 24 : research ? STEPS.research : req.background ? STEPS.background : STEPS.auto;
+  // On the brain each model call is its own Worker request, so the per-reply
+  // request cap (a Cloudflare limit) does not apply there.
+  const CAP = IO.lane ? 160 : REQUEST_BUDGET;
 
   const system = buildSystem({
     brand, companion, lane, depth, tools, memories, research,
@@ -126,7 +130,7 @@ export async function* runAgent(env, ctx, req, signal) {
     care: danger ? careProtocol(danger, help) : "",
     user: req.user && typeof req.user === "object" ? req.user : {},
     convictions: env.CONVICTIONS !== "off",
-    extra: [req.extra || "", depth ? "" : codeGuide(req.files)].filter(Boolean).join("\n\n"),
+    extra: [req.extra || "", depth ? "" : codeGuide(req.files), tools.includes("server_run") ? COMPUTER_GUIDE : ""].filter(Boolean).join("\n\n"),
     soul: req.soul || "",
   });
 
@@ -149,7 +153,7 @@ export async function* runAgent(env, ctx, req, signal) {
   for (let step = 0; step < budget; step++) {
     if (signal?.aborted) return;
     // Out of steps, or out of outbound requests: this call writes the answer.
-    const broke = shared.spent >= REQUEST_BUDGET - RESERVE;
+    const broke = shared.spent >= CAP - RESERVE;
     const final = step === budget - 1 || broke;
     const offer = tools.length && !final ? specs(tools) : undefined;
     if (final && tools.length && step > 0) msgs.push({ role: "user", content: "[Platform note: you have used all your tool calls for this turn. Answer now with what you have, and say what you could not check.]" });
@@ -175,7 +179,7 @@ export async function* runAgent(env, ctx, req, signal) {
 
     // The model spoke before reaching for tools: that was a working note.
     if (text.trim() && !depth) yield { reset: true, note: text.trim().slice(0, 300) };
-    calls = calls.slice(0, Math.max(1, Math.min(MAX_CALLS_PER_STEP, REQUEST_BUDGET - RESERVE - shared.spent)));
+    calls = calls.slice(0, Math.max(1, Math.min(MAX_CALLS_PER_STEP, CAP - RESERVE - shared.spent)));
     msgs.push({ role: "assistant", content: text || "", tool_calls: calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } })) });
 
     const ch = channel();
@@ -188,7 +192,7 @@ export async function* runAgent(env, ctx, req, signal) {
       if (c.name === "remember") remembered = true;
       shared.spent++;
       const cx = {
-        env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite, talk: req.talk, files: Array.isArray(req.files) ? req.files : [],
+        env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite, talk: req.talk, computer: req.computer, files: Array.isArray(req.files) ? req.files : [],
         net: IO.net ? IO.net(env) : null,
         delegate: async (who, task) => {
           const sub = runAgent(env, ctx, { brand, companion: who, userKey: req.userKey, user: req.user, country: req.country, depth: depth + 1, shared, messages: [{ role: "user", content: task }] }, signal);
