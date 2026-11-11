@@ -1,0 +1,152 @@
+/* Kit: Cloak's design system, upgraded for the preview. One file, no build.
+   Cloak's own tokens (ink, paper, the orange accent, 2px borders, hard offset
+   shadows, square corners, Syne + Space Grotesk) plus a hand-drawn layer:
+   scribbled underlines, handwritten notes, hatched shadows, shapes with eyes.
+   Motion is Cloak's: the shadow is the floor. Hover lifts by the shadow
+   gained, press slams flat. */
+
+@font-face{font-family:"Geist Mono";src:url(fonts/geist-mono.woff2) format("woff2-variations");font-weight:100 900;font-style:normal;font-display:swap}
+
+:root{
+  --ink:#0A0A0A; --bg:#F2EEE5; --surface:#FAFAF7; --sunk:#EAE5DB; --raise:#FFFFFF; --p3:#DDD8CC;
+  --ink-2:#3B3A36; --ink-3:#6B6860;
+  --line:rgba(10,10,10,.14); --line-2:#0A0A0A;
+  --accent:#D44D2A; --accent-2:#B83B1D; --accent-ink:#FFFFFF; --accent-soft:#F6D9CC;
+  --yel:#F5C842; --grn:#4CBF73; --blu:#5B9BF8; --peach:#F3A77C;
+  --good:#1F8A4C; --warn:#D44D2A; --care:#B3261E; --care-soft:#F8DEDA;
+  --bd:2px solid var(--ink);
+  --shsm:2px 2px 0 var(--ink); --shadow:4px 4px 0 var(--ink); --shadow-lg:6px 6px 0 var(--ink);
+  --sh-acc:4px 4px 0 var(--accent);
+
+  --fd:"Syne","Space Grotesk",system-ui,sans-serif;
+  --fb:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --fm:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --fh:"Caveat","Segoe Print","Bradley Hand",cursive;
+
+  --r-pill:0px; --r-card:0px; --r-field:0px; --r-sm:0px;
+  --ease:cubic-bezier(.16,1,.3,1); --ease-back:cubic-bezier(.3,1.35,.55,1); --ease-in:cubic-bezier(.55,0,1,.45);
+  --t1:90ms; --t2:240ms; --t3:480ms; --lift:380ms cubic-bezier(.3,1.35,.55,1);
+  --wrap:1200px; --gut:clamp(18px,4vw,40px);
+  color-scheme:light;
+}
+:root[data-mode="dark"]{
+  --ink:#EDE8DF; --bg:#131110; --surface:#181512; --sunk:#1A1815; --raise:#22201C; --p3:#22201C;
+  --ink-2:#C9C3B8; --ink-3:#958F84;
+  --line:rgba(237,232,223,.14); --line-2:rgba(237,232,223,.7);
+  --accent:#E5603E; --accent-2:#D44D2A; --accent-ink:#0A0A0A; --accent-soft:#3A2018;
+  --good:#4ade80; --warn:#F08A6A; --care:#F2887F; --care-soft:#3A1E1B;
+  --bd:2px solid rgba(237,232,223,.7);
+  --shsm:2px 2px 0 rgba(237,232,223,.45); --shadow:4px 4px 0 rgba(237,232,223,.45); --shadow-lg:6px 6px 0 rgba(237,232,223,.4);
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 var(--fb);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+img,svg{max-width:100%}
+a{color:inherit}
+button,input,textarea,select{font:inherit;color:inherit}
+h1,h2,h3,h4{font-family:var(--fd);font-weight:800;letter-spacing:-.03em;line-height:1;margin:0;text-wrap:balance}
+p{margin:0;text-wrap:pretty}
+::selection{background:var(--accent);color:#fff}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+[hidden]{display:none!important}
+
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 var(--gut)}
+.muted{color:var(--ink-2)}
+.mono{font-family:var(--fm);font-feature-settings:"tnum"}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ic{width:1.15em;height:1.15em;fill:currentColor;flex:none;vertical-align:-.18em}
+
+/* Type */
+.t-hero,.t-h2,.t-h3{font-family:var(--fd);font-weight:800}
+.t-hero{font-size:clamp(2.25rem,7.4vw,6.2rem);font-weight:800;letter-spacing:-.045em;line-height:.9;text-transform:uppercase}
+.t-h2{font-size:clamp(2rem,4.6vw,3.6rem);text-transform:uppercase;letter-spacing:-.035em;line-height:.95}
+.t-h3{font-size:clamp(1.25rem,2vw,1.55rem);letter-spacing:-.02em;line-height:1.1}
+.t-lead{font-size:clamp(1.05rem,1.5vw,1.25rem);line-height:1.5;color:var(--ink-2);max-width:54ch}
+.t-label{font:700 .7rem/1 var(--fb);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+
+/* The hand-drawn layer */
+.note{font:600 1.35rem/1.1 var(--fh);color:var(--accent);rotate:-3deg;display:inline-block}
+.scribble{white-space:nowrap;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 18' preserveAspectRatio='none'%3E%3Cpath d='M3 11 C40 3 70 15 108 8 S180 4 214 10 S268 13 297 6' fill='none' stroke='%23D44D2A' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M14 15 C70 9 150 16 290 12' fill='none' stroke='%23D44D2A' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 0 100%/100% .32em;padding-bottom:.12em}
+.sticker{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:var(--bd);background:var(--yel);color:#0A0A0A;font:700 .7rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;box-shadow:var(--shsm);rotate:-2deg}
+.dots{background-image:radial-gradient(var(--line) 1.2px,transparent 1.3px);background-size:22px 22px}
+
+/* Buttons: square, bordered, sitting on a hard shadow */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.6em;height:48px;padding:0 22px;border:var(--bd);background:var(--ink);color:var(--bg);font:700 .78rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;text-decoration:none;white-space:nowrap;cursor:pointer;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift),background-color var(--t2) var(--ease)}
+.btn:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.btn:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--t1)}
+.btn .ic{transition:transform var(--t2) var(--ease-back)}
+.btn:hover .ic.go{transform:translateX(3px)}
+.btn-accent{background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow)}
+.btn-accent:hover{box-shadow:var(--shadow-lg)}
+.btn-accent:active{transform:translate(4px,4px)}
+.btn-ghost{background:var(--surface);color:var(--ink)}
+.btn-sm{height:38px;padding:0 15px;font-size:.7rem}
+.btn[disabled]{opacity:.4;pointer-events:none;box-shadow:none}
+.iconbtn{display:inline-grid;place-items:center;width:38px;height:38px;border:2px solid transparent;background:transparent;color:var(--ink-2);cursor:pointer;transition:background-color var(--t1) var(--ease),color var(--t1) var(--ease),border-color var(--t1) var(--ease),transform var(--t1) var(--ease)}
+.iconbtn:hover{background:var(--sunk);color:var(--ink);border-color:var(--line-2)}
+.iconbtn:active{transform:translate(1px,1px)}
+
+/* Surfaces */
+.card{background:var(--surface);border:var(--bd);box-shadow:var(--shadow)}
+.chip{display:inline-flex;align-items:center;gap:.4em;height:26px;padding:0 9px;border:1.5px solid var(--line-2);background:var(--surface);color:var(--ink);font:700 .66rem/1 var(--fb);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.chip-accent{background:var(--yel);color:#0A0A0A;border-color:#0A0A0A}
+.field{width:100%;height:46px;padding:0 14px;border:var(--bd);background:var(--raise);color:var(--ink);transition:box-shadow var(--lift),transform var(--lift)}
+.field::placeholder{color:var(--ink-3)}
+.field:focus{outline:0;box-shadow:var(--sh-acc);transform:translate(-2px,-2px)}
+label.lbl,p.lbl{display:block;font:700 .7rem/1.2 var(--fb);letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px}
+.help{font-size:.84rem;color:var(--ink-3);margin-top:6px}
+.err{font-size:.84rem;color:var(--care);margin-top:6px;font-weight:600}
+
+/* The lockup: CL(O)AK, where the O is alive, then "blinks" written in by hand */
+.brand{font:800 1.5rem/1 var(--fd);letter-spacing:-.03em;text-transform:uppercase;text-decoration:none;display:inline-flex;align-items:center;color:var(--ink);white-space:nowrap}
+.brand .sub{font:700 1.06em/1 var(--fh);letter-spacing:0;text-transform:none;color:var(--accent);margin-left:.16em;rotate:-6deg;translate:0 .06em;display:inline-block;transition:rotate var(--lift)}
+.brand:hover .sub{rotate:-12deg}
+.brand .o{display:inline-block;width:.86em;height:.86em;margin:0 .03em;flex:none}
+.brand .o svg{display:block;width:100%;height:100%;overflow:visible}
+.o-eyes{transition:translate 160ms var(--ease);transform-box:fill-box;transform-origin:50% 50%;animation:o-blink 5.2s infinite}
+@keyframes o-blink{0%,93%,100%{transform:scaleY(1)}95.5%{transform:scaleY(.1)}}
+.brand:hover .o{animation:o-hop 520ms var(--ease-back)}
+@keyframes o-hop{35%{translate:0 -.22em;scale:.94 1.08}70%{translate:0 0;scale:1.08 .92}}
+
+/* Site nav */
+.nav{position:sticky;top:0;z-index:40;background:var(--bg);border-bottom:var(--bd)}
+.nav-in{display:flex;align-items:center;gap:16px;height:64px}
+.nav-links{display:flex;gap:2px;margin-left:auto}
+.nav-links a{padding:8px 12px;font:700 .7rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--ink-2);border:2px solid transparent;transition:background-color var(--t1) var(--ease),color var(--t1) var(--ease),border-color var(--t1) var(--ease)}
+.nav-links a:hover{color:var(--ink);border-color:var(--line-2)}
+.nav-links a[aria-current="page"]{background:var(--ink);color:var(--bg)}
+@media (max-width:760px){.nav-links{display:none}.nav-in .iconbtn{margin-left:auto}}
+
+.foot{border-top:var(--bd);padding:34px 0 44px;color:var(--ink-2);font-size:.9rem}
+.foot-in{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center}
+.foot a{text-decoration:none;font:700 .7rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase}
+.foot a:hover{color:var(--accent)}
+.foot .sp{margin-left:auto}
+
+/* Shared pieces */
+.starter{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:12px 15px;border:var(--bd);background:var(--surface);color:var(--ink);text-decoration:none;font-size:.95rem;font-weight:500;text-align:left;cursor:pointer;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift),background-color var(--t1) var(--ease)}
+.starter:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow);background:var(--raise)}
+.starter:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--t1)}
+.starter .ic{color:var(--accent)}
+.chart-tip{position:absolute;display:grid;gap:3px;width:190px;padding:10px 12px;background:var(--raise);border:var(--bd);box-shadow:var(--shsm);font-size:.82rem;pointer-events:none}
+.chart-tip i{display:inline-block;width:9px;height:9px;margin-right:6px;border:1.5px solid var(--line-2)}
+.pick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.pick button{height:34px;padding:0 13px;border:var(--bd);background:var(--surface);font:700 .68rem/1 var(--fb);letter-spacing:.1em;text-transform:uppercase;cursor:pointer;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift)}
+.pick button:hover{transform:translate(-1px,-1px)}
+.pick button:active{transform:translate(2px,2px);box-shadow:none}
+.pick button[aria-pressed="true"]{background:var(--ink);color:var(--bg);transform:translate(2px,2px);box-shadow:none}
+
+/* Entrances: rise + fade, decelerating. Set by kit.js when in view. */
+.js [data-in]{opacity:0;translate:0 18px;transition:opacity var(--t3) var(--ease),translate var(--t3) var(--ease);transition-delay:calc(var(--i,0)*70ms)}
+.js [data-in].in{opacity:1;translate:0 0}
+
+.pv{background:var(--ink);color:var(--bg);font:700 .68rem/1.4 var(--fb);letter-spacing:.12em;text-transform:uppercase;text-align:center;padding:8px var(--gut)}
+.pv a{color:inherit}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .js [data-in]{opacity:1;translate:none}
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Backend for Cloak Blinks (usecloak.org/blinks). Separate from
+  // production cloak-api. See blinks-api/README.md.
+  "name": "cloak-blinks-api",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [{ "pattern": "blinks-api.usecloak.org", "custom_domain": true }],
+  // The public carbon ledger.
+  // LEDGER: public carbon ledger. MIND: one per person (memory, tasks, inbox).
+  // AGENT_RUN: one per reply, so work survives a closed tab.
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEDGER", "class_name": "Ledger" },
+      { "name": "MIND", "class_name": "Mind" },
+      { "name": "AGENT_RUN", "class_name": "AgentRun" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1-ledger", "new_sqlite_classes": ["Ledger"] },
+    { "tag": "v2-agents", "new_sqlite_classes": ["Mind", "AgentRun"] }
+  ],
+  // Same key ring as production (read-only here): {"nvidia":[…],"groq":[…],"gemini":[…]}
+  "kv_namespaces": [{ "binding": "PROVIDER_KEYS", "id": "0778af1d9ecb491ba397cc9ae0e2b064" }],
+  // BRAND: working name until one is picked. CONVICTIONS: "off" leaves the
+  // faith block out of the system prompt. Secret: ADMIN_TOKEN.
+  // SUPABASE_*: publishable values, used only to verify a signed-in user's token.
+  "vars": {
+    "BRAND": "Cloak Blinks",
+    "CONVICTIONS": "on",
+    "SUPABASE_URL": "https://kdawsqrrmwirilyhcolk.supabase.co",
+    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkYXdzcXJybXdpcmlseWhjb2xrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NjUxNjAsImV4cCI6MjA4OTU0MTE2MH0.cMN9V51J3042DrdaDmL7-ro-AMaw-IU47wQLnW2NMBE"
+  },
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

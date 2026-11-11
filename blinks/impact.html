@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F2EEE5">
+<title>The ledger | Cloak Blinks</title>
+<meta name="description" content="Every reply's energy and carbon, estimated in public, against the carbon removed with receipts.">
+<script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap">
+<link rel="stylesheet" href="kit.css">
+<style>
+.head{padding:clamp(36px,6vw,72px) 0 8px}
+.head h1{margin-bottom:16px}
+.sample{display:inline-flex;gap:8px;align-items:center;margin-top:22px;padding:9px 14px;border:var(--bd);background:var(--yel);color:#0A0A0A;box-shadow:var(--shsm);font-size:.9rem;font-weight:500;rotate:-.6deg}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:40px 0 32px;border:var(--bd);background:var(--surface);box-shadow:var(--shadow)}
+.stats div{padding:22px}
+.stats div+div{border-left:var(--bd)}
+.stats b{display:block;font:800 clamp(1.7rem,3.2vw,2.6rem)/1 var(--fd);letter-spacing:-.035em;margin-bottom:6px}
+.stats span{color:var(--ink-2);font-size:.92rem}
+.stats .good{color:var(--good)}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stats div:nth-child(3){border-left:0;border-top:var(--bd)}.stats div:nth-child(4){border-top:var(--bd)}}
+.chart-card{padding:clamp(16px,2.4vw,28px);position:relative}
+section{padding:clamp(48px,7vw,88px) 0 0}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,5vw,72px);margin-top:28px}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
+.rows{display:grid;gap:0}
+.rows>div{display:grid;grid-template-columns:1fr auto auto;gap:18px;padding:12px 0;align-items:baseline}
+.rows>div+div{border-top:1px solid var(--line)}
+.rows b{font-weight:600}
+.rows .mono{font-size:.88rem;color:var(--ink-2);text-align:right;min-width:74px}
+.method{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.method div{padding:18px;background:var(--surface);border:var(--bd);box-shadow:var(--shsm)}
+.method b{display:block;font:800 1.5rem/1 var(--fd);letter-spacing:-.02em;margin-bottom:6px}
+.method span{font-size:.9rem;color:var(--ink-2)}
+@media (max-width:520px){.method{grid-template-columns:1fr}}
+.receipt{display:grid;grid-template-columns:auto 1fr auto;gap:8px 20px;align-items:center;padding:16px 20px;background:var(--surface);border:var(--bd);box-shadow:var(--shsm);text-decoration:none;transition:box-shadow var(--lift),transform var(--lift)}
+a.receipt:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.receipt+.receipt{margin-top:10px}
+.receipt .kg{font:800 1.3rem/1 var(--fd);letter-spacing:-.02em;color:var(--good);min-width:92px}
+.receipt small{display:block;color:var(--ink-3);font-size:.84rem}
+.promise{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(18px,3vw,40px);margin-top:28px}
+.promise h3{font-size:1.15rem;margin:12px 0 8px;text-transform:uppercase}
+.promise p{color:var(--ink-2);font-size:.95rem}
+.promise .ic{width:26px;height:26px;color:var(--accent)}
+@media (max-width:760px){.promise{grid-template-columns:1fr}}
+.limits{margin:clamp(56px,8vw,96px) 0;padding:clamp(24px,4vw,44px);border:var(--bd);background:var(--surface);box-shadow:8px 8px 0 var(--accent)}
+.limits ul{margin:16px 0 0;padding-left:1.2em;display:grid;gap:10px;color:var(--ink-2);max-width:70ch}
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html" data-brand>Cloak</a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="index.html#top">Meet Cloak</a>
+      <a href="index.html#routing">How it works</a>
+      <a href="impact.html" aria-current="page">Impact</a>
+      <a href="system.html">System</a>
+    </nav>
+    <button class="iconbtn" data-mode-toggle aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
+    <a class="btn btn-sm" href="app.html">Open app</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="head">
+    <h1 class="t-hero" data-in>The ledger.</h1>
+    <p class="t-lead" data-in style="--i:1">What every reply costs the planet, estimated in the open, next to what has actually been removed. Estimates are labelled. Only receipts count.</p>
+    <p class="sample" id="sample" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#info"/></svg>Sample data. The preview backend is not connected, so nothing below is a real figure yet.</p>
+  </div>
+
+  <div class="stats" data-in>
+    <div><b id="tReplies">0</b><span>replies counted</span></div>
+    <div><b id="tWh">0 Wh</b><span>energy, estimated</span></div>
+    <div><b id="tEmit">0 g</b><span>CO2e emitted, estimated</span></div>
+    <div><b class="good" id="tGone">0 g</b><span id="tGoneSub">CO2e removed, with receipts</span></div>
+  </div>
+
+  <div class="card chart-card" data-in><div id="chart"></div></div>
+
+  <section>
+    <div class="two">
+      <div data-in>
+        <h2 class="t-h3">Where the energy goes</h2>
+        <p class="muted" style="margin:8px 0 14px">By lane. Light lanes carry most messages and little of the footprint, which is the point of routing.</p>
+        <div class="rows" id="lanes"></div>
+      </div>
+      <div data-in style="--i:1">
+        <h2 class="t-h3">How a reply becomes a number</h2>
+        <p class="muted" style="margin:8px 0 14px">Tokens in and out, times the energy per token for that model's size, times datacenter overhead, times grid carbon. Then a margin on top.</p>
+        <div class="method" id="method"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="t-h2" data-in>Receipts</h2>
+    <p class="t-lead" data-in style="--i:1;margin:12px 0 26px">Each line is a purchase of verified carbon removal, retired on a public registry. If it is not here, it does not count.</p>
+    <div id="receipts" data-in style="--i:2"></div>
+  </section>
+
+  <section id="sponsors">
+    <h2 class="t-h2" data-in>Who pays for it</h2>
+    <p class="t-lead" data-in style="--i:1;margin-top:12px">Sponsors do. One card beside the conversation, and three promises about how it behaves.</p>
+    <div class="promise" data-in style="--i:2">
+      <div><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#eye-slash"/></svg><h3>No tracking</h3><p>Cards are not targeted. No profile, no cookies, no third-party scripts. We count views and clicks, nothing about you.</p></div>
+      <div><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#chat-circle"/></svg><h3>Never in the answer</h3><p>A sponsor cannot buy a mention, a ranking or a recommendation. Companions do not know who the sponsors are.</p></div>
+      <div><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#leaf"/></svg><h3>Removal comes first</h3><p>Sponsor money pays for ten times the carbon before it pays for anything else, up to half of all revenue.</p></div>
+    </div>
+    <div class="stats" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:0" data-in>
+      <div><b id="tViews">0</b><span>sponsor card views</span></div>
+      <div><b id="tClicks">0</b><span>clicks</span></div>
+      <div><b id="tRev">$0</b><span id="tRevSub">sponsor revenue</span></div>
+    </div>
+  </section>
+
+  <div class="limits" data-in>
+    <h2 class="t-h3">What this ledger cannot tell you</h2>
+    <ul>
+      <li>Nobody outside a datacenter can meter one request. The energy figures are a model built on published per-query measurements, not a reading.</li>
+      <li>Training the models is not counted. We use open models other people trained, and we count only the energy of running them for you.</li>
+      <li>Carbon removal is not the same as never emitting. Routing to smaller models comes first. Removal covers what is left.</li>
+      <li>Revenue is an estimate until real invoices are booked, and it is labelled that way wherever it appears.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <span class="brand" style="font-size:1.15rem" data-brand>Cloak</span>
+    <span data-brand-tag></span>
+    <span class="sp"></span>
+    <a href="index.html">Home</a><a href="app.html">App</a><a href="system.html">Design system</a>
+  </div>
+</footer>
+
+<script src="kit.js"></script>
+<script src="impact.js"></script>
+<script>
+Kit.loadImpact().then(function (d) {
+  var t = d.totals, m = d.method || {};
+  var $ = function (id) { return document.getElementById(id); };
+  $("sample").hidden = !d.sample;
+  $("tReplies").textContent = Kit.fmtN(t.replies);
+  $("tWh").textContent = Kit.fmtWh(t.wh);
+  $("tEmit").textContent = Kit.fmtCO2(t.emitted_kg);
+  $("tGone").textContent = Kit.fmtCO2(t.retired_kg);
+  if (t.emitted_kg > 0 && t.retired_kg > 0) $("tGoneSub").textContent = "removed with receipts, " + (t.retired_kg / t.emitted_kg).toFixed(1) + "x what was emitted";
+  $("tViews").textContent = Kit.fmtN(t.views);
+  $("tClicks").textContent = Kit.fmtN(t.clicks);
+  $("tRev").textContent = "$" + (t.revenue_usd < 100 ? t.revenue_usd.toFixed(2) : Kit.fmtN(t.revenue_usd));
+  $("tRevSub").textContent = t.revenue_is_estimate ? "sponsor revenue, estimated from views" : "sponsor revenue, booked";
+  ImpactChart.draw($("chart"), d, {});
+
+  var NAMES = { swift: "Swift", smart: "Balanced", deep: "Deep", code: "Build", creative: "Create", vision: "See", utility: "Background" };
+  var lanes = (d.lanes || []).slice().sort(function (a, b) { return b.g - a.g; });
+  var totalG = lanes.reduce(function (a, l) { return a + l.g; }, 0) || 1;
+  $("lanes").innerHTML = lanes.length ? lanes.map(function (l) {
+    return "<div><b>" + (NAMES[l.lane] || Kit.esc(l.lane)) + '</b><span class="mono">' + Kit.fmtN(l.replies) + ' replies</span><span class="mono">' + Math.round((l.g / totalG) * 100) + "% of CO2e</span></div>";
+  }).join("") : '<p class="muted">No replies counted yet.</p>';
+
+  var w = m.wh_per_1k_out || {};
+  $("method").innerHTML = [
+    [(w.xs || 0) + " to " + (w.xl || 0) + " Wh", "per 1,000 output tokens, smallest to largest model class"],
+    [Math.round((m.input_factor || 0) * 100) + "%", "of that for each input token, which is read once"],
+    [(m.pue || 0) + "x", "datacenter overhead for cooling and power delivery"],
+    [(m.grid_g_per_kwh || 0) + " g", "CO2e per kWh. The world average grid, not a clean one"],
+    ["+" + Math.round(((m.margin || 1) - 1) * 100) + "%", "safety margin, so the estimate errs high"],
+    [(m.offset_multiple || 10) + "x", "removed for every gram emitted, at a planning price of $" + (m.usd_per_tonne || 0) + " per tonne"],
+  ].map(function (r) { return "<div><b>" + r[0] + "</b><span>" + r[1] + "</span></div>"; }).join("");
+
+  $("receipts").innerHTML = (d.offsets || []).length ? d.offsets.map(function (o) {
+    var date = new Date(o.day + "T00:00:00Z").toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+    var real = /^https:\/\//.test(o.receipt);
+    return (real ? '<a class="receipt" target="_blank" rel="noopener noreferrer" href="' + Kit.esc(o.receipt) + '">' : '<div class="receipt">') +
+      '<span class="kg">' + Kit.fmtCO2(o.kg) + "</span><span><b>" + Kit.esc(o.project) + "</b><small>" + Kit.esc(o.registry) + ", " + date + "</small></span>" +
+      (real ? Kit.icon("arrow-square-out") : "<span></span>") + (real ? "</a>" : "</div>");
+  }).join("") : '<p class="muted">No credits retired yet. The first receipt will appear here.</p>';
+});
+</script>
+</body>
+</html>
