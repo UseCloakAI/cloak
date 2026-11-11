@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#F2EEE5">
 <title>Cloak Blinks</title>
+<link rel="icon" id="favicon" type="image/svg+xml" href="data:,">
 <script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,17 +52,22 @@
         <b class="badge" id="inboxBadge" hidden></b>
       </button>
       <div class="sb-actions">
-        <button class="sb-btn sb-util" id="openSettings2" type="button" data-tip="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg><span class="sbl">Settings</span></button>
+        <button class="sb-btn sb-util" id="openSettings2" type="button" data-tip="Settings" data-nav="settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg><span class="sbl">Settings</span></button>
         <a class="sb-btn sb-util" href="https://usecloak.org/values.html" data-tip="Our Values"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#seal-check"/></svg><span class="sbl">Our Values</span></a>
       </div>
     </div>
   </aside>
 
-  <main class="main">
+  <main class="main" id="main">
+  <section class="page" id="page-chat" data-page="chat" aria-label="Chat" tabindex="-1">
     <header class="top">
-      <button class="iconbtn sb-toggle" id="menu" type="button" aria-label="Toggle sidebar" aria-controls="side"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#list"/></svg></button>
+      <div class="top-l">
+        <button class="icon-btn sb-toggle" type="button" data-side-toggle title="Toggle sidebar" aria-label="Toggle sidebar" aria-controls="side">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+      </div>
       <div class="chip-who"><span class="top-av" id="topAv"></span><span class="top-who"><b id="topName">Cloak</b><span id="topRole">Your Blink</span></span></div>
-      <span class="sp"></span>
+      <div class="top-r">
       <div class="modes">
         <button class="mode-btn" id="modeBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="modeMenu"><span class="sr">Thinking mode: </span><span id="modeName">Auto</span><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#caret-down"/></svg></button>
         <div class="mode-menu" id="modeMenu" role="menu" hidden>
@@ -72,8 +78,14 @@
           <button role="menuitemradio" aria-checked="false" data-mode="team"><b>Team</b><span>Several helpers work in parallel, then one answer comes back.</span></button>
         </div>
       </div>
-      <button class="iconbtn top-mode" data-mode-toggle type="button" aria-label="Switch between light and dark"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg></button>
-      <a class="sponsor-pill" id="sponsor" href="impact.html#sponsors" title=""><small>Sponsor</small><b id="spTitle"></b></a>
+        <button class="icon-btn" type="button" data-dark-toggle title="Toggle theme" aria-label="Switch between light and dark">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="moon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            <g class="sun"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></g>
+          </svg>
+        </button>
+        <a class="sponsor-pill" id="sponsor" href="impact.html#sponsors" title=""><small>Sponsor</small><b id="spTitle"></b></a>
+      </div>
     </header>
 
     <div class="power" id="power" role="status" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg><span><b>Cloak is in Low Light.</b> Chat works; memory, agents and files are resting until it wakes up.</span></div>
@@ -94,31 +106,65 @@
       </form>
       <p class="fine"><span id="stSess">0 Wh</span> this session, removed ten times over. AI can be wrong; check anything that matters.</p>
     </div>
+  </section>
+
+  <section class="page settings-page" id="page-settings" data-page="settings" aria-labelledby="ptSettings" tabindex="-1" hidden>
+    <header class="top">
+      <div class="top-l">
+        <button class="icon-btn sb-toggle" type="button" data-side-toggle title="Toggle sidebar" aria-label="Toggle sidebar" aria-controls="side">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+        <h1 class="page-title" id="ptSettings">Settings</h1>
+      </div>
+    </header>
+    <div class="settings-scroll">
+      <div class="settings-layout">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button class="snav-btn on" type="button" data-tab="you"><span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>You</button>
+          <button class="snav-btn" type="button" data-tab="blink"><span class="snav-icon snav-blink" id="snavFig" aria-hidden="true"></span><span id="snavName">Cloak</span></button>
+          <button class="snav-btn" type="button" data-tab="appearance"><span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>Appearance</button>
+        </nav>
+        <div class="settings-body">
+          <div class="spane on" id="spane-you">
+            <div class="srow">
+              <div class="srow-name">Account</div>
+              <div class="info-box acct-box">
+                <span class="user-av big" id="sAv">?</span>
+                <div><div class="acct-name" id="sName">-</div><div class="acct-email" id="sEmail">-</div></div>
+              </div>
+            </div>
+            <div class="srow">
+              <div class="srow-name"><label for="setName">What your Blinks call you</label></div>
+              <div class="srow-desc">Used in greetings and conversations.</div>
+              <div class="srow-line"><input class="inp-field" id="setName" maxlength="40" autocomplete="given-name" placeholder="Your name"><button class="cta" type="button" id="saveName">Save</button></div>
+            </div>
+            <div class="srow">
+              <div class="srow-name"><label for="setAbout">Anything they should know</label></div>
+              <div class="srow-desc">How you like answers, what you do, what to skip. Sent with each message.</div>
+              <textarea class="inp-field" id="setAbout" maxlength="600" rows="4"></textarea>
+              <button class="cta" type="button" id="saveAbout">Save</button>
+            </div>
+            <div class="srow">
+              <div class="srow-name">Sign out</div>
+              <div class="srow-desc">Blinks uses your Cloak account. This device forgets your chats and Blinks until you sign in again.</div>
+              <button class="danger" type="button" id="signOut">Sign out of Cloak</button>
+            </div>
+          </div>
+          <div class="spane" id="spane-blink"><div id="mind"></div></div>
+          <div class="spane" id="spane-appearance">
+            <div class="srow">
+              <div class="srow-head"><div class="srow-name">Light / Dark mode</div></div>
+              <div class="srow-desc">Currently <span id="modeLabel">light</span> mode.</div>
+              <button class="cta" type="button" data-dark-toggle>Toggle light / dark</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
   </main>
 </div>
 
-<dialog id="settings" aria-labelledby="setTitle">
-  <form class="dlg" method="dialog" id="setForm">
-    <h2 id="setTitle">You</h2>
-    <div>
-      <label class="lbl" for="setName">What should Cloak call you?</label>
-      <input class="field" id="setName" maxlength="40" autocomplete="given-name">
-    </div>
-    <div>
-      <label class="lbl" for="setAbout">Anything Cloak should know</label>
-      <textarea class="field" id="setAbout" maxlength="600"></textarea>
-      <p class="help">How you like answers, what you do, what to skip. Sent with each message, stored on this device.</p>
-    </div>
-    <hr>
-    <div id="mind"></div>
-    <hr>
-    <div id="acct"></div>
-    <div class="dlg-row">
-      <button class="btn btn-ghost btn-sm" value="cancel" formnovalidate>Close</button>
-      <button class="btn btn-sm" value="save" id="setSave">Save</button>
-    </div>
-  </form>
-</dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" defer></script>

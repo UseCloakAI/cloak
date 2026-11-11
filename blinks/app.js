@@ -109,12 +109,34 @@
     ["stage", "top"].forEach(function (k) { if (fig[k]) fig[k].destroy(); });
     fig.stage = track(c.id, Creatures.mount($("featFig"), look(c), { label: c.name, mood: nowMood }));
     fig.top = Creatures.mount($("topAv"), look(c), { label: c.name, still: true }); // the header chip is a still drawing
+    Creatures.mount($("snavFig"), look(c), { label: c.name, still: true });
+    $("snavName").textContent = c.name;
+    setTimeout(favicon, 60);
     $("topName").textContent = $("featName").textContent = c.name;
+    $("featName").classList.toggle("long", c.name.length > 8);
     $("topRole").textContent = c.role;
     $("feature").style.setProperty("--blink", Creatures.color(look(c)));
     $("input").placeholder = "Message " + c.name;
     document.title = c.name + " | " + Kit.brand;
     setTimeout(function () { each("wave"); }, 250);
+  }
+
+  // The tab icon is the Blink you are with: its still drawing, crisp at 32px.
+  function favicon() {
+    var svg = $("topAv").querySelector("svg");
+    if (!svg) return;
+    var x = svg.cloneNode(true);
+    x.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    x.setAttribute("viewBox", "-14 -26 268 268");
+    x.removeAttribute("style");
+    x.removeAttribute("role");
+    x.removeAttribute("aria-label");
+    var root = x.querySelector(".cr-root");
+    if (root) root.removeAttribute("filter"); // no hand-drawn wobble at this size
+    var dots = x.querySelector(".cr-dots");
+    if (dots) dots.remove();
+    var src = x.outerHTML.replace(/var\(--ink,\s*(#[0-9a-fA-F]{3,8})\)/g, "$1");
+    $("favicon").href = "data:image/svg+xml," + encodeURIComponent(src);
   }
 
   /* ── Sidebar ───────────────────────────────────────────────────── */
@@ -167,7 +189,7 @@
       b.setAttribute("data-tip", c.name);
       b.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "<em>" + when(c.id) + "</em></b><span>" + Kit.esc(pv || c.role) + "</span></div>" +
         (c.custom ? '<button class="iconbtn comp-edit" aria-label="Edit ' + Kit.esc(c.name) + '">' + Kit.icon("pencil-simple") + "</button>" : "");
-      var go = function () { openBlink(c.id); closeSide(); };
+      var go = function () { openBlink(c.id); goPage("chat"); closeSide(); };
       b.addEventListener("click", function (e) {
         if (e.target.closest(".comp-edit")) { editBlink(c.id); return; }
         go();
@@ -213,6 +235,7 @@
     }
     if (state.unread[id]) { delete state.unread[id]; Kit.set("pv_unread", JSON.stringify(state.unread)); refreshRows(); }
     renderThread();
+    if (curPage === "settings") loadMind();
   }
   function editBlink(id) {
     var bot = id ? Maker.load().find(function (b) { return b.id === id; }) : null;
@@ -596,6 +619,9 @@
       uEl.classList.add("sent");
     });
     receipt();
+    ch.updated = now;
+    save(); // your message is kept even if the page closes before the reply
+    if (window.Sync) Sync.push(ch);
     $("input").value = "";
     grow();
     setBusy(true);
@@ -1032,9 +1058,13 @@
   // Replies that finished after you left, task results, and messages your
   // Blinks sent each other all live in each Blink's chat on the brain.
   var synced = +Kit.get("pv_synced") || Date.now() - 864e5, catching = false;
+  // Once: look back two days, to bring back messages an earlier version lost.
+  if (!Kit.get("pv_resync1")) { synced = Math.min(synced, Date.now() - 2 * 864e5); Kit.set("pv_resync1", "1"); }
   function norm(t) { return parseReply(String(t || "")).text.replace(/\s+/g, " ").trim(); }
   function fromLog(e, id) {
     if (e.from) return { role: "user", from: e.from, content: e.content, at: e.at };
+    // Yours, as the brain kept it (the tapback note the app adds is not part of what you wrote).
+    if (e.role === "user") return { role: "user", content: String(e.content || "").replace(/^\(I tapped [^)]*\)\n/, ""), at: e.at, mine: true };
     var p = parseReply(e.content);
     var m = { role: "assistant", content: p.text, companion: id, at: e.at, meta: { lane: "brain", lane_label: e.task ? "Scheduled task" : "Finished on the brain" } };
     if (p.react) m.react = p.react;
@@ -1044,7 +1074,7 @@
   }
   function seen(ch, m) {
     var k = norm(m.content);
-    return ch.messages.slice(-40).some(function (x) {
+    return ch.messages.slice(-240).some(function (x) {
       if (!!x.from !== !!m.from || (x.role === "assistant") !== (m.role === "assistant")) return false;
       if (m.onRead) return !!x.onRead && Math.abs((x.at || 0) - m.at) < 120000;
       return norm(x.content) === k;
@@ -1058,12 +1088,13 @@
       var redraw = false;
       Object.keys(d.chats).forEach(function (id) {
         if (!byId[id]) return;
-        var ch = chatFor(id), added = 0;
+        var ch = chatFor(id), added = 0, theirs = 0;
         d.chats[id].forEach(function (e) {
-          if (e.role === "user" && !e.from) return; // yours: the app already has them
           var m = fromLog(e, id);
           if (!ch) ch = newChatFor(id);
           if (seen(ch, m)) return;
+          if (!m.mine) theirs++;
+          delete m.mine;
           ch.messages.push(m);
           ch.messages.sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
           ch.updated = Math.max(ch.updated, e.at);
@@ -1072,7 +1103,7 @@
         if (!added) return;
         if (window.Sync) Sync.push(ch);
         if (id === state.companion && !document.hidden) redraw = true;
-        else state.unread[id] = (state.unread[id] || 0) + added;
+        else if (theirs) state.unread[id] = (state.unread[id] || 0) + theirs;
       });
       synced = d.now || Date.now();
       Kit.set("pv_synced", String(synced));
@@ -1083,43 +1114,104 @@
     }).catch(function () {}).then(function () { catching = false; });
   }
 
+  /* ── Pages: Chat and Settings share the shell, like chat.usecloak.org ── */
+  var curPage = "chat", settlePg = null;
+  function goPage(p) {
+    var next = $("page-" + p), prev = $("page-" + curPage);
+    if (!next) return;
+    if (phone.matches) closeSide();
+    document.querySelectorAll(".sidebar [data-nav]").forEach(function (b) { var on = b.getAttribute("data-nav") === p; b.classList.toggle("on", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    if (p === curPage && !next.hidden) return;
+    if (settlePg) settlePg();
+    curPage = p;
+    next.hidden = false;
+    next.classList.remove("shown");
+    void next.offsetWidth;
+    next.classList.add("shown");
+    if (p === "settings") prepSettings();
+    if (prev && prev !== next) {
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) prev.hidden = true;
+      else {
+        var t = 0;
+        var settle = function () { clearTimeout(t); prev.removeEventListener("animationend", onEnd); prev.classList.remove("pg-out"); if (curPage !== prev.dataset.page) prev.hidden = true; settlePg = null; };
+        var onEnd = function (e) { if (e.target === prev) settle(); };
+        prev.addEventListener("animationend", onEnd);
+        prev.classList.add("pg-out");
+        t = setTimeout(settle, 400);
+        settlePg = settle;
+      }
+    }
+    try { next.focus({ preventScroll: true }); } catch (e) {}
+    if (p === "chat") scrollEnd(true);
+  }
+
   /* ── Settings ──────────────────────────────────────────────────── */
-  function openSettings() {
+  function openSettings(tab) { goPage("settings"); if (typeof tab === "string") settingsTab(tab); }
+  function prepSettings() {
     $("setName").value = state.user.name || "";
     $("setAbout").value = state.user.about || "";
-    if (window.Sync) Sync.renderAccount($("acct"));
-    $("settings").showModal();
+    var u = window.Sync && Sync.user ? Sync.user() : null;
+    $("sName").textContent = $("whoName").textContent;
+    $("sEmail").textContent = (u && u.email) || "";
+    $("sAv").textContent = $("userAv").textContent;
+    $("modeLabel").textContent = Kit.mode();
     loadMind();
+  }
+  function settingsTab(t) {
+    document.querySelectorAll(".snav-btn").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-tab") === t); });
+    document.querySelectorAll(".spane").forEach(function (el) { el.classList.toggle("on", el.id === "spane-" + t); });
+  }
+  // Light and dark, switched the main app's way: the new mode wipes in as a
+  // hard-edged rectangle growing out of whatever you pressed.
+  var lastPress = null;
+  document.addEventListener("pointerdown", function (e) { lastPress = { x: e.clientX, y: e.clientY, t: Date.now() }; }, { passive: true, capture: true });
+  function swapTheme(apply, el) {
+    var d = document, html = d.documentElement;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || !d.startViewTransition || d.visibilityState !== "visible") { apply(); return; }
+    var r = lastPress && Date.now() - lastPress.t < 1500 ? { left: lastPress.x, top: lastPress.y, right: lastPress.x, bottom: lastPress.y } : el.getBoundingClientRect();
+    var s = html.style, px = function (v) { return Math.max(0, Math.round(v)) + "px"; };
+    s.setProperty("--vt-t", px(r.top)); s.setProperty("--vt-r", px(innerWidth - r.right));
+    s.setProperty("--vt-b", px(innerHeight - r.bottom)); s.setProperty("--vt-l", px(r.left));
+    html.classList.add("vt-theme");
+    var vt;
+    try { vt = d.startViewTransition(apply); } catch (e) { html.classList.remove("vt-theme"); apply(); return; }
+    vt.ready.catch(function () {});
+    vt.finished.catch(function () {}).then(function () { html.classList.remove("vt-theme"); ["--vt-t", "--vt-r", "--vt-b", "--vt-l"].forEach(function (p) { s.removeProperty(p); }); });
+  }
+  function toggleDark(e) {
+    swapTheme(function () { Kit.toggleMode(); $("modeLabel").textContent = Kit.mode(); }, e.currentTarget);
   }
   // The Blink you are with: its own files (SOUL.md is yours to edit), what it
   // remembers, and what it has scheduled.
   var FILES = [["soul", "SOUL.md"], ["user", "USER.md"], ["memory", "MEMORY.md"], ["history", "HISTORY.md"]];
   function loadMind() {
     var host = $("mind"), id = state.companion, c = who(id), q = "?blink=" + encodeURIComponent(id);
-    host.innerHTML = '<p class="help">Loading ' + Kit.esc(c.name) + "'s files.</p>";
+    var nm = Kit.esc(c.name);
+    host.innerHTML = '<div class="srow"><div class="srow-name">' + nm + '\'s files</div><div class="srow-desc">Loading.</div></div>';
     api("/v1/me" + q).then(function (d) {
+      if (id !== state.companion) return;
       if (d.power === "lowlight" || !d.files) {
-        host.innerHTML = '<p class="lbl">' + Kit.esc(c.name) + '\'s files</p><p class="help">They live on Cloak\'s brain, which is resting in Low Light. They will be back when it wakes up.</p>';
+        host.innerHTML = '<div class="srow"><div class="srow-name">' + nm + '\'s files</div><div class="srow-desc">They live on Cloak\'s brain, which is resting in Low Light. They will be back when it wakes up.</div></div>';
         return;
       }
       var f = d.files, tab = "soul";
       var when = function (ms) { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
       var row = function (text, sub, kind, rid) { return '<li><div><span>' + Kit.esc(text) + "</span>" + (sub ? "<small>" + Kit.esc(sub) + "</small>" : "") + '</div><button type="button" class="iconbtn" data-del="' + kind + ":" + rid + '" aria-label="Delete">' + Kit.icon("trash") + "</button></li>"; };
       host.innerHTML =
-        '<p class="lbl">' + Kit.esc(c.name) + "'s files</p>" +
-        '<p class="help">' + f.messages + " messages in your chat" + (f.compacted ? ", the oldest " + f.compacted + " summarized in HISTORY.md" : "") + ". Everything lives on Cloak's brain.</p>" +
-        '<div class="files-tabs" role="tablist">' + FILES.map(function (x) { return '<button type="button" role="tab" data-tab="' + x[0] + '" aria-selected="' + (x[0] === tab) + '">' + x[1] + "</button>"; }).join("") + "</div>" +
+        '<div class="srow"><div class="srow-name">' + nm + "'s files</div>" +
+        '<div class="srow-desc">' + f.messages + " messages in your chat" + (f.compacted ? ", the oldest " + f.compacted + " summarized in HISTORY.md" : "") + ". Everything lives on Cloak's brain. SOUL.md is who " + nm + " is; edit it to change how it thinks and talks.</div>" +
+        '<div class="files-tabs" role="tablist">' + FILES.map(function (x) { return '<button type="button" role="tab" data-ftab="' + x[0] + '" aria-selected="' + (x[0] === tab) + '">' + x[1] + "</button>"; }).join("") + "</div>" +
         '<textarea class="md-file" id="mdFile" spellcheck="false" aria-label="File contents"></textarea>' +
-        '<div class="dlg-row" id="soulRow"><button type="button" class="btn btn-sm" id="soulSave">Save SOUL.md</button></div>' +
-        '<p class="lbl">Scheduled</p>' + (d.tasks.length ? '<ul class="mind">' + d.tasks.map(function (t) { return row(t.title, "Next " + when(t.at) + (t.repeat !== "none" ? ", " + t.repeat : ""), "tasks", t.id); }).join("") + "</ul>" : '<p class="help">Nothing scheduled. Ask ' + Kit.esc(c.name) + " to remind you or to check on something later.</p>") +
-        '<p class="lbl">Remembers</p>' + (d.memories.length ? '<ul class="mind">' + d.memories.map(function (m) { return row(m.fact, m.kind + ", " + m.day, "memory", m.id); }).join("") + "</ul>" : '<p class="help">Nothing yet. ' + Kit.esc(c.name) + " keeps lasting things you say in USER.md and MEMORY.md, and you can delete any of it here.</p>");
+        '<button type="button" class="cta" id="soulSave">Save SOUL.md</button></div>' +
+        '<div class="srow"><div class="srow-name">Scheduled</div>' + (d.tasks.length ? '<ul class="mind">' + d.tasks.map(function (t) { return row(t.title, "Next " + when(t.at) + (t.repeat !== "none" ? ", " + t.repeat : ""), "tasks", t.id); }).join("") + "</ul>" : '<div class="srow-desc">Nothing scheduled. Ask ' + nm + " to remind you or to check on something later.</div>") + "</div>" +
+        '<div class="srow"><div class="srow-name">Remembers</div>' + (d.memories.length ? '<ul class="mind">' + d.memories.map(function (m) { return row(m.fact, m.kind + ", " + m.day, "memory", m.id); }).join("") + "</ul>" : '<div class="srow-desc">Nothing yet. ' + nm + " keeps lasting things you say in USER.md and MEMORY.md, and you can delete any of it here.</div>") + "</div>";
       var ta = $("mdFile");
       function show(k) {
         tab = k;
-        host.querySelectorAll("[data-tab]").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-tab") === k ? "true" : "false"); });
+        host.querySelectorAll("[data-ftab]").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-ftab") === k ? "true" : "false"); });
         ta.value = f[k] || "(empty)";
         ta.readOnly = k !== "soul";
-        $("soulRow").hidden = k !== "soul";
+        $("soulSave").hidden = k !== "soul";
       }
       show("soul");
       $("soulSave").onclick = function () {
@@ -1133,12 +1225,12 @@
         }).catch(function () { b.disabled = false; });
       };
       host.onclick = function (e) {
-        var t = e.target.closest("[data-tab]");
-        if (t) { show(t.getAttribute("data-tab")); return; }
+        var t = e.target.closest("[data-ftab]");
+        if (t) { show(t.getAttribute("data-ftab")); return; }
         var del = e.target.closest("[data-del]");
         if (del) { var p = del.getAttribute("data-del").split(":"); api("/v1/" + p[0] + "/" + p[1] + q, { method: "DELETE" }).then(loadMind); }
       };
-    }).catch(function () { host.innerHTML = '<p class="help">Could not reach Cloak\'s brain just now.</p>'; });
+    }).catch(function () { host.innerHTML = '<div class="srow"><div class="srow-name">' + nm + '\'s files</div><div class="srow-desc">Could not reach Cloak\'s brain just now.</div></div>'; });
   }
   // Results that finished while the brain was away (Low Light) wait in the
   // Worker's inbox; they move into their Blink's chat when you come back.
@@ -1205,7 +1297,7 @@
 
     var q = new URLSearchParams(location.search);
     if (byId[q.get("c")]) { state.companion = q.get("c"); Kit.set("pv_companion", state.companion); renderComps(); mountFigs(); }
-    if (q.get("make")) { history.replaceState(null, "", location.pathname); setTimeout(function () { editBlink(null); }, 300); }
+    if (q.get("make")) { window.history.replaceState(null, "", location.pathname); setTimeout(function () { editBlink(null); }, 300); }
     renderThread();
 
     var sp = SPONSORS[Math.floor(Math.random() * SPONSORS.length)];
@@ -1251,7 +1343,15 @@
     $("feature").addEventListener("click", function () { cheer(); });
     window.addEventListener("resize", function () { inkTo(true); });
     if (Kit.get("pv_rail") && !phone.matches) $("app").classList.add("rail");
-    $("menu").addEventListener("click", toggleSide);
+    document.querySelectorAll("[data-side-toggle]").forEach(function (b) { b.addEventListener("click", toggleSide); });
+    document.querySelectorAll("[data-dark-toggle]").forEach(function (b) { b.addEventListener("click", toggleDark); });
+    document.querySelectorAll(".snav-btn").forEach(function (b) { b.addEventListener("click", function () { settingsTab(b.getAttribute("data-tab")); }); });
+    $("saveName").addEventListener("click", function () { state.user.name = $("setName").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); whoLabel(); prepSettings(); this.textContent = "Saved"; var b = this; setTimeout(function () { b.textContent = "Save"; }, 1400); });
+    $("saveAbout").addEventListener("click", function () { state.user.about = $("setAbout").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); this.textContent = "Saved"; var b = this; setTimeout(function () { b.textContent = "Save"; }, 1400); });
+    $("signOut").addEventListener("click", function () { if (window.Sync && Sync.signOut) Sync.signOut(); });
+    $("side").classList.add("first");
+    setTimeout(function () { $("side").classList.remove("first"); }, 1400);
+    $("page-chat").classList.add("shown");
     $("scrim").addEventListener("click", closeSide);
     $("side").addEventListener("pointerover", function (e) { var t = e.target.closest("[data-tip]"); if (t) showTip(t); });
     $("side").addEventListener("pointerleave", hideTip);
@@ -1284,16 +1384,8 @@
       else if (e.key === "Escape") { modeOpen(false); modeBtn.focus(); }
     });
     document.addEventListener("pointerdown", function (e) { if (!modeMenu.hidden && !e.target.closest(".modes")) modeOpen(false); });
-    $("openSettings").addEventListener("click", openSettings);
-    $("openSettings2").addEventListener("click", openSettings);
-    $("setForm").addEventListener("submit", function (e) {
-      if (e.submitter && e.submitter.value === "save") {
-        state.user = { name: $("setName").value.trim(), about: $("setAbout").value.trim() };
-        Kit.set("pv_user", JSON.stringify(state.user));
-        whoLabel();
-        if (!chat()) renderThread();
-      }
-    });
+    $("openSettings").addEventListener("click", function () { openSettings("you"); });
+    $("openSettings2").addEventListener("click", function () { if (curPage === "settings") goPage("chat"); else openSettings(); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSide(); });
 
     var hooks = {
@@ -1331,7 +1423,7 @@
       whoLabel();
       badge();
       catchUp();
-      if (q.get("q")) { history.replaceState(null, "", location.pathname); send(q.get("q")); }
+      if (q.get("q")) { window.history.replaceState(null, "", location.pathname); send(q.get("q")); }
       else if (matchMedia("(min-width: 781px)").matches) $("input").focus();
     }
     Sync.ready().then(function (u) { if (u) go(); else Sync.gate(go); });

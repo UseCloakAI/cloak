@@ -137,5 +137,11 @@
     remove: function (id) { if (user && sb) sb.from("pv_chats").delete().eq("id", id).then(function () {}); },
     pushBots: function (list) { if (user && sb) sb.from("pv_bots").upsert({ user_id: user.id, bots: list.slice(0, 12), updated_at: new Date().toISOString() }).then(function () {}); },
     renderAccount: function (el) { host = el; render(); },
+    signOut: function () {
+      return (sb ? sb.auth.signOut() : Promise.resolve()).then(function () {
+        ["pv_chats", "pv_bots", "pv_companion", "pv_synced", "pv_unread"].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+        location.reload();
+      });
+    },
   };
 })();
