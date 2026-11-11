@@ -141,6 +141,15 @@
               <button class="cta" type="button" id="saveAbout">Save</button>
             </div>
             <div class="srow">
+              <div class="srow-name">Reset everything</div>
+              <div class="srow-desc">Deletes every chat, everything your Blinks remember (their SOUL.md, USER.md, MEMORY.md and history), scheduled tasks and uploaded files. Your account stays. This cannot be undone.</div>
+              <button class="danger" type="button" id="resetAll">Reset all chats and information</button>
+              <div class="reset-confirm" id="resetConfirm" hidden>
+                <label class="reset-opt"><input type="checkbox" id="resetBots"> Also delete the Blinks I made</label>
+                <div class="srow-line"><button class="danger solid" type="button" id="resetYes">Yes, delete everything</button><button class="cta" type="button" id="resetNo">Keep it</button></div>
+              </div>
+            </div>
+            <div class="srow">
               <div class="srow-name">Sign out</div>
               <div class="srow-desc">Blinks uses your Cloak account. This device forgets your chats and Blinks until you sign in again.</div>
               <button class="danger" type="button" id="signOut">Sign out of Cloak</button>

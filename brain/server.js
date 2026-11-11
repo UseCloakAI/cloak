@@ -268,6 +268,13 @@ async function handleMe(req, res, p) {
   const method = req.method;
   const body = method === "POST" ? await readJson(req) : {};
   let r;
+  if (p === "/v1/blink/all" && method === "DELETE") {
+    blinks.wipe(key);
+    minds.delete(key);
+    for (const f of [path.join(DATA, "users", userDir(key) + ".sqlite"), path.join(DATA, "files", userDir(key)), path.join(DATA, "chats", userDir(key))]) await fsp.rm(f, { recursive: true, force: true }).catch(() => {});
+    log("info", "a person reset everything");
+    return send(res, 200, { ok: true });
+  }
   if (p === "/v1/blink/since" && method === "GET") return send(res, 200, { now: Date.now(), chats: blinks.since(key, Number(q.get("t")) || 0, q.get("blink") ? blink : null) });
   if (p === "/v1/blink/files" && method === "GET") return send(res, 200, blinks.files(key, blink));
   if (p === "/v1/blink/soul" && method === "POST") return send(res, 200, { ok: blinks.setSoul(key, blink, body.text) });

@@ -115,7 +115,7 @@ export async function* runAgent(env, ctx, req, signal) {
   // No tools for a life at risk (the reply is the person, not a search) or for hellos.
   let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind, hasTalk: typeof req.talk === "function" && !depth, hasFiles: !depth && Array.isArray(req.files) && req.files.length > 0 });
   // The smallest models get a short toolbelt: they plan poorly with a long one.
-  if (lane === "swift") tools = tools.filter((t) => ["web_search", "calculate", "remember", "schedule_task"].includes(t));
+  if (lane === "swift") tools = tools.filter((t) => ["web_search", "calculate", "remember", "schedule_task", "create_blink"].includes(t));
   // A scheduled task must not schedule more work or rewrite the task list.
   if (req.background) tools = tools.filter((t) => !["schedule_task", "cancel_task", "list_tasks"].includes(t));
   const budget = depth ? STEPS.sub : research ? STEPS.research : req.background ? STEPS.background : STEPS.auto;
@@ -205,6 +205,7 @@ export async function* runAgent(env, ctx, req, signal) {
       ch.track(go.then((r) => {
         results[i] = r;
         ch.emit({ step: { id, by, state: r.blocked ? "blocked" : "done", summary: r.summary || "" } });
+        if (r.event && !depth) ch.emit(r.event); // e.g. a new Blink for the app to add
       }));
     });
     for await (const ev of ch.drain()) yield ev;

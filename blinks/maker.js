@@ -212,5 +212,14 @@
     if (!b.id) setTimeout(function () { f("mkNameIn").focus(); }, 60);
   }
 
-  window.Maker = { open: open, load: load, asCompanion: asCompanion, MAX: MAX };
+  // A Blink another Blink designed (create_blink). Returns it, or null when full.
+  function add(spec) {
+    var list = load();
+    if (list.length >= MAX) return null;
+    var b = { id: id(), name: spec.name, purpose: spec.purpose || "", persona: spec.persona || "", lane: spec.lane || "smart", hello: spec.hello || "", starters: [], look: spec.look };
+    list.push(b);
+    store(list);
+    return b;
+  }
+  window.Maker = { open: open, load: load, add: add, asCompanion: asCompanion, MAX: MAX };
 })();

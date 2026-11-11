@@ -1069,3 +1069,20 @@ html.resizing iframe{pointer-events:none}
 /* A Blink added after the list is drawn slides in on its own. */
 .sidebar .comp.row-in{animation:convIn .46s var(--ease-out) backwards}
 .sidebar .comp.conv-in{animation:convIn .46s var(--ease-out) backwards;animation-delay:calc(var(--k,0) * 28ms + .1s)}
+
+/* A Blink made by a Blink */
+.made-card{display:flex;align-items:center;gap:12px;width:min(340px,100%);margin-top:6px;padding:10px 12px;border:var(--bd);background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--ink);text-align:left;cursor:pointer;box-shadow:var(--shsm);animation:pop .55s var(--sp-snap) both;transition:transform var(--lift),box-shadow var(--lift)}
+.made-card:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.made-card:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--tp)}
+.made-card .mc-av{width:48px;height:48px;flex:none}
+.made-card .mc-tx{flex:1;min-width:0;display:grid;gap:2px}
+.made-card small{font:700 9px/1 var(--fb);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.made-card b{font:800 14px/1.1 var(--fd);text-transform:uppercase}
+.made-card span span,.made-card .mc-tx>span{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar .comp.made{animation:convIn .5s var(--ease-out) backwards,madeGlow 1.6s ease-out .4s}
+@keyframes madeGlow{0%{background:color-mix(in srgb,var(--accent) 22%,transparent)}100%{background:transparent}}
+/* Reset everything: a second, deliberate step */
+.reset-confirm{display:grid;gap:10px;justify-self:stretch;padding:12px;border:1.5px dashed var(--accent);animation:dropIn .34s var(--sp-snap) both;transform-origin:top}
+.reset-opt{display:flex;align-items:center;gap:8px;font-size:13px}
+.danger.solid{background:var(--accent);color:#fff}
+.app{overflow:clip}

@@ -376,7 +376,15 @@ ${voice.trim()}
     return true;
   }
 
-  return { store, mind, wakeAll, prepare, since, files, setSoul, root };
+  // Everything this person has on the brain, gone: every Blink's folder,
+  // memories, chat log, tasks.
+  function wipe(user) {
+    for (const k of [...minds.keys()]) if (k.startsWith(user + "#")) { try { minds.get(k).alarms.clear(); } catch {} minds.delete(k); }
+    for (const k of [...stores.keys()]) if (k.startsWith(user + "#")) stores.delete(k);
+    fs.rmSync(path.join(root, userDir(user)), { recursive: true, force: true });
+  }
+
+  return { store, mind, wakeAll, prepare, since, files, setSoul, wipe, root };
 }
 
 function read(file, d) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return d; } }
