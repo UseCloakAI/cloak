@@ -23,7 +23,7 @@
     return state && state.power === "lowlight" ? Object.assign({}, Creatures.spec(spec), { eyes: "sleepy" }) : spec;
   }
 
-  var MOOD_LABEL = { idle: "Here", listen: "Listening", think: "Thinking", search: "Looking it up", talk: "Talking", happy: "Glad", care: "With you", sleep: "Resting" };
+  var MOOD_LABEL = { idle: "Here", listen: "Listening", think: "Thinking", search: "Looking it up", work: "Working", talk: "Talking", happy: "Glad", care: "With you", sleep: "Resting" };
   var SPONSORS = [
     { title: "Your name here", body: "One quiet card, no tracking. Sponsors pay for carbon removal, ten times what this chat emits." },
     { title: "Sponsor a greener answer", body: "Reach people who chose an AI that cleans up after itself. Every view funds verified removal." },
@@ -98,8 +98,21 @@
     if (forId && forId !== state.companion) return; // a reply still finishing for a Blink you left
     nowMood = m;
     mates().forEach(function (f) { f.set(m); });
-    $("mood").textContent = MOOD_LABEL[m] || "Here";
+    rollText($("mood"), MOOD_LABEL[m] || "Here");
     $("blinkBtn").setAttribute("data-mood", m);
+  }
+  // Swaps a label by sliding the old one up and out and the new one in.
+  function rollText(el, text) {
+    var cur = el.querySelector("span.rt-in");
+    if ((cur ? cur.textContent : el.textContent) === text) return;
+    if (!cur) { el.textContent = ""; }
+    el.classList.add("rt");
+    el.querySelectorAll("span.rt-out").forEach(function (x) { x.remove(); });
+    if (cur) { cur.className = "rt-out"; setTimeout(function () { cur.remove(); }, 260); }
+    var n = document.createElement("span");
+    n.className = "rt-in";
+    n.textContent = text;
+    el.appendChild(n);
   }
   function pulse(n) { mates().forEach(function (f) { f.pulse(n); }); }
   function each(fn) { mates().forEach(function (f) { if (f[fn]) f[fn](); }); }
@@ -108,7 +121,7 @@
     var c = who(state.companion);
     ["stage", "top"].forEach(function (k) { if (fig[k]) fig[k].destroy(); });
     fig.stage = null;
-    fig.top = Creatures.mount($("topAv"), look(c), { label: c.name, still: true }); // the header chip is a still drawing
+    fig.top = track(c.id, Creatures.mount($("topAv"), look(c), { label: c.name, mood: nowMood })); // alive, in step with every other figure of this Blink
     if (bpFig) bpFig.destroy();
     bpFig = track(c.id, Creatures.mount($("bpAv"), look(c), { label: c.name, mood: nowMood }));
     $("bpName").textContent = c.name;
@@ -132,8 +145,12 @@
   }
   // The tab icon is the Blink you are with: its still drawing, crisp at 32px.
   function favicon() {
-    var svg = $("topAv").querySelector("svg");
-    if (!svg) return;
+    var c = who(state.companion), tmp = document.createElement("div");
+    tmp.style.cssText = "position:absolute;width:64px;height:64px;left:-9999px";
+    document.body.appendChild(tmp);
+    var still = Creatures.mount(tmp, look(c), { label: c.name, still: true });
+    var svg = tmp.querySelector("svg");
+    if (!svg) { tmp.remove(); return; }
     var x = svg.cloneNode(true);
     x.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     x.setAttribute("viewBox", "-14 -26 268 268");
@@ -146,6 +163,7 @@
     if (dots) dots.remove();
     var src = x.outerHTML.replace(/var\(--ink,\s*(#[0-9a-fA-F]{3,8})\)/g, "$1");
     $("favicon").href = "data:image/svg+xml," + encodeURIComponent(src);
+    still.destroy(); tmp.remove();
   }
 
   /* ── Sidebar ───────────────────────────────────────────────────── */
@@ -179,38 +197,63 @@
       r.setAttribute("aria-label", c.name + (n ? ", " + n + " new" : ""));
     });
   }
+  // The Blinks list updates in place: rows that exist stay put (their
+  // Blinks keep living), new ones slide in, gone ones leave, and a row's
+  // Blink is redrawn only when its look changes. Rebuilding on every update
+  // made the list blink on reload.
+  var rows = {}, firstDraw = true;
+  function rowSig(c) { return JSON.stringify([c.name, c.custom, look(c)]); }
+  function makeRow(c) {
+    var b = document.createElement("div");
+    b.className = "comp" + (firstDraw ? " conv-in" : " row-in");
+    b.setAttribute("role", "button");
+    b.tabIndex = 0;
+    b.dataset.id = c.id;
+    var go = function () { openBlink(c.id); goPage("chat"); closeSide(); };
+    b.addEventListener("click", function (e) {
+      if (e.target.closest(".comp-edit")) { editBlink(c.id); return; }
+      go();
+    });
+    b.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target === b) { e.preventDefault(); go(); } });
+    b.addEventListener("animationend", function () { b.classList.remove("conv-in", "row-in"); });
+    return { el: b, fig: null, sig: "" };
+  }
+  function fillRow(r, c) {
+    var sig = rowSig(c);
+    if (r.sig === sig) return;
+    r.sig = sig;
+    if (r.fig) r.fig.destroy();
+    r.el.setAttribute("data-tip", c.name);
+    r.el.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "<em></em></b><span></span></div>" +
+      (c.custom ? '<button class="iconbtn comp-edit" aria-label="Edit ' + Kit.esc(c.name) + '">' + Kit.icon("pencil-simple") + "</button>" : "");
+    r.fig = track(c.id, Creatures.mount(r.el.querySelector(".comp-av"), look(c), { label: c.name, mood: c.id === state.companion ? nowMood : "idle" }));
+  }
   function renderComps() {
     var host = $("comps");
-    sideFigs.forEach(function (f) { f.destroy(); });
-    sideFigs = [];
-    host.innerHTML = '<i class="sb-ink" aria-hidden="true"></i>';
+    if (!host.querySelector(".sb-ink")) host.insertAdjacentHTML("afterbegin", '<i class="sb-ink" aria-hidden="true"></i>');
     var q = ($("search").value || "").toLowerCase();
-    function row(c, k) {
-      if (q && c.name.toLowerCase().indexOf(q) === -1) return;
-      var b = document.createElement("div");
-      b.className = "comp conv-in";
-      b.style.setProperty("--k", k);
-      b.setAttribute("role", "button");
-      b.tabIndex = 0;
-      b.dataset.id = c.id;
-      b.setAttribute("aria-current", c.id === state.companion ? "true" : "false");
-      var pv = preview(c.id);
-      b.setAttribute("data-tip", c.name);
-      b.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "<em>" + when(c.id) + "</em></b><span>" + Kit.esc(pv || c.role) + "</span></div>" +
-        (c.custom ? '<button class="iconbtn comp-edit" aria-label="Edit ' + Kit.esc(c.name) + '">' + Kit.icon("pencil-simple") + "</button>" : "");
-      var go = function () { openBlink(c.id); goPage("chat"); closeSide(); };
-      b.addEventListener("click", function (e) {
-        if (e.target.closest(".comp-edit")) { editBlink(c.id); return; }
-        go();
-      });
-      b.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target === b) { e.preventDefault(); go(); } });
-      host.appendChild(b);
-      var f = Creatures.mount(b.querySelector(".comp-av"), look(c), { label: c.name, mood: c.id === state.companion ? nowMood : "idle" });
-      sideFigs.push(f);
-      track(c.id, f);
-    }
     // Most recent conversation first, like a messaging app.
-    C.slice().sort(function (a, b) { var x = chatFor(a.id), y = chatFor(b.id); return (y ? y.updated : 0) - (x ? x.updated : 0); }).forEach(row);
+    var list = C.slice().sort(function (a, b) { var x = chatFor(a.id), y = chatFor(b.id); return (y ? y.updated : 0) - (x ? x.updated : 0); })
+      .filter(function (c) { return !q || c.name.toLowerCase().indexOf(q) !== -1; });
+    var keep = {};
+    list.forEach(function (c, k) {
+      keep[c.id] = 1;
+      var r = rows[c.id] || (rows[c.id] = makeRow(c));
+      r.el.style.setProperty("--k", k);
+      fillRow(r, c);
+      r.el.setAttribute("aria-current", c.id === state.companion ? "true" : "false");
+      // Only move a row when it is out of place (moving restarts its animations).
+      var want = host.children[k + 1];
+      if (want !== r.el) host.insertBefore(r.el, want || null);
+    });
+    Object.keys(rows).forEach(function (id) {
+      if (keep[id]) return;
+      var r = rows[id];
+      delete rows[id];
+      if (r.fig) r.fig.destroy();
+      r.el.remove();
+    });
+    firstDraw = false;
     refreshRows();
     requestAnimationFrame(function () { inkTo(true); });
   }
@@ -702,7 +745,8 @@
       var box = nowEl.querySelector(".now-t");
       var old = box.querySelector("span:not(.out)");
       if (old && old.textContent === label + "...") return;
-      if (old) { old.classList.add("out"); setTimeout(function () { old.remove(); }, 320); }
+      box.querySelectorAll("span.out").forEach(function (x) { x.remove(); }); // never more than one on its way out
+      if (old) { old.classList.add("out"); setTimeout(function () { old.remove(); }, 300); }
       var n = document.createElement("span");
       n.textContent = label + "...";
       box.appendChild(n);
@@ -712,9 +756,14 @@
     function nowDone() {
       if (!el) return;
       var host = el.querySelector(".steps-host");
-      if (nowEl) { nowEl.remove(); nowEl = null; }
-      host.innerHTML = didHtml(bm.steps);
-      hookDid(el);
+      var put = function () { host.innerHTML = didHtml(bm.steps); hookDid(el); var d = host.querySelector(".did"); if (d) d.classList.add("did-in"); };
+      if (nowEl) {
+        // The status eases out, then the summary of what it did fades in.
+        var gone = nowEl;
+        nowEl = null;
+        gone.classList.add("now-out");
+        setTimeout(function () { if (gone.parentNode === host) { gone.remove(); put(); } }, 220);
+      } else put();
       if (!finished && shown === queued && !live) typing(true);
     }
     function typing(on) {
