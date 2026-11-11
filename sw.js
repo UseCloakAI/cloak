@@ -9,28 +9,28 @@
    Bump CACHE_VERSION in lockstep with the ?v= asset query strings
    in chat.html on every deploy so old shells are purged.
    ════════════════════════════════════════════════════════ */
-const CACHE_VERSION = 'cloak-v1.1.299';
+const CACHE_VERSION = 'cloak-v1.1.300';
 
 const SHELL = [
   '/chat.html',
-  '/version.js?v=1.1.299',
-  '/cloak.css?v=1.1.299',
-  '/cloak.js?v=1.1.299',
-  '/phone-agent.js?v=1.1.299',
-  '/search.js?v=1.1.299',
-  '/effort.js?v=1.1.299',
-  '/agent-orbit.js?v=1.1.299',
-  '/search-patch.js?v=1.1.299',
-  '/search.css?v=1.1.299',
-  '/brain.css?v=1.1.299',
-  '/memory.js?v=1.1.299',
-  '/context.js?v=1.1.299',
-  '/brain.js?v=1.1.299',
-  '/thread.js?v=1.1.299',
-  '/attach.js?v=1.1.299',
-  '/builds.js?v=1.1.299',
-  '/builds.css?v=1.1.299',
-  '/motion.js?v=1.1.299',
+  '/version.js?v=1.1.300',
+  '/cloak.css?v=1.1.300',
+  '/cloak.js?v=1.1.300',
+  '/phone-agent.js?v=1.1.300',
+  '/search.js?v=1.1.300',
+  '/effort.js?v=1.1.300',
+  '/agent-orbit.js?v=1.1.300',
+  '/search-patch.js?v=1.1.300',
+  '/search.css?v=1.1.300',
+  '/brain.css?v=1.1.300',
+  '/memory.js?v=1.1.300',
+  '/context.js?v=1.1.300',
+  '/brain.js?v=1.1.300',
+  '/thread.js?v=1.1.300',
+  '/attach.js?v=1.1.300',
+  '/builds.js?v=1.1.300',
+  '/builds.css?v=1.1.300',
+  '/motion.js?v=1.1.300',
   '/manifest.json?v=20261001rollfix2',  '/icons/orb.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -112,6 +112,8 @@ self.addEventListener('fetch', (e) => {
   if (url.origin === self.location.origin && url.pathname === '/sw.js') return;
 
   const sameOrigin = url.origin === self.location.origin;
+  // Cloak Blinks (/blinks) is its own product with its own assets: never cache it here.
+  if (sameOrigin && (url.pathname === '/blinks' || url.pathname.startsWith('/blinks/'))) return;
   const isFontFile = url.hostname === 'fonts.gstatic.com';
   const isCDN = url.hostname.includes('cdn.jsdelivr.net') || url.hostname.includes('cdnjs.cloudflare.com');
 

@@ -1,6 +1,6 @@
-/* The app: pick a companion, talk, watch them listen, think and answer.
+/* The app: text Cloak (or a Blink you made), watch it listen, think and answer.
    Chats live in localStorage (and in Supabase when signed in, see sync.js).
-   Talks to preview-api POST /v1/chat (SSE). If that is unreachable the app
+   Talks to blinks-api POST /v1/chat (SSE). If that is unreachable the app
    says so and plays a short scripted reply instead of pretending. */
 (function () {
   "use strict";
@@ -619,10 +619,7 @@
     if (bm.meta.impact) {
       state.sess.wh += bm.meta.impact.wh;
       state.sess.g += bm.meta.impact.g;
-      $("stLane").textContent = bm.meta.lane_label || bm.meta.lane || "";
-      $("stWh").textContent = Kit.fmtWh(bm.meta.impact.wh);
-      $("stG").textContent = Kit.fmtCO2(bm.meta.impact.g / 1000);
-      $("stSess").textContent = $("sessWh").textContent = Kit.fmtWh(state.sess.wh);
+      $("stSess").textContent = Kit.fmtWh(state.sess.wh);
     }
     delete bm.read;
     bm.at = bm.at || Date.now();
@@ -710,14 +707,14 @@
   }
 
   // Scripted stand-in used only when the backend cannot be reached.
-  var DEMO = "[react:👀] hey!\n\nheads up, this is a scripted text. the preview backend isn't connected yet\n\nonce it is I'll text back for real. short and quick, longer only when it's worth it";
+  var DEMO = "Hey! Heads up: this is a scripted text, because the Blinks backend isn't connected yet.\n\nOnce it is, I'll text back for real. Short and quick, and longer only when it's worth it.";
   var CRISIS = /\b(kill myself|suicid|end my life|want to die|self[- ]?harm|don'?t want to (live|be here))\b/i;
   async function demo(text, onEvent, signal) {
     var lane = who(state.companion).lane;
     onEvent({ meta: { lane: lane.toLowerCase(), lane_label: lane } });
     var body = DEMO;
     if (/^(ok(ay)?|k|thanks|thank you|thx|ty|cool|nice|night|gn|👍)[.!]*$/i.test(text.trim())) body = "[react:👍] [read]";
-    else if (/\b(lol|haha|lmao|joke)\b/i.test(text)) body = "[react:😂] ok that got me\n\n(scripted, but still)";
+    else if (/\b(lol|haha|lmao|joke)\b/i.test(text)) body = "[react:😂] Okay, that one got me.\n\n(It's scripted, but still.)";
     if (CRISIS.test(text)) {
       onEvent({ care: { emergency: "your local emergency number", lines: [{ name: "Find a Helpline", how: "Free helplines in 130+ countries", href: "https://findahelpline.com" }] } });
       body = "I'm really glad you said that out loud. I'm only a scripted demo right now, so please reach one of the people above. They're there for exactly this, and you deserve a real voice tonight.";
@@ -780,7 +777,7 @@
   // Memory, scheduled tasks and the inbox, from the person's Mind on the server.
   function loadMind() {
     var host = $("mind");
-    host.innerHTML = '<p class="help">Loading what the companions remember.</p>';
+    host.innerHTML = '<p class="help">Loading what Cloak remembers.</p>';
     api("/v1/me").then(function (d) {
       var when = function (ms) { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
       var row = function (text, sub, kind, id) { return '<li><div><span>' + Kit.esc(text) + "</span>" + (sub ? "<small>" + Kit.esc(sub) + "</small>" : "") + '</div><button type="button" class="iconbtn" data-del="' + kind + ":" + id + '" aria-label="Delete">' + Kit.icon("trash") + "</button></li>"; };
@@ -851,12 +848,31 @@
     $("newChat").addEventListener("click", function () { newChat(); closeSide(); });
     $("menu").addEventListener("click", function () { $("app").classList.add("open"); });
     $("scrim").addEventListener("click", closeSide);
-    $("seg").addEventListener("click", function (e) {
-      var b = e.target.closest("button");
+    // Thinking mode: one quiet button, the choices in a menu.
+    var modeBtn = $("modeBtn"), modeMenu = $("modeMenu");
+    function modeOpen(on) {
+      modeMenu.hidden = !on;
+      modeBtn.setAttribute("aria-expanded", on ? "true" : "false");
+      if (on) (modeMenu.querySelector('[aria-checked="true"]') || modeMenu.firstElementChild).focus();
+    }
+    modeBtn.addEventListener("click", function () { modeOpen(modeMenu.hidden); });
+    modeMenu.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-mode]");
       if (!b) return;
       state.mode = b.getAttribute("data-mode");
-      this.querySelectorAll("button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      modeMenu.querySelectorAll("[data-mode]").forEach(function (x) { x.setAttribute("aria-checked", x === b ? "true" : "false"); });
+      $("modeName").textContent = b.querySelector("b").textContent;
+      modeBtn.classList.toggle("on", state.mode !== "auto");
+      modeOpen(false);
+      modeBtn.focus();
     });
+    modeMenu.addEventListener("keydown", function (e) {
+      var items = Array.prototype.slice.call(modeMenu.querySelectorAll("[data-mode]")), i = items.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+      else if (e.key === "Escape") { modeOpen(false); modeBtn.focus(); }
+    });
+    document.addEventListener("pointerdown", function (e) { if (!modeMenu.hidden && !e.target.closest(".modes")) modeOpen(false); });
     $("openSettings").addEventListener("click", openSettings);
     $("openSettings2").addEventListener("click", openSettings);
     $("setForm").addEventListener("submit", function (e) {

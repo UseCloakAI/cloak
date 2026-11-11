@@ -1,13 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Backend for preview.usecloak.org (rebrand prototype). Separate from
-  // production cloak-api. See preview-api/README.md.
-  "name": "cloak-preview-api",
+  // Backend for Cloak Blinks (usecloak.org/blinks). Separate from
+  // production cloak-api. See blinks-api/README.md.
+  "name": "cloak-blinks-api",
   "main": "src/index.js",
   "compatibility_date": "2025-09-27",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
-  "routes": [{ "pattern": "preview-api.usecloak.org", "custom_domain": true }],
+  "routes": [{ "pattern": "blinks-api.usecloak.org", "custom_domain": true }],
   // The public carbon ledger.
   // LEDGER: public carbon ledger. MIND: one per person (memory, tasks, inbox).
   // AGENT_RUN: one per reply, so work survives a closed tab.

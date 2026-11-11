@@ -91,7 +91,7 @@ export class AgentRun extends DurableObject {
       }
       if (this.status === "running") this.status = "done";
     } catch (err) {
-      console.error("[preview-api] run failed", JSON.stringify(err?.tried || String(err?.message || err)));
+      console.error("[blinks-api] run failed", JSON.stringify(err?.tried || String(err?.message || err)));
       if (this.status === "running") {
         this.status = "error";
         this.push({ error: "Every model is busy right now. Give it a moment and try again." });

@@ -1,4 +1,4 @@
--- Rebrand preview (preview.usecloak.org): chats for signed-in users.
+-- Cloak Blinks (usecloak.org/blinks): chats for signed-in users.
 -- Additive only. Production tables (chats, thread_messages, …) are untouched.
 -- One row per conversation; messages are a JSON array of
 -- {role, content, companion?, meta?, care?}. Images are never stored.

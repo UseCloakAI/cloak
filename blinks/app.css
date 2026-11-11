@@ -56,9 +56,6 @@ body{overflow:hidden}
 .top-who b{display:block;font:800 1.12rem/1.15 var(--fd);letter-spacing:-.015em;text-transform:uppercase}
 .top-who span{display:block;font-size:.82rem;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .menu{display:none}
-.seg{display:inline-flex;border:var(--bd);background:var(--surface);box-shadow:var(--shsm)}
-.seg button{height:32px;padding:0 12px;border:0;background:transparent;font:700 .66rem/1 var(--fb);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);cursor:pointer;transition:background-color var(--t1) var(--ease),color var(--t1) var(--ease)}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 
 .thread{flex:1;min-height:0;overflow-y:auto;scroll-behavior:smooth}
 .thread-in{max-width:760px;margin:0 auto;padding:26px 22px 20px}
@@ -169,7 +166,6 @@ dialog[open]{animation:pop var(--t2) var(--ease-back)}
   .app.open .scrim{opacity:1;pointer-events:auto}
   .menu{display:inline-grid}
   .top{padding:0 10px}
-  .seg button{padding:0 10px}
   .thread-in{padding:18px 16px}
   .composer{padding-inline:12px}
   .fine{display:none}
@@ -199,7 +195,6 @@ dialog[open]{animation:pop var(--t2) var(--ease-back)}
 .dlg .lbl{margin-top:4px}
 dialog{max-height:calc(100dvh - 28px);overflow-y:auto}
 .badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;background:var(--accent);color:var(--accent-ink);font:600 .72rem var(--fm)}
-.seg{flex:0 1 auto;min-width:0;overflow-x:auto}
 .top-who{flex:1 0 auto}
 @media (max-width:780px){.top-who span{display:none}}
 
@@ -320,3 +315,39 @@ dialog.maker{width:min(1000px,calc(100vw - 28px));max-height:calc(100dvh - 28px)
   .turn .av{width:28px;height:28px}
   .turn.them .steps-host,.turn.them .tfoot,.turn.them .care{margin-left:36px}
 }
+
+/* ── Less clutter ────────────────────────────────────────────────── */
+.modes{position:relative;margin-left:auto}
+.mode-btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px 0 13px;border:var(--bd);background:var(--surface);color:var(--ink);font:700 .68rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;cursor:pointer;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift)}
+.mode-btn:hover{transform:translate(-1px,-1px)}
+.mode-btn[aria-expanded="true"]{transform:translate(2px,2px);box-shadow:none}
+.mode-btn.on{background:var(--yel);color:#0A0A0A}
+.mode-btn .ic{width:14px;height:14px;transition:rotate var(--t2) var(--ease)}
+.mode-btn[aria-expanded="true"] .ic{rotate:180deg}
+.mode-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:30;width:290px;display:grid;padding:6px;border:var(--bd);background:var(--surface);box-shadow:var(--shadow);animation:pk-in 220ms var(--ease-back) both;transform-origin:100% 0}
+.mode-menu button{display:grid;gap:3px;padding:9px 10px;border:2px solid transparent;background:transparent;color:var(--ink);text-align:left;cursor:pointer}
+.mode-menu button:hover,.mode-menu button:focus-visible{border-color:var(--line-2);outline:0}
+.mode-menu button[aria-checked="true"]{background:var(--ink);color:var(--bg)}
+.mode-menu b{font:800 .86rem/1 var(--fd);text-transform:uppercase}
+.mode-menu span{font-size:.82rem;opacity:.75;line-height:1.35}
+.stage{gap:14px}
+.stage-ledger{display:flex;gap:9px;align-items:flex-start;font-size:.86rem;line-height:1.45;color:var(--ink-2);text-decoration:none}
+.stage-ledger .ic{color:var(--good);margin-top:2px}
+.stage-ledger b{color:var(--ink);font-family:var(--fm);font-weight:500}
+.stage-ledger:hover span{text-decoration:underline;text-underline-offset:3px}
+.sponsor{box-shadow:none;padding:13px 14px;border-color:var(--line-2)}
+.sponsor:hover{transform:none;box-shadow:none;border-color:var(--ink)}
+.sponsor b{font-size:.95rem}
+.sponsor span{font-size:.82rem}
+.side-foot{padding:10px 12px}
+.make{padding:6px 8px;margin-top:6px}
+.make-av{width:34px;height:34px;margin:0 5px}
+.make small{display:none}
+.fine{font-size:.72rem}
+/* Per-reply details stay out of the way until you look for them. */
+@media (hover:hover){
+  .turn .tfoot .meta{opacity:0;transition:opacity var(--t2) var(--ease)}
+  .turn:hover .tfoot .meta,.turn:focus-within .tfoot .meta{opacity:1}
+}
+.turn .tfoot .meta .chip{height:20px;font-size:.6rem;padding:0 6px}
+.banner{background:var(--surface);color:var(--ink-2);border:1.5px dashed var(--line-2);box-shadow:none;font-size:.8rem;padding:8px 12px}

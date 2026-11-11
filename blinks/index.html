@@ -51,7 +51,7 @@ section{padding:clamp(64px,9vw,120px) 0}
 .feats div+div{border-left:var(--bd)}
 .feats h3{font-size:1.1rem;margin-bottom:8px;text-transform:uppercase}
 .feats p{color:var(--ink-2);font-size:.94rem}
-.feats .em{font-size:1.5rem;display:block;margin-bottom:10px}
+.feats .em{display:block;width:28px;height:28px;margin-bottom:12px;color:var(--accent)}
 @media (max-width:900px){.hero-in{grid-template-columns:1fr}.phone{justify-self:stretch;max-width:none}}
 @media (max-width:760px){.feats{grid-template-columns:1fr}.feats div+div{border-left:0;border-top:var(--bd)}}
 .swap{animation:swap var(--t3) var(--ease) both}
@@ -116,7 +116,7 @@ section{padding:clamp(64px,9vw,120px) 0}
 </style>
 </head>
 <body id="top">
-<div class="pv">Preview build. Not live, not indexed. <a href="system.html">See the system.</a></div>
+<div class="pv">Cloak Blinks is an early preview. <a href="https://usecloak.org">Back to Cloak</a></div>
 
 <header class="nav">
   <div class="wrap nav-in">
@@ -153,9 +153,9 @@ section{padding:clamp(64px,9vw,120px) 0}
   </div>
   <div class="wrap">
     <div class="feats" data-in>
-      <div><span class="em" aria-hidden="true">💬</span><h3>Texts, not essays</h3><p>Short messages, one after another, with a typing bubble in between. Long only when the answer needs the room.</p></div>
-      <div><span class="em" aria-hidden="true">❤️</span><h3>Reacts and reads</h3><p>It tapbacks your messages, shows when it has read them, and leaves an "ok" on read. Never anything that matters.</p></div>
-      <div><span class="em" aria-hidden="true">👀</span><h3>All eyes</h3><p>No mouth, no arms. It thinks, searches and talks with its eyes and its whole body, and it watches your cursor.</p></div>
+      <div><svg class="ic em" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#chat-circle"/></svg><h3>Texts, not essays</h3><p>Short messages, one after another, with a typing bubble in between. Long only when the answer needs the room.</p></div>
+      <div><svg class="ic em" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#hand-heart"/></svg><h3>Reacts and reads</h3><p>It reacts to your messages, shows when it has read them, and can leave an "okay" on read. It never does that to anything that matters.</p></div>
+      <div><svg class="ic em" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#eye"/></svg><h3>All eyes</h3><p>No mouth, no arms. It thinks, searches and talks with its eyes and its whole body, and it watches your cursor.</p></div>
     </div>
   </div>
 </section>
@@ -272,11 +272,11 @@ section{padding:clamp(64px,9vw,120px) 0}
   document.getElementById("heroOrb").addEventListener("click", function () { orb.cheer(); });
   var log = document.getElementById("chatlog"), status = document.getElementById("phStatus");
   var SCRIPT = [
-    ["me", "is it gonna rain tomorrow"],
+    ["me", "Is it going to rain tomorrow?"],
     ["read"], ["mood", "search"], ["step", "Searching the web"], ["typing"],
-    ["them", "yep, after 3pm", "talk"], ["typing"], ["them", "80% chance, about 6mm"], ["typing"], ["them", "bring the umbrella you always forget"],
+    ["them", "Yes, after 3 p.m.", "talk"], ["typing"], ["them", "There is an 80% chance, with about 6 mm in total."], ["typing"], ["them", "Bring the umbrella you always forget."],
     ["wait", 1600],
-    ["me", "lol ok"],
+    ["me", "Ha, okay. Thanks!"],
     ["react", "😂"], ["read"], ["mood", "happy"], ["wait", 2600], ["clear"],
   ];
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -305,7 +305,7 @@ section{padding:clamp(64px,9vw,120px) 0}
   }
   if (reduce) { for (var r = 0; r < 14; r++) beat(); } else setTimeout(beat, 1100);
 
-  // Routing demo. Outcomes match preview-api/src/models.js; energy is the
+  // Routing demo. Outcomes match blinks-api/src/models.js; energy is the
   // typical figure from carbon.js for a reply of that size.
   var ASKS = [
     { q: "hey, you around?", lane: "Swift", model: "A small 30B model", wh: 0.05, why: "Small talk. The lightest lane answers in under a second." },

@@ -1,6 +1,6 @@
-# cloak-preview-api
+# cloak-blinks-api
 
-Backend for the rebrand prototype (`preview.usecloak.org`). A separate Worker from production `cloak-api`. It shares only the provider key ring (KV, read-only) and the free-tier governor (`../api-worker/src/governor.js`), so the preview cannot burn quota the live app needs.
+Backend for Cloak Blinks (usecloak.org/blinks), served at `blinks-api.usecloak.org`. A separate Worker from production `cloak-api`. It shares only the provider key ring (KV, read-only) and the free-tier governor (`../api-worker/src/governor.js`), so Blinks cannot burn quota the live app needs.
 
 ## Routes
 
@@ -57,7 +57,7 @@ Not built yet: code execution and a file workspace (waiting on the real-computer
 NVIDIA's free API leads every lane; Groq and Gemini are safety nets. Ids were read from `GET https://integrate.api.nvidia.com/v1/models` on 2026-11-10. They were **not benchmarked** (no keys in the build session), so after the first deploy run:
 
 ```bash
-curl -H "X-Admin-Token: $ADMIN_TOKEN" https://preview-api.usecloak.org/admin/probe
+curl -H "X-Admin-Token: $ADMIN_TOKEN" https://blinks-api.usecloak.org/admin/probe
 ```
 
 and reorder the lineups in `src/models.js` by what is actually fast. Production's lesson still applies: only models that answer at chat speed on the free tier belong at the front of a lane.

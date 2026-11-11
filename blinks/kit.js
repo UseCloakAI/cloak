@@ -57,9 +57,9 @@
   var q = new URLSearchParams(location.search).get("api");
   if (q) set("pv_api", q);
   var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-  var api = (get("pv_api") || (local ? "http://localhost:8787" : "https://preview-api.usecloak.org")).replace(/\/+$/, "");
+  var api = (get("pv_api") || (local ? "http://localhost:8787" : "https://blinks-api.usecloak.org")).replace(/\/+$/, "");
 
-  /* ── The built-in Blink (mirrors preview-api/src/prompts.js). Everyone else
+  /* ── The built-in Blink (mirrors blinks-api/src/prompts.js). Everyone else
      is made by people in the app (maker.js). ─────────────────────────── */
   var COMPANIONS = [
     { id: "cloak", name: "Cloak", role: "Your Blink", lane: "Auto", line: "The O from the logo, awake.", about: "Texts back fast, keeps it short, and goes long only when it is worth it. Searches, builds, remembers, and tells you straight.", hello: "Hey. What's up?", starters: ["Plan my week around three deadlines", "Explain how tides work, quickly", "Help me reply to this text without sounding mad"] },

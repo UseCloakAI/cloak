@@ -1,9 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  // Static site for preview.usecloak.org (the rebrand prototype).
-  // Workers Builds: root directory `preview`, deploy command `npx wrangler deploy`.
-  "name": "cloak-preview",
-  "compatibility_date": "2025-09-27",
-  "assets": { "directory": "." },
-  "routes": [{ "pattern": "preview.usecloak.org", "custom_domain": true }]
-}

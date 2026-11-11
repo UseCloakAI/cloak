@@ -28,10 +28,6 @@
       <div id="hist"></div>
     </div>
     <div class="side-foot">
-      <a class="foot-print" href="impact.html" title="Open the public ledger">
-        <svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#leaf"/></svg>
-        <span>Session <b id="sessWh">0 Wh</b>, removed 10x</span>
-      </a>
       <div class="foot-row">
         <button class="who" id="openSettings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#user-circle"/></svg><span id="whoName">You</span><b class="badge" id="inboxBadge" hidden></b></button>
         <button class="iconbtn" id="openSettings2" aria-label="Settings"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#gear-six"/></svg></button>
@@ -45,17 +41,20 @@
       <button class="iconbtn menu" id="menu" aria-label="Open menu"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#list"/></svg></button>
       <div class="top-av" id="topAv"></div>
       <div class="top-who"><b id="topName">Cloak</b><span id="topRole">Your Blink</span></div>
-      <div class="seg" role="group" aria-label="How hard to think" id="seg">
-        <button data-mode="auto" aria-pressed="true" title="Routes each message to the lightest model that fits">Auto</button>
-        <button data-mode="swift" aria-pressed="false" title="Smallest, fastest models">Swift</button>
-        <button data-mode="deep" aria-pressed="false" title="Largest models. Slower, more energy">Deep</button>
-        <button data-mode="research" aria-pressed="false" title="Plans, searches many sources, reads them and cites">Research</button>
-        <button data-mode="team" aria-pressed="false" title="Several companions work in parallel, then one writes the answer">Team</button>
+      <div class="modes">
+        <button class="mode-btn" id="modeBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="modeMenu"><span class="sr">Thinking mode: </span><span id="modeName">Auto</span><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#caret-down"/></svg></button>
+        <div class="mode-menu" id="modeMenu" role="menu" hidden>
+          <button role="menuitemradio" aria-checked="true" data-mode="auto"><b>Auto</b><span>Picks the lightest model that fits each message.</span></button>
+          <button role="menuitemradio" aria-checked="false" data-mode="swift"><b>Swift</b><span>The smallest, fastest models.</span></button>
+          <button role="menuitemradio" aria-checked="false" data-mode="deep"><b>Deep</b><span>The largest models. Slower, and uses more energy.</span></button>
+          <button role="menuitemradio" aria-checked="false" data-mode="research"><b>Research</b><span>Searches many sources, reads them and cites them.</span></button>
+          <button role="menuitemradio" aria-checked="false" data-mode="team"><b>Team</b><span>Several helpers work in parallel, then one answer comes back.</span></button>
+        </div>
       </div>
     </header>
 
     <div class="thread" id="thread">
-      <div class="banner" id="offline" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#info"/></svg><span>The preview backend is not connected yet, so replies here are short scripted demos. Deploy <code>preview-api</code> to talk to the real models.</span></div>
+      <div class="banner" id="offline" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#info"/></svg><span>The Blinks backend is not connected yet, so replies here are short scripted demos.</span></div>
       <div class="thread-in" id="threadIn"></div>
     </div>
 
@@ -68,22 +67,17 @@
         <button type="button" class="iconbtn" id="attach" aria-label="Attach an image"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#image"/></svg></button>
         <button class="send" id="send" aria-label="Send" disabled><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-up"/></svg></button>
       </form>
-      <p class="fine">AI can be wrong. Check anything that matters. The energy of every reply is counted in the public ledger.</p>
+      <p class="fine">AI can be wrong. Check anything that matters.</p>
     </div>
   </main>
 
-  <aside class="stage" aria-label="Your companion">
+  <aside class="stage" aria-label="Your Blink">
     <div class="stage-fig"><div id="stageFig"></div><span class="mood" id="mood">Here</span></div>
     <div>
       <h2 id="stName">Cloak</h2>
       <p class="line" id="stLine"></p>
     </div>
-    <dl>
-      <dt>Last reply</dt><dd id="stLane">none yet</dd>
-      <dt>Energy</dt><dd id="stWh">0 Wh</dd>
-      <dt>Carbon, estimated</dt><dd id="stG">0 g</dd>
-      <dt>Session total</dt><dd id="stSess">0 Wh</dd>
-    </dl>
+    <a class="stage-ledger" href="impact.html" title="Open the public ledger"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#leaf"/></svg><span>This session used <b id="stSess">0 Wh</b>. We remove ten times its carbon.</span></a>
     <a class="sponsor" id="sponsor" href="impact.html#sponsors">
       <small><span>Sponsor</span><span>Sample</span></small>
       <b id="spTitle"></b>
@@ -96,11 +90,11 @@
   <form class="dlg" method="dialog" id="setForm">
     <h2 id="setTitle">You</h2>
     <div>
-      <label class="lbl" for="setName">What should the companions call you?</label>
+      <label class="lbl" for="setName">What should Cloak call you?</label>
       <input class="field" id="setName" maxlength="40" autocomplete="given-name">
     </div>
     <div>
-      <label class="lbl" for="setAbout">Anything they should know</label>
+      <label class="lbl" for="setAbout">Anything Cloak should know</label>
       <textarea class="field" id="setAbout" maxlength="600"></textarea>
       <p class="help">How you like answers, what you do, what to skip. Sent with each message, stored on this device.</p>
     </div>

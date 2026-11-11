@@ -1,5 +1,5 @@
-// cloak-preview-api — the backend for preview.usecloak.org (the rebrand
-// prototype). Separate Worker from production cloak-api; shares only the
+// cloak-blinks-api — the backend for Cloak Blinks at usecloak.org/blinks (a
+// separate Cloak product). Separate Worker from production cloak-api; shares only the
 // provider key ring (KV) and the free-tier governor.
 //
 //   POST /v1/chat          agent run, SSE: {meta} {care?} {step}… {sources} {delta}… {done}
@@ -8,7 +8,7 @@
 //   …    /v1/memory, /v1/tasks, /v1/inbox   manage them
 //   GET  /v1/tools         tool catalog and modes
 //   POST /v1/speech        text to speech (WAV); GET /v1/speech/voices
-//   GET  /v1/companions    the five companions + public lanes
+//   GET  /v1/companions    Cloak (the built-in Blink) + public lanes
 //   GET  /v1/impact        the public carbon ledger
 //   POST /v1/ads/event     {sponsor, kind: "view" | "click"}
 //   GET  /admin/probe      time every model in every lane        (X-Admin-Token)
@@ -41,7 +41,7 @@ function corsFor(request, env) {
   const extra = String(env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
   const ok = ORIGINS.some((re) => re.test(origin)) || extra.includes(origin);
   return {
-    "Access-Control-Allow-Origin": ok ? origin : "https://preview.usecloak.org",
+    "Access-Control-Allow-Origin": ok ? origin : "https://usecloak.org",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Device, X-Admin-Token",
     "Access-Control-Expose-Headers": "X-Run-Id, X-Run-Status",
@@ -123,7 +123,7 @@ function sseFrom(gen, abort, cors) {
       try {
         for await (const ev of gen) send(ev.done ? { ...ev, text: undefined } : ev);
       } catch (e) {
-        console.error("[preview-api] all models failed", JSON.stringify(e.tried || String(e.message || e)));
+        console.error("[blinks-api] all models failed", JSON.stringify(e.tried || String(e.message || e)));
         send({ error: "Every model is busy right now. Give it a moment and try again." });
       }
       controller.close();
@@ -223,7 +223,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     try {
-      if (path === "/" && request.method === "GET") return json({ service: "cloak-preview-api", version: VERSION, lanes: PUBLIC_LANES }, cors);
+      if (path === "/" && request.method === "GET") return json({ service: "cloak-blinks-api", version: VERSION, lanes: PUBLIC_LANES }, cors);
       if (path === "/v1/chat" && request.method === "POST") return await handleChat(request, env, ctx, cors);
       let m;
       if ((m = /^\/v1\/runs\/([\w-]{16,64})(?:\/(cancel))?$/.exec(path))) return await handleRun(request, env, cors, m[1], m[2]);
@@ -251,7 +251,7 @@ export default {
       if (path.startsWith("/admin/")) return await handleAdmin(request, env, ctx, cors, path);
       return json({ error: "Not found" }, cors, 404);
     } catch (e) {
-      console.error("[preview-api] unhandled", e?.stack || e);
+      console.error("[blinks-api] unhandled", e?.stack || e);
       return json({ error: "Something went wrong." }, cors, 500);
     }
   },
