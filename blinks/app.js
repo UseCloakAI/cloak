@@ -920,7 +920,7 @@
     };
 
     try {
-      await stream(ch, images, onEvent, state.ctrl.signal);
+      var complete = await stream(ch, images, onEvent, state.ctrl.signal);
     } catch (e) {
       if (e.name !== "AbortError") {
         // No backend: say so, and play the scripted demo instead.
@@ -929,6 +929,18 @@
       }
     }
     var left = state.ctrl && state.ctrl.signal.aborted;
+    if (!left && complete === false && !bm.content.trim() && !bm.error) {
+      // The connection dropped but the reply is still being made: keep the
+      // Blink working here and fetch the reply the moment it is ready.
+      state.ctrl = null;
+      Kit.set("pv_live_run", "");
+      if (el) { el.remove(); el = null; }
+      um.read = um.read || Date.now();
+      ch.updated = Date.now(); save();
+      setBusy(false);
+      awaitReply(ch);
+      return;
+    }
     Kit.set("pv_live_run", "");
     state.ctrl = null;
     if (left) {
@@ -1069,6 +1081,7 @@
       } catch (e) { if (e.name === "AbortError") throw e; }
     }
     signal.removeEventListener("abort", cancel);
+    return finished;
   }
 
   // Scripted stand-in used only when the backend cannot be reached.
@@ -1254,6 +1267,22 @@
     scrollEnd(true);
   }
 
+  // Polls for a reply that is still on its way (connection dropped).
+  function awaitReply(ch) {
+    var n0 = ch.messages.length, tries = 0;
+    resuming = { id: null, companion: ch.companion, label: "Still working on it", raw: "", poll: true };
+    drawResume();
+    var tick = function () {
+      if (!resuming || !resuming.poll) return;
+      if (ch.messages.slice(n0).some(function (m) { return m.role === "assistant"; }) || ++tries > 60) {
+        resuming = null; drawResume(); if (state.companion === ch.companion) mood("idle"); return;
+      }
+      catchUp(true);
+      setTimeout(tick, tries < 10 ? 2500 : 6000);
+    };
+    setTimeout(tick, 1500);
+  }
+
   /* ── Catching up with the brain ─────────────────────────────────── */
   // Replies that finished after you left, task results, and messages your
   // Blinks sent each other all live in each Blink's chat on the brain.
@@ -1281,8 +1310,8 @@
       return norm(x.content) === k;
     });
   }
-  function catchUp() {
-    if (catching || state.busy || resuming || state.power === "lowlight" || !window.Sync || !Sync.user()) return;
+  function catchUp(polling) {
+    if (catching || state.busy || (resuming && !(polling && resuming.poll)) || state.power === "lowlight" || !window.Sync || !Sync.user()) return;
     catching = true;
     api("/v1/blink/since?t=" + synced).then(function (d) {
       if (!d || !d.chats) return;
@@ -1312,6 +1341,7 @@
       Kit.set("pv_unread", JSON.stringify(state.unread));
       save();
       refreshRows();
+      if (resuming && resuming.poll && fresh.some(function (m) { return m.role === "assistant"; })) { resuming = null; drawResume(); mood("idle"); }
       if (redraw) {
         // New messages at the end pop in where you are; anything older means a redraw.
         var ch0 = chat(), tail = ch0 ? ch0.messages.slice(-fresh.length) : [];
@@ -1868,7 +1898,7 @@
 
     pollPower();
     setInterval(pollPower, 60000);
-    setInterval(function () { if (!document.hidden) catchUp(); }, 20000);
+    setInterval(function () { if (!document.hidden) catchUp(); }, 10000);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) { badge(); pollPower(); catchUp(); } });
     // Blinks needs a Cloak account: sign in first, then everything syncs.
     function go() {
