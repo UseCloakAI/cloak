@@ -184,22 +184,23 @@
   };
 
   // Every animation, its variants, and the one in use. The first is the default.
+  // Round two, from the lab's grades: bigger, more physical, each one distinct.
   var VARIANTS = {
-    idle: ["breathe", "float", "calm"],
-    listen: ["lean", "perk"],
-    think: ["drift", "ponder", "pendulum"],
-    search: ["scan", "read", "peek"],
-    work: ["hop", "bounce", "shuffle"],
-    talk: ["pulse", "bob"],
+    idle: ["breathe", "float"],
+    listen: ["lean", "nudge"],
+    think: ["pendulum", "orbit"],
+    search: ["arc", "peek"],
+    work: ["hop", "bounce"],
+    talk: ["bob", "pulse"],
     happy: ["beam", "wiggle"],
-    care: ["soft", "sway"],
-    sleep: ["droop", "deep"],
+    care: ["hug", "soft"],
+    sleep: ["doze", "side"],
     cheer: ["hop", "spin", "double"],
-    wave: ["rock", "wiggle"],
-    nod: ["nod", "double"],
-    blink: ["classic", "snappy"],
+    wave: ["wiggle", "rock"],
+    nod: ["dip", "double"],
+    blink: ["snappy", "classic"],
     change: ["kick", "none"],
-    boil: ["boil", "slow", "steady"],
+    boil: ["boil", "steady"],
   };
   var STYLE = {};
   Object.keys(VARIANTS).forEach(function (k) { STYLE[k] = VARIANTS[k][0]; });
@@ -211,12 +212,15 @@
   };
   // One hop, phase 0..1: crouch (anticipation), launch with a stretch, a
   // parabolic arc, a squash on landing, then rest.
-  function hopCurve(ph, H) {
-    if (ph < 0.16) { var a = ease.inOut(ph / 0.16); return { y: 0, sq: 0.1 * a }; }
-    if (ph < 0.6) { var k = (ph - 0.16) / 0.44; return { y: -H * 4 * k * (1 - k), sq: -0.09 * (1 - k) * (1 - k) + 0.1 * Math.max(0, 1 - k * 6) }; }
-    if (ph < 0.76) { var l = (ph - 0.6) / 0.16; return { y: 0, sq: 0.11 * Math.sin(Math.PI * Math.min(1, l * 1.4)) * (1 - l * 0.5) }; }
+  function hopCurve(ph, H, Q) {
+    Q = Q || 0.11;
+    if (ph < 0.16) { var a = ease.inOut(ph / 0.16); return { y: 0, sq: Q * 0.9 * a }; }
+    if (ph < 0.6) { var k = (ph - 0.16) / 0.44; return { y: -H * 4 * k * (1 - k), sq: -Q * 0.9 * (1 - k) * (1 - k) + Q * 0.9 * Math.max(0, 1 - k * 6) }; }
+    if (ph < 0.8) { var l = (ph - 0.6) / 0.2; return { y: 0, sq: Q * 1.9 * Math.sin(Math.PI * Math.min(1, l * 1.25)) * (1 - l * 0.45) }; }
     return { y: 0, sq: 0 };
   }
+  // A drawn "z" for sleeping (the one thing that floats off a Blink).
+  function zee(x, y) { return '<path d="M' + x + " " + y + ' h13 l-13 15 h13" fill="none" stroke="' + INK + '" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>'; }
 
   function Creature(el, id, opts) {
     opts = opts || {};
@@ -235,12 +239,14 @@
       '<feMerge><feMergeNode in="d"/><feMergeNode in="spk"/></feMerge>' +
       "</filter>" +
       "</defs>" +
-      '<g class="cr-root" filter="url(#' + fid + ')"><g class="cr-hop">' + draw(spec) + "</g></g>" +
+      '<g class="cr-root" filter="url(#' + fid + ')"><g class="cr-hop">' + draw(spec) + "</g>" +
+      '<g class="cr-z" opacity="0">' + zee(170, 70) + zee(170, 70) + zee(170, 70) + "</g></g>" +
       "</svg>";
 
     var svg = el.firstChild;
     var turb = svg.querySelector("feTurbulence");
     var hop = svg.querySelector(".cr-hop");
+    var zz = svg.querySelector(".cr-z");
     var parts = {};
     svg.querySelectorAll("[data-p]").forEach(function (node) {
       var p = node.getAttribute("data-p");
@@ -254,7 +260,8 @@
     this.visible = true;
     var st = function (k) { return (opts.style && opts.style[k]) || STYLE[k]; };
     var t0 = Math.random() * 100;
-    var s = { tilt: sv(), lift: sv(), lookX: sv(), lookY: sv(), open: sv(1), lean: sv(), top: sv(1), hop: sv(), squash: sv(), hatLag: sv(), happy: sv(), face: sv(), spin: sv() };
+    var s = { tilt: sv(), lift: sv(), lookX: sv(), lookY: sv(), open: sv(1), lean: sv(), top: sv(1), hop: sv(), squash: sv(), hatLag: sv(), happy: sv(), face: sv(), spin: sv(), reach: sv(1), roll: sv(), z: sv(), sx: sv() };
+    var moodAt = 0;
     var blinkAt = -1, blink = 0;
     var glanceAt = 0, glance = { x: 0, y: 0 };
     var talk = 0, level = -1, voice = 0;
@@ -296,35 +303,33 @@
 
       var lx = m.lookX, ly = m.lookY, open0 = m.open;
       var hopY = 0, squash = 0, leanX = 0, tiltX = 0, liftX = 0, spin = 0, breathK = 1, rateK = 1, glanceK = 1;
+      var reach = 1, roll = 0, zOn = 0, sxX = 0, breathX = -1;
+      if (!moodAt) moodAt = t;
+      var mt = t - moodAt; // seconds in this mood
 
       // ── Where to look, and how each mood moves ──
       if (mood === "search") {
-        if (v === "read") {
-          // Reading: the eyes hop word to word along a line, then sweep back.
-          var p = (t * 0.85) % 1, line = Math.floor(t * 0.85) % 3;
-          lx = p < 0.82 ? -0.85 + Math.floor((p / 0.82) * 5) * 0.425 : 0.85 - ease.inOut((p - 0.82) / 0.18) * 1.7;
-          ly = -0.25 + line * 0.3;
-          tiltX = lx * 2.5;
-        } else if (v === "peek") {
-          var g = dart(t, 0.3, 0.6);
-          lx = g.x; ly = g.y; open0 = 1.2; liftX = -4; squash -= 0.035;
+        if (v === "peek") {
+          var g = dart(t, 0.28, 0.7);
+          lx = g.x; ly = g.y; open0 = 1.22; liftX = -6; squash -= 0.05; reach = 1.35;
+          leanX = g.x * 4;
         } else {
-          lx = Math.sin(t * 5.2) * 0.95;
-          ly = 0.15 + Math.sin(t * 1.3) * 0.25;
-          var ph0 = (t * 2.6) % 1;
-          hopY += -4 * Math.sin(Math.PI * Math.min(1, ph0 / 0.62));
+          // The eyes travel an arc around the bottom of the face, side to side.
+          var th = Math.PI * (0.5 - 0.5 * Math.cos(t * 2.1));
+          lx = -Math.cos(th); ly = 0.1 + 0.9 * Math.sin(th);
+          reach = 1.5;
+          tiltX = lx * 5; leanX = lx * 2.5;
+          hopY -= Math.abs(Math.sin(t * 4.2)) * 3;
         }
       } else if (mood === "work") {
         var g2 = dart(t, 0.45, 1);
-        lx = g2.x; ly = g2.y;
+        lx = g2.x; ly = g2.y; reach = 1.2;
         if (v === "bounce") {
-          var h = hopCurve((t * 1.45) % 1, 14);
+          // Big hops with momentum: a deep crouch, a long arc, a heavy squash.
+          var h = hopCurve((t * 1.05) % 1, 30, 0.2);
           hopY += h.y; squash += h.sq;
-          tiltX = Math.sin(t * 1.45 * Math.PI * 2) * 2;
-        } else if (v === "shuffle") {
-          leanX = Math.sin(t * 7) * 6;
-          hopY -= Math.abs(Math.sin(t * 7)) * 4;
-          squash += Math.abs(Math.cos(t * 7)) * 0.03;
+          leanX = Math.sin(t * 1.05 * Math.PI * 2) * 3;
+          ly = Math.min(ly, h.y < -10 ? -0.4 : ly);
         } else {
           var ph = (t * 2.6) % 1;
           hopY += -9 * Math.sin(Math.PI * Math.min(1, ph / 0.62));
@@ -332,19 +337,21 @@
           leanX = Math.sin(t * 2.6 * Math.PI) * 4;
         }
       } else if (mood === "think") {
-        if (v === "ponder") {
-          if (t > glanceAt) { glanceAt = t + 2 + Math.random() * 1.5; glance = { x: Math.random() < 0.5 ? -0.7 : 0.7, y: -0.85 }; }
-          lx = glance.x; ly = glance.y; open0 = 0.8;
-          tiltX = Math.sin(t * 0.9) * 4;
-        } else if (v === "pendulum") {
-          leanX = Math.sin(t * 1.7) * 6;
-          lx = Math.sin(t * 1.7 - 0.6) * 0.6; ly = -0.8;
+        if (v === "orbit") {
+          // Eyes roll up and around while the body tips after them.
+          lx = Math.cos(t * 2.2) * 0.9; ly = -0.45 + Math.sin(t * 2.2) * 0.45;
+          reach = 1.35;
+          tiltX = lx * 7; leanX = lx * 3;
+          hopY -= 3 + Math.sin(t * 4.4) * 2;
         } else {
-          lx = 0.55 + Math.cos(t * 1.5) * 0.4;
-          ly = -0.7 + Math.sin(t * 1.5) * 0.25;
+          // Eyes closed, swaying side to side, mulling it over.
+          open0 = 0.07;
+          leanX = Math.sin(t * 1.5) * 11;
+          tiltX = -Math.sin(t * 1.5 - 0.5) * 5;
+          lx = 0; ly = 0.2;
+          hopY -= Math.abs(Math.cos(t * 1.5)) * 2.5;
         }
       } else if (mood === "idle" || mood === "listen" || mood === "talk") {
-        if (mood === "idle" && v === "calm") { glanceK = 2; breathK = 0.6; }
         if (now - pointer.t < 2600) {
           var r = el.getBoundingClientRect();
           var dx = pointer.x - (r.left + r.width / 2), dy = pointer.y - (r.top + r.height * 0.45);
@@ -359,16 +366,77 @@
           lx += glance.x;
           ly += glance.y;
         }
-        if (mood === "idle" && v === "float") { hopY += -3 - 3 * Math.sin(t * 1.6); tiltX += Math.sin(t * 0.8) * 2; }
-        if (mood === "listen" && v === "perk") { liftX = -3 + Math.sin(t * 3.2) * 1.2; open0 = 1.22; }
+        if (mood === "idle") {
+          if (v === "float") {
+            // Floating: a slow, weightless drift with a lazy sway.
+            hopY += -7 - 8 * Math.sin(t * 1.05);
+            tiltX += Math.sin(t * 0.55) * 4;
+            leanX = Math.sin(t * 0.55 + 1) * 2.5;
+            squash += Math.max(0, Math.sin(t * 1.05)) * 0.025;
+          } else {
+            // A real breath: in (slower, the body swells and rises), out (it settles).
+            var bp = (t / 4.2) % 1, inh = bp < 0.45 ? ease.inOut(bp / 0.45) : 1 - ease.inOut((bp - 0.45) / 0.55);
+            breathX = inh;
+            sxX = 0.045 * inh;
+            liftX = -2.5 * inh;
+          }
+        }
+        if (mood === "listen") {
+          if (v === "nudge") { liftX = -5 + Math.max(0, Math.sin(t * 4)) * -3; open0 = 1.2; }
+          else { leanX = 6; tiltX = 6; liftX = -5; open0 = 1.18; hopY -= 2; }
+        }
+        if (mood === "talk") {
+          // Talking: the body swings gently and every syllable bounces it.
+          tiltX += Math.sin(t * 2.1) * 4;
+          leanX += Math.sin(t * 1.4) * 3;
+        }
       } else if (mood === "happy") {
-        if (v === "wiggle") leanX = Math.sin(t * 8) * 5 * (0.5 + 0.5 * Math.sin(t * 1.2));
-        else hopY -= Math.abs(Math.sin(t * 3)) * 3;
-      } else if (mood === "care" && v === "sway") {
-        leanX = Math.sin(t * 0.9) * 3; breathK = 1.4;
-      } else if (mood === "sleep" && v === "deep") {
-        breathK = 3; rateK = 0.6;
+        if (v === "wiggle") leanX = Math.sin(t * 9) * 9 * (0.55 + 0.45 * Math.sin(t * 1.2));
+        else hopY -= Math.abs(Math.sin(t * 3)) * 4;
+      } else if (mood === "care") {
+        if (v === "soft") { leanX = Math.sin(t * 0.9) * 3; breathK = 1.4; }
+        else {
+          // A slow hug: every few seconds it squeezes in, eyes softly closing.
+          var cp = (t / 3.4) % 1, hug = cp < 0.35 ? ease.inOut(cp / 0.35) : cp < 0.6 ? 1 : 1 - ease.inOut((cp - 0.6) / 0.4);
+          sxX = -0.07 * hug; squash -= 0.04 * hug;
+          open0 = 0.8 - 0.62 * hug;
+          tiltX = -6 + Math.sin(t * 0.8) * 2.5; leanX = 3 + 2 * hug;
+          liftX = 2 - 2 * hug;
+        }
+      } else if (mood === "sleep") {
+        zOn = 1;
+        if (v === "side") { roll = 74; open0 = 0.04; breathK = 3; rateK = 0.55; }
+        else {
+          // Dozing: nods off, jolts awake, nods off again, then rolls onto its
+          // side and sleeps, turning over now and then.
+          var c0 = mt % 30;
+          if (c0 < 6.5) {
+            var nodd = c0 < 2.6 ? c0 / 2.6 : c0 < 2.9 ? 1 - (c0 - 2.6) / 0.3 : c0 < 5.2 ? (c0 - 2.9) / 2.3 : c0 < 5.45 ? 1 - (c0 - 5.2) / 0.25 : (c0 - 5.45) / 1.05;
+            nodd = ease.inOut(Math.max(0, Math.min(1, nodd)));
+            open0 = 1 - 0.92 * nodd; liftX = 8 * nodd; tiltX = 9 * nodd;
+            if ((c0 > 2.6 && c0 < 2.9) || (c0 > 5.2 && c0 < 5.45)) { liftX -= 6; open0 = 1.15; }
+            zOn = c0 > 5.6 ? 1 : 0;
+          } else {
+            var side = Math.floor((c0 - 6.5) / 11.75) % 2 ? -1 : 1;
+            roll = 74 * side; open0 = 0.04; breathK = 2.6; rateK = 0.55;
+          }
+          if (c0 < 6.5) { lx = 0; ly = 0.6; }
+        }
       }
+      var nod = 0;
+      if (nodT >= 0) {
+        nodT += dt;
+        if (st("nod") === "double") {
+          nod = Math.sin(nodT * 14) * Math.max(0, 1 - nodT / 1.15) * 5;
+          if (nodT > 1.25) nodT = -1;
+        } else {
+          // A real nod: the eyes drop, the body squishes down, twice, then settles.
+          var half = 0.42, n1 = nodT < half ? Math.sin(Math.PI * nodT / half) : nodT < half * 2 ? 0.7 * Math.sin(Math.PI * (nodT - half) / half) : 0;
+          nod = 7 * n1; squash += 0.08 * n1; ly = 0.95 * n1 - 0.25 * (1 - n1) * (nodT < half * 2 ? 1 : 0); lx *= 1 - n1;
+          if (nodT > half * 2 + 0.15) nodT = -1;
+        }
+      }
+
       lx = Math.max(-1, Math.min(1, lx));
       ly = Math.max(-1, Math.min(1, ly));
       // Eyes lead (snappy), the face follows (softer), the body leans last.
@@ -395,7 +463,7 @@
         target = talk > 0.04 ? Math.min(1, talk) * (0.25 + 0.75 * syll) : 0;
       }
       voice += (target - voice) * Math.min(1, dt * 28);
-      if (mood === "talk" && v === "bob") { liftX -= voice * 4; tiltX += voice * Math.sin(t * 9) * 3; }
+      if (mood === "talk" && v === "bob") { liftX -= voice * 7; tiltX += voice * Math.sin(t * 9) * 4; squash -= voice * 0.07; open0 = 1 + voice * 0.15; }
 
       // ── Gestures on top ──
       if (cheerT >= 0) {
@@ -403,9 +471,9 @@
         var c = cheerT, cv = st("cheer");
         if (cv === "double") {
           if (c < 0.12) squash += 0.09 * ease.out(c / 0.12);
-          else if (c < 0.42) { var k1 = (c - 0.12) / 0.3; hopY += -16 * 4 * k1 * (1 - k1); squash -= 0.06 * (1 - k1); }
+          else if (c < 0.42) { var k1 = (c - 0.12) / 0.3; hopY += -26 * 4 * k1 * (1 - k1); squash -= 0.08 * (1 - k1); }
           else if (c < 0.52) squash += 0.08 * Math.sin(Math.PI * (c - 0.42) / 0.1);
-          else if (c < 0.86) { var k2 = (c - 0.52) / 0.34; hopY += -24 * 4 * k2 * (1 - k2); squash -= 0.08 * (1 - k2); }
+          else if (c < 0.86) { var k2 = (c - 0.52) / 0.34; hopY += -38 * 4 * k2 * (1 - k2); squash -= 0.1 * (1 - k2); }
           else if (c < 1) squash += 0.12 * Math.sin(Math.PI * (c - 0.86) / 0.14);
           else if (c > 1.7) cheerT = -1;
         } else {
@@ -424,24 +492,19 @@
         waveT += dt;
         var fade = Math.max(0, 1 - waveT / 1.1);
         if (st("wave") === "wiggle") { rock = Math.sin(waveT * 20) * 5 * fade; squash += Math.abs(Math.sin(waveT * 20)) * 0.03 * fade; }
-        else rock = Math.sin(waveT * 11) * 9 * fade;
+        else rock = Math.sin(waveT * 16) * 14 * fade;
         if (waveT > 1.2) waveT = -1;
       }
-      var nod = 0;
-      if (nodT >= 0) {
-        nodT += dt;
-        var dbl = st("nod") === "double", len = dbl ? 1.15 : 0.7;
-        nod = Math.sin(nodT * 14) * Math.max(0, 1 - nodT / len) * 5;
-        if (nodT > len + 0.1) nodT = -1;
-      }
-
       var hy = spring(s.hop, hopY, 330, 0.62, dt);
       var sq = spring(s.squash, squash, 300, 0.6, dt);
       var sp = spin ? spin : spring(s.spin, 0, 200, 0.7, dt);
-      if (spin) s.spin.x = spin % 360;
+      if (spin) { s.spin.x = spin > 180 ? spin - 360 : spin; s.spin.v = 0; }
       var smile = spring(s.happy, mood === "happy" || (cheerT >= 0 && cheerT < 1.3) || waveT >= 0 ? 1 : 0, 170, 0.7, dt);
 
-      var breath = Math.sin(t * 1.55 * m.breathe * rateK) * 0.014 * (0.6 + m.breathe * 0.4) * breathK;
+      var breath = breathX >= 0 ? breathX * 0.035 : Math.sin(t * 1.55 * m.breathe * rateK) * 0.014 * (0.6 + m.breathe * 0.4) * breathK;
+      var rl = spring(s.roll, roll, 34, 0.86, dt);
+      var sxs = spring(s.sx, sxX, 90, 0.8, dt);
+      var zv = spring(s.z, zOn, 40, 0.85, dt);
       var beat = voice * 0.05; // no mouth: the whole shape pulses with each syllable
       var tilt = spring(s.tilt, m.tilt + tiltX + fx * 3 + Math.sin(t * 0.6) * 1, 48, 0.86, dt);
       var lift = spring(s.lift, m.lift + liftX + ey * 1.6 - voice * 2 + nod, 80, 0.82, dt);
@@ -454,10 +517,24 @@
       var hat = spring(s.hatLag, -dTilt * 0.25 - hy * 0.5 - lean * 0.6, 110, 0.78, dt);
 
       hop.setAttribute("transform", "translate(0 " + hy.toFixed(2) + ")" + (Math.abs(sp) > 0.05 ? " rotate(" + sp.toFixed(2) + " 120 124)" : ""));
-      each("body", function (p) { X(p, 0, 0, lean, 1 - breath * 0.5 + sq * 0.9 - beat * 0.5, 1 + breath - sq + beat); });
+      each("body", function (p) { X(p, 0, 0, lean + rl, 1 - breath * 0.5 + sq * 0.9 - beat * 0.5 + sxs, 1 + breath - sq + beat); });
+      // Lying down: slide over so the Blink stays centred on its side.
+      if (Math.abs(rl) > 0.5) hop.setAttribute("transform", "translate(" + (-Math.sin(rl * Math.PI / 180) * 70).toFixed(2) + " " + (hy - Math.abs(Math.sin(rl * Math.PI / 180)) * 52).toFixed(2) + ")");
+      // Sleeping: z's float up and away, one after another.
+      zz.setAttribute("opacity", Math.max(0, Math.min(1, zv)).toFixed(2));
+      if (zv > 0.02) {
+        var sr = Math.sin(rl * Math.PI / 180), zs = zz.childNodes, zx = sr * (sr > 0 ? 40 : 160), zy = Math.abs(sr) * -6;
+        for (var zi = 0; zi < 3; zi++) {
+          var zp = (t * 0.42 + zi / 3) % 1;
+          var zo = zp < 0.15 ? zp / 0.15 : zp > 0.7 ? (1 - zp) / 0.3 : 1;
+          zs[zi].setAttribute("transform", "translate(" + (zx + zp * 26 + Math.sin(zp * 6.3) * 4).toFixed(2) + " " + (zy - zp * 54).toFixed(2) + ") translate(176 78) scale(" + (0.55 + zp * 0.7).toFixed(2) + ") translate(-176 -78)");
+          zs[zi].setAttribute("opacity", zo.toFixed(2));
+        }
+      }
       each("head", function (p) { X(p, fx * 5.5, lift + ey * 2.2, tilt * 0.55); });
       each("socket", function (p) { X(p, 0, 0, 0, 1 - voice * 0.08, Math.max(0.05, Math.min(1.16, open + voice * 0.22)) * (1 - smile)); p.node.style.opacity = smile > 0.6 ? 0 : 1; });
-      each("pupil", function (p) { X(p, ex * p.r, ey * p.r * 0.9, 0); });
+      var rc = spring(s.reach, reach, 90, 0.8, dt);
+      each("pupil", function (p) { X(p, ex * p.r * rc, ey * p.r * 0.9 * rc, 0); });
       each("smile", function (p) { p.node.setAttribute("opacity", smile > 0.6 ? 1 : 0); });
       each("hat", function (p) { X(p, 0, 0, hat + Math.sin(t * (1 + topE * 0.8)) * (1.2 + topE * 1.6), 1, 1 + Math.sin(t * 2.2) * 0.02 * topE); });
     };
@@ -468,6 +545,7 @@
       // A change of mood lands with a small kick: a squash and a lift that settle.
       if (st("change") === "kick") { s.squash.v += 1.1; s.hop.v -= 40; }
       self.mood = mood;
+      moodAt = 0;
       el.setAttribute("data-mood", mood);
     };
     this.pulse = function (v) { talk = Math.min(1.4, talk + (v || 0.5)); };
