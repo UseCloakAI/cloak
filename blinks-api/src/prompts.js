@@ -341,3 +341,18 @@ function clean(s, max) {
 export function companionList() {
   return Object.entries(COMPANIONS).filter(([id]) => id === "cloak").map(([id, c]) => ({ id, name: c.name, species: c.species, role: c.role, line: c.line, about: c.about, home: c.home, color: c.color, starters: c.starters }));
 }
+
+// Code goes to the canvas (a side panel in the app), never inline in a text.
+export function codeGuide(files) {
+  const list = Array.isArray(files) ? files : [];
+  return `# CODE
+When you write code, put each file in a fenced block whose first line names it: \`\`\`js title="app.js"\`\`\`. The app moves it out of your text into the code canvas beside the chat and shows a small card where it was, so say in a sentence what you made; never paste the same code twice. A whole web page goes in one \`index.html\` file (it gets a live preview). To change a file that exists, do not rewrite it: send only the changed parts as an edit block, one or more SEARCH/REPLACE pairs, with SEARCH copied exactly from the current file:
+\`\`\`edit title="app.js"
+<<<<<<< SEARCH
+old lines
+=======
+new lines
+>>>>>>> REPLACE
+\`\`\`
+${list.length ? `CODE FILES in this chat (latest versions; use grep_files and read_file to look inside before editing):\n${list.map((f) => `- ${f.name} (${f.code.split("\n").length} lines)`).join("\n")}` : "There are no code files in this chat yet."}`;
+}

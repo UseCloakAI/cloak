@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#F2EEE5">
 <title>Cloak Blinks</title>
-<link rel="icon" id="favicon" type="image/svg+xml" href="data:,">
+<link rel="icon" id="favicon" type="image/svg+xml" href="favicon.svg">
 <script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -64,6 +64,7 @@
       </div>
       <button class="chip-who" id="blinkBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="bpanel"><span class="top-av" id="topAv"></span><span class="top-who"><b id="topName">Cloak</b><span class="mood-tx" id="mood">Here</span></span><svg class="ic chev" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#caret-down"/></svg></button>
       <div class="top-r">
+        <button class="icon-btn" type="button" id="codeBtn" title="Code" aria-label="Open code" aria-controls="cpanel" aria-expanded="false"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg><i class="code-badge" id="codeBadge" hidden></i></button>
       <div class="modes">
         <button class="mode-btn" id="modeBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="modeMenu"><span class="sr">Thinking mode: </span><span id="modeName">Auto</span><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#caret-down"/></svg></button>
         <div class="mode-menu" id="modeMenu" role="menu" hidden>
@@ -158,7 +159,29 @@
   </section>
   </main>
   <div class="bp-scrim" id="bpScrim" hidden></div>
-  <aside class="bpanel" id="bpanel" role="dialog" aria-modal="true" aria-labelledby="bpName" hidden>
+  <aside class="dock cpanel" id="cpanel" role="dialog" aria-modal="true" aria-labelledby="cpTitle" hidden>
+    <div class="dock-grip" id="cpGrip" role="separator" aria-orientation="vertical" aria-label="Resize the code panel" tabindex="0"><i aria-hidden="true"></i></div>
+    <header class="cp-head">
+      <span class="cp-mark" aria-hidden="true"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg></span>
+      <div class="cp-who"><h2 id="cpTitle">Code</h2><span id="cpCount">No files yet</span></div>
+      <button class="icon-btn" type="button" id="cpFull" aria-label="Full screen" aria-pressed="false" title="Full screen"><svg class="grow" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><svg class="shrink" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg></button>
+      <button class="icon-btn" type="button" id="cpClose" aria-label="Close code"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <div class="cp-tabs" id="cpTabs" role="tablist" aria-label="Files"></div>
+    <div class="cp-bar">
+      <div class="cp-ver"><button type="button" id="cpOlder" aria-label="Older version"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><span id="cpVer">v1</span><button type="button" id="cpNewer" aria-label="Newer version"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></div>
+      <div class="cp-view" role="group" aria-label="View"><button type="button" data-view="code" aria-pressed="true">Code</button><button type="button" data-view="preview" aria-pressed="false">Preview</button></div>
+      <span class="sp"></span>
+      <button type="button" class="cp-act" id="cpCopy">Copy</button>
+      <button type="button" class="cp-act" id="cpDl">Download</button>
+    </div>
+    <div class="cp-body" id="cpBody">
+      <div class="cp-code" id="cpCode"><div class="cp-gut" id="cpGut" aria-hidden="true"></div><pre><code id="cpSrc"></code></pre></div>
+      <iframe class="cp-frame" id="cpFrame" title="Preview" sandbox="allow-scripts allow-modals allow-forms" hidden></iframe>
+      <div class="cp-empty" id="cpEmpty"><b>Nothing here yet</b><span>Ask your Blink to build something. Files it writes open here instead of filling up the chat.</span></div>
+    </div>
+  </aside>
+  <aside class="dock bpanel" id="bpanel" role="dialog" aria-modal="true" aria-labelledby="bpName" hidden>
     <header class="bp-head">
       <span class="bp-av" id="bpAv" aria-hidden="true"></span>
       <div class="bp-who"><h2 id="bpName">Cloak</h2><span id="bpRole">Your Blink</span></div>
@@ -178,6 +201,7 @@
 <script src="creatures.js" defer></script>
 <script src="maker.js" defer></script>
 <script src="sync.js" defer></script>
+<script src="code.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

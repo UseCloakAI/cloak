@@ -84,6 +84,18 @@ function limited(ip, max = 24, windowMs = 60_000) {
 
 const ledger = (env) => env.LEDGER.get(env.LEDGER.idFromName("global"));
 
+function readFiles(list) {
+  if (!Array.isArray(list)) return [];
+  let total = 0;
+  const out = [];
+  for (const f of list.slice(0, 24)) {
+    if (!f || typeof f.name !== "string" || typeof f.code !== "string") continue;
+    const code = f.code.slice(0, 200_000);
+    if ((total += code.length) > 600_000) break;
+    out.push({ name: f.name.replace(/[^\w.\-/ ]/g, "").slice(0, 80) || "file", code });
+  }
+  return out;
+}
 function sanitize(messages) {
   if (!Array.isArray(messages)) return [];
   const out = [];
@@ -179,6 +191,8 @@ async function handleChat(request, env, ctx, cors) {
     bot: body.bot && typeof body.bot === "object" ? { id: body.bot.id, name: body.bot.name, purpose: body.bot.purpose, persona: body.bot.persona, lane: body.bot.lane } : null,
     // The person's other Blinks, so theirs can message each other (brain only).
     blinks: Array.isArray(body.blinks) ? body.blinks.slice(0, 13).filter((b) => b && typeof b.id === "string").map((b) => ({ id: String(b.id).slice(0, 40), name: String(b.name || "").slice(0, 32), purpose: String(b.purpose || "").slice(0, 160), persona: String(b.persona || "").slice(0, 1500), lane: String(b.lane || "").slice(0, 12) })) : [],
+    // The chat's code canvas (latest version of each file), for grep_files and read_file.
+    files: readFiles(body.files),
     mode: ["auto", "swift", "deep", "research", "team"].includes(body.mode) ? body.mode : "auto",
     messages,
     images: readImages(body),
