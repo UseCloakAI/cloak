@@ -239,7 +239,7 @@
     }
     if (state.unread[id]) { delete state.unread[id]; Kit.set("pv_unread", JSON.stringify(state.unread)); refreshRows(); }
     renderThread();
-    if (!$("bpanel").hidden) loadMind();
+    if ($("app").classList.contains("bp-open")) loadMind();
   }
   function editBlink(id) {
     var bot = id ? Maker.load().find(function (b) { return b.id === id; }) : null;
@@ -412,9 +412,9 @@
     var el = document.createElement("div");
     el.className = "relay";
     var from = C.find(function (c) { return c.name === m.from; });
-    el.innerHTML = '<div class="relay-av" aria-hidden="true"></div><div><b>' + Kit.esc(m.from) + " to " + Kit.esc(who(state.companion).name) + "</b><p>" + Kit.esc(m.content) + "</p></div>";
+    el.innerHTML = '<div><b>' + Kit.esc(m.from) + " to " + Kit.esc(who(state.companion).name) + "</b><p>" + Kit.esc(m.content) + "</p></div>";
     $("threadIn").appendChild(el);
-    if (from) Creatures.mount(el.querySelector(".relay-av"), look(from), { label: from.name, still: true });
+
     return el;
   }
   function botTurn(m) {
@@ -429,7 +429,10 @@
     if (segs.length) avatar(el, c);
     return el;
   }
+  // Replies carry no avatar: the Blink only shows up beside its status line
+  // while it works (nowSay), like Grok's bot.
   function avatar(el, c) {
+    return;
     var av = el.querySelector(".av");
     if (av && !av.firstChild) track(c.id, Creatures.mount(av, look(c), { label: c.name, mood: c.id === state.companion ? nowMood : "idle" }));
   }
@@ -1158,22 +1161,27 @@
   }
   function openPanel() {
     clearTimeout(bpT);
-    var p = $("bpanel"), sc = $("bpScrim");
-    p.hidden = false; sc.hidden = false;
+    var p = $("bpanel"), sc = $("bpScrim"), wide = !phone.matches;
+    p.hidden = false; sc.hidden = wide;
     p.classList.remove("out"); sc.classList.remove("out");
+    p.setAttribute("aria-modal", wide ? "false" : "true");
+    void p.offsetWidth; // start from closed so the width can grow
+    $("app").classList.add("bp-open");
     $("blinkBtn").setAttribute("aria-expanded", "true");
     loadMind();
-    setTimeout(function () { $("bpClose").focus(); }, 60);
+    setTimeout(function () { $("bpClose").focus({ preventScroll: true }); }, 60);
     each("wave");
   }
   function closePanel() {
-    var p = $("bpanel"), sc = $("bpScrim");
-    if (p.hidden) return;
-    p.classList.add("out"); sc.classList.add("out");
+    var p = $("bpanel"), sc = $("bpScrim"), app = $("app");
+    if (!app.classList.contains("bp-open")) return;
+    app.classList.remove("bp-open");
     $("blinkBtn").setAttribute("aria-expanded", "false");
+    $("blinkBtn").focus({ preventScroll: true });
     clearTimeout(bpT);
+    if (!phone.matches) { bpT = setTimeout(function () { if (!app.classList.contains("bp-open")) p.hidden = true; }, 520); return; }
+    p.classList.add("out"); sc.classList.add("out");
     bpT = setTimeout(function () { p.hidden = true; sc.hidden = true; p.classList.remove("out"); sc.classList.remove("out"); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 260);
-    $("blinkBtn").focus();
   }
 
   /* ── Settings ──────────────────────────────────────────────────── */
@@ -1370,10 +1378,10 @@
       if (!r.hidden) $("search").focus(); else { $("search").value = ""; renderComps(); }
     });
     $("search").addEventListener("input", function () { renderComps(); });
-    $("blinkBtn").addEventListener("click", function () { if ($("bpanel").hidden) openPanel(); else closePanel(); });
+    $("blinkBtn").addEventListener("click", function () { if ($("app").classList.contains("bp-open")) closePanel(); else openPanel(); });
     $("bpClose").addEventListener("click", closePanel);
     $("bpScrim").addEventListener("click", closePanel);
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("bpanel").hidden) closePanel(); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && $("app").classList.contains("bp-open")) closePanel(); });
     window.addEventListener("resize", function () { inkTo(true); });
     if (Kit.get("pv_rail") && !phone.matches) $("app").classList.add("rail");
     document.querySelectorAll("[data-side-toggle]").forEach(function (b) { b.addEventListener("click", toggleSide); });
