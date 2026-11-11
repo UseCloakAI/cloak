@@ -37,15 +37,23 @@ async function record(env, next) {
 export const markDown = (env, reason) => record(env, { up: false, reason: String(reason || "").slice(0, 200) }).catch(() => {});
 
 // The cron check: is the brain there, and does it want to work?
-export async function checkBrain(env) {
-  if (!brainConfigured(env)) return null;
+// One miss never counts: a restart after an auto-update or a blip on the
+// tunnel lasts seconds, so a failed check is retried before the brain is
+// marked away.
+async function health(env) {
   try {
     const res = await fetch(`${env.BRAIN_URL}/health`, { headers: { "X-Brain-Token": env.BRAIN_TOKEN }, signal: AbortSignal.timeout(6_000) });
     const h = res.ok ? await res.json() : null;
-    return await record(env, h?.ok ? { up: true, paused: !!h.paused, version: h.version } : { up: false, reason: `health ${res.status}` });
+    return h?.ok ? { up: true, paused: !!h.paused, version: h.version } : { up: false, reason: `health ${res.status}` };
   } catch (e) {
-    return await record(env, { up: false, reason: String(e?.message || e) });
+    return { up: false, reason: String(e?.message || e) };
   }
+}
+export async function checkBrain(env) {
+  if (!brainConfigured(env)) return null;
+  let h = await health(env);
+  if (!h.up) { await new Promise((r) => setTimeout(r, 4_000)); h = await health(env); }
+  return await record(env, h);
 }
 
 export function statusBody(s) {
@@ -120,7 +128,7 @@ export async function* turn(env, ctx, req, signal) {
       throw new Error(got ? "the brain stopped mid-reply" : "the brain sent nothing");
     } catch (e) {
       if (signal?.aborted) return;
-      ctx.waitUntil?.(markDown(env, e?.message));
+      ctx.waitUntil?.(checkBrain(env));
       if (got) yield { reset: true, notice: "Cloak lost its brain for a second, so this one is in Low Light." };
     }
   }

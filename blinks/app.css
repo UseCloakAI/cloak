@@ -1043,3 +1043,9 @@ html.resizing iframe{pointer-events:none}
 .bub .prose hr{display:none}
 /* The code button appears the moment a chat has code, with a pop. */
 #codeBtn.arrive{animation:pop .5s var(--sp-snap) both}
+/* Nothing in a reply ever runs off the screen. */
+.bub{min-width:0}
+.bub .prose{min-width:0;overflow-wrap:anywhere}
+.bub .prose pre{max-width:100%;overflow-x:auto}
+.bub .prose table{max-width:100%;overflow-x:auto}
+.turn.them .stack{min-width:0;max-width:100%}

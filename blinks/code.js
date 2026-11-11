@@ -13,7 +13,14 @@
    CodeCanvas.latest(state)     -> [{name, code}] for the request (grep_files / read_file) */
 (function () {
   "use strict";
-  var FENCE = /```([^\n`]*)\n([\s\S]*?)```/g;
+  var FENCE = /```([^\n`]*)\n([\s\S]*?)(```|$(?![\s\S]))/g;
+  // An untitled block takes the file name mentioned just before it ("the code for `game.html`").
+  function nearName(text, at) {
+    var before = String(text).slice(Math.max(0, at - 240), at), m, last = "";
+    var re = /`([\w.\-\/]+\.[a-z0-9]{1,6})`|\b([\w\-]+\.(?:html?|js|jsx|ts|tsx|css|py|json|md|svg))\b/gi;
+    while ((m = re.exec(before))) last = m[1] || m[2];
+    return last;
+  }
   var EXT = { js: "js", javascript: "js", jsx: "jsx", ts: "ts", typescript: "ts", tsx: "tsx", py: "py", python: "py", html: "html", css: "css", json: "json", sh: "sh", bash: "sh", shell: "sh", md: "md", markdown: "md", svg: "svg", sql: "sql", java: "java", c: "c", cpp: "cpp", go: "go", rs: "rs", rust: "rs", rb: "rb", ruby: "rb", php: "php", swift: "swift", kotlin: "kt", yaml: "yml", yml: "yml", xml: "xml", txt: "txt" };
 
   function head(info) {
@@ -59,7 +66,9 @@
       if (m.role !== "assistant" || !m.content) return;
       var re = new RegExp(FENCE.source, "g"), x;
       while ((x = re.exec(m.content))) {
+        if (!x[0]) { re.lastIndex++; continue; }
         var h = head(x[1]), code = x[2].replace(/\n$/, "");
+        if (!h.name && h.lang !== "edit") h.name = nearName(m.content, x.index);
         if (!canvasFence(h, code)) continue;
         if (h.lang === "edit") {
           var f = st.files[h.name];
@@ -73,8 +82,8 @@
         var name = nameFor(h, code);
         if (!st.files[name]) { st.files[name] = { lang: h.lang || name.split(".").pop(), versions: [] }; st.order.push(name); }
         var vs = st.files[name].versions;
-        if (!vs.length || vs[vs.length - 1].code !== code) vs.push({ code: code, at: m.at || 0 });
-        st.seen["f:" + name + ":" + hash(code)] = { name: name, v: vs.length };
+        if (!vs.length || vs[vs.length - 1].code !== code) vs.push({ code: code, at: m.at || 0, cut: !x[3] });
+        st.seen["f:" + name + ":" + hash(code)] = { name: name, v: vs.length, cut: !x[3] };
       }
     });
     return st;
@@ -84,12 +93,15 @@
   // alone) and returns what each one is, to draw as a card afterwards.
   function chipify(text, st) {
     var chips = [];
-    var out = String(text || "").replace(new RegExp(FENCE.source, "g"), function (all, info, body) {
+    var src = String(text || "");
+    var out = src.replace(new RegExp(FENCE.source, "g"), function (all, info, body, close, at) {
+      if (!all) return all;
       var h = head(info), code = body.replace(/\n$/, "");
+      if (!h.name && h.lang !== "edit") h.name = nearName(src, at);
       if (!canvasFence(h, code)) return all;
       var key = h.lang === "edit" ? "e:" + h.name + ":" + hash(code) : "f:" + nameFor(h, code) + ":" + hash(code);
       var s = (st && st.seen[key]) || { name: h.lang === "edit" ? h.name : nameFor(h, code), v: 0 };
-      chips.push({ name: s.name, v: s.v, edit: h.lang === "edit", changes: s.changes || 0, failed: !!s.failed, lines: code.split("\n").length, lang: h.lang });
+      chips.push({ name: s.name, v: s.v, edit: h.lang === "edit", changes: s.changes || 0, failed: !!s.failed, lines: code.split("\n").length, lang: h.lang, cut: !close });
       return "\n\nCODECHIP" + (chips.length - 1) + "\n\n";
     });
     return { text: out, chips: chips };

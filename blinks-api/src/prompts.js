@@ -350,7 +350,7 @@ export function companionList() {
 export function codeGuide(files) {
   const list = Array.isArray(files) ? files : [];
   return `# CODE
-When you write code, put each file in a fenced block whose first line names it: \`\`\`js title="app.js"\`\`\`. The app moves it out of your text into the code canvas beside the chat and shows a small card where it was, so say in a sentence what you made; never paste the same code twice. A whole web page goes in one \`index.html\` file (it gets a live preview). To change a file that exists, do not rewrite it: send only the changed parts as an edit block, one or more SEARCH/REPLACE pairs, with SEARCH copied exactly from the current file:
+When you write code, put each file in a fenced block whose first line names it: \`\`\`js title="app.js"\`\`\`. The app moves it out of your text into the code canvas beside the chat and shows a small card where it was, so say in a sentence what you made; never paste the same code twice. A whole web page goes in one \`index.html\` file (it gets a live preview). Keep each file under about 250 lines so it never gets cut off: split bigger work into several files (for example index.html, style.css, app.js), and always close every block. To change a file that exists, do not rewrite it: send only the changed parts as an edit block, one or more SEARCH/REPLACE pairs, with SEARCH copied exactly from the current file:
 \`\`\`edit title="app.js"
 <<<<<<< SEARCH
 old lines
