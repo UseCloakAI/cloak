@@ -45,7 +45,7 @@ The agent itself is not copied here: the installer fetches `blinks-api/src` and 
 4. Open https://brain.usecloak.org/admin and sign in with your Cloak account.
 5. Set `BRAIN_URL` on the Worker (`blinks-api/wrangler.jsonc` vars) and redeploy. From then on, turns go to the brain.
 
-Update: run the same command without a code. Uninstall: `... | sudo bash -s -- --uninstall` (data in `/var/lib/cloak-brain` is kept).
+Updates are automatic: a systemd timer (`cloak-brain-update.timer`) checks usecloak.org every 30 minutes and reinstalls only when a file changed. A restart waits up to two minutes for replies in progress. To update by hand, run the same command without a code. Uninstall: `... | sudo bash -s -- --uninstall` (data in `/var/lib/cloak-brain` is kept).
 
 Logs: `journalctl -u cloak-brain -f` and `journalctl -u cloudflared -f`, or the Log panel on /admin.
 

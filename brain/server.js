@@ -433,4 +433,11 @@ server.listen(config.port, "127.0.0.1", () => {
   wakeAll();
   blinks.wakeAll();
 });
-for (const s of ["SIGTERM", "SIGINT"]) process.on(s, () => { log("info", "shutting down"); server.close(); setTimeout(() => process.exit(0), 500); });
+// Stopping (an update, a reboot): take no new turns, let the ones in
+// progress finish (up to two minutes), then exit.
+for (const s of ["SIGTERM", "SIGINT"]) process.on(s, () => {
+  log("info", stats.active.size ? `shutting down after ${stats.active.size} reply(s) in progress` : "shutting down");
+  server.close();
+  const until = Date.now() + 120_000;
+  const wait = setInterval(() => { if (!stats.active.size || Date.now() > until) { clearInterval(wait); process.exit(0); } }, 250);
+});
