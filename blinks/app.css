@@ -863,12 +863,12 @@ textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
 .bp-who span{display:block;margin-top:4px;font-size:.84rem;color:var(--ink-3)}
 .bp-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 20px 24px}
 .bp-actions:not(:empty){padding:16px 0 4px}
-.bpanel:not(.out) .bp-head{animation:bpDrop .5s var(--ease-out) .14s backwards}
-.bpanel:not(.out) .bp-av{animation:bpPop .62s var(--sp-pop) .2s backwards}
-.bpanel:not(.out) .bp-who{animation:bpSlide .5s var(--ease-out) .24s backwards}
-.bpanel:not(.out) #bpClose{animation:bpSpin .5s var(--sp-pop) .3s backwards}
-.bpanel:not(.out) .bp-actions>*{animation:rvUp .5s var(--ease-out) .3s backwards}
-.bpanel #mind>.srow{animation:rvUp .5s var(--ease-out) backwards;animation-delay:calc(.32s + var(--k,0) * 60ms)}
+.app.bp-open .bp-head{animation:bpDrop .5s var(--ease-out) .14s backwards}
+.app.bp-open .bp-av{animation:bpPop .62s var(--sp-pop) .2s backwards}
+.app.bp-open .bp-who{animation:bpSlide .5s var(--ease-out) .24s backwards}
+.app.bp-open #bpClose{animation:bpSpin .5s var(--sp-pop) .3s backwards}
+.app.bp-open .bp-actions>*{animation:rvUp .5s var(--ease-out) .3s backwards}
+.app.bp-open .bpanel #mind>.srow{animation:rvUp .5s var(--ease-out) backwards;animation-delay:calc(.32s + var(--k,0) * 60ms)}
 .bpanel #mind>.srow:nth-child(2){--k:1}.bpanel #mind>.srow:nth-child(3){--k:2}.bpanel #mind>.srow:nth-child(4){--k:3}
 @keyframes bpDrop{from{opacity:0;translate:0 -10px}}
 @keyframes bpPop{from{opacity:0;scale:.4;rotate:-14deg}}
@@ -877,3 +877,21 @@ textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
 #bpClose:hover svg{rotate:90deg;transition:rotate .5s var(--sp-pop)}
 @media (max-width:780px){.bpanel{width:100vw;border-left:0;box-shadow:none}.top .chip-who{max-width:62vw}.top .chip-who .mood-tx{display:none}}
 @media (prefers-reduced-motion:reduce){.bpanel,.bp-scrim,.bpanel *,.chip-who{animation:none!important}}
+
+/* Desktop: the panel is a column like the sidebar. It opens by growing
+   (pushing the chat over) and folds the same way; its contents keep their
+   full width the whole time, so nothing inside reflows. */
+@media (min-width:781px){
+  .bp-scrim{display:none!important}
+  .bpanel,.bpanel.out{position:relative;inset:auto;z-index:2;flex:none;width:0;padding:0;overflow:hidden;border-left-width:0;box-shadow:none;animation:none;transition:width .44s cubic-bezier(.65,0,.35,1) .04s,border-left-width 0s .48s}
+  .app.bp-open .bpanel{width:420px;border-left-width:2px;transition:width .56s var(--ease-out),border-left-width 0s}
+  .bpanel>.bp-head,.bpanel>.bp-body{width:418px;flex-shrink:0}
+  .bpanel>.bp-body{flex:1}
+  .app:not(.bp-open) .bpanel>*{opacity:0;translate:14px 0;transition:opacity .16s ease,translate .22s var(--ease-in)}
+  .app.bp-open .bpanel>*{transition:opacity .3s var(--ease-out) .08s,translate .5s var(--sp-snap) .08s}
+}
+/* No avatar beside replies: the Blink appears only next to its status line. */
+.turn.them .row>.av{display:none}
+.turn.them .row{grid-template-columns:minmax(0,1fr);gap:0}
+.turn.them .now{margin-left:-4px}
+.turn.them .steps-host,.turn.them .tfoot,.turn.them .care{margin-left:0}
