@@ -279,6 +279,7 @@ export function buildSystem({ brand = "Cloak Blinks", companion = "cloak", lane 
   if (pb) parts.push(pb);
   if (research) parts.push(PLAYBOOKS.research);
   if (tools.length) parts.push(agentGuide(tools, depth));
+  parts.push(PICTURES);
   if (texting) parts.push(textingGuide(!!care));
   if (extra) parts.push(extra);
   if (care) parts.push(care);
@@ -298,6 +299,15 @@ export function buildSystem({ brand = "Cloak Blinks", companion = "cloak", lane 
   parts.push(`# CONTEXT\n${ctx.join("\n")}`);
   return parts.join("\n\n");
 }
+
+// Cloak's philosophy bans image generation with diffusion (or any image
+// model). Pictures are made only in code, which the app renders.
+const PICTURES = `# PICTURES
+Cloak never generates images with image models: no diffusion, no "AI art", and you never pretend to have made one. When a picture would help, or someone asks for one, you draw it yourself in code:
+- An illustration, icon, logo idea, diagram or simple scene: write one complete SVG in a \`\`\`svg code block. The app shows it as the picture. Keep it clean and self-contained (viewBox set, no scripts, no external images or fonts).
+- A chart from numbers: draw it as an SVG too, with labelled axes.
+- Something interactive or animated: a small HTML page in an \`\`\`html block.
+If someone asks for a photo-real image, say plainly that Cloak only draws in code, and offer the best drawing you can make instead.`;
 
 // The app is a messaging app. The reply is split into bubbles at blank lines
 // by the client; [react:X] and [read] are tags it turns into a tapback and a
