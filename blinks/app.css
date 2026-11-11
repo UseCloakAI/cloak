@@ -825,3 +825,55 @@ textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
 .top .sponsor-pill b{font-size:.74rem}
 .page-title{font-size:15px}
 @media (max-width:780px){.top{padding:0 14px}}
+
+/* ════ The Blink pill: centred on the top bar's line, opens its panel ════ */
+#page-chat .top{position:relative;z-index:4;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#page-chat .thread-in{padding-top:46px}
+.top .chip-who{position:absolute;left:50%;top:100%;translate:-50% -50%;z-index:5;display:flex;align-items:center;gap:9px;height:42px;max-width:min(70vw,380px);padding:0 14px 0 5px;border:var(--bd);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;box-shadow:var(--shsm);transition:box-shadow var(--lift),transform var(--lift),background-color .2s}
+.top .chip-who:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow)}
+.top .chip-who:active{transform:translate(2px,2px);box-shadow:none;transition-duration:var(--tp)}
+.top .chip-who:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.top .chip-who[aria-expanded="true"]{background:color-mix(in srgb,var(--blink,#D44D2A) 18%,var(--surface))}
+.top .chip-who .top-av{display:block;width:32px;height:32px;flex:none;border-radius:50%;background:color-mix(in srgb,var(--blink,#D44D2A) 16%,var(--surface))}
+.top .chip-who .top-who{display:flex;align-items:baseline;gap:8px;min-width:0}
+.top .chip-who .top-who b{font:800 14px/1 var(--fd);letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .chip-who .mood-tx{display:block;font:600 11px/1 var(--fb);letter-spacing:.04em;color:var(--ink-3);white-space:nowrap;transition:color .2s}
+.top .chip-who[data-mood="talk"] .mood-tx,.top .chip-who[data-mood="work"] .mood-tx,.top .chip-who[data-mood="search"] .mood-tx{color:var(--accent)}
+.top .chip-who .chev{width:14px;height:14px;flex:none;opacity:.6;transition:rotate .5s var(--sp-pop)}
+.top .chip-who[aria-expanded="true"] .chev{rotate:-90deg}
+#page-chat.shown .chip-who{animation:pillIn .6s var(--sp-snap) calc(var(--pg-d) + 60ms) backwards}
+@keyframes pillIn{from{opacity:0;scale:.86;translate:-50% -20%}}
+
+/* ════ The Blink's panel: slides in from the right ═══════════════════════
+   Enter: a spring from off-screen with a little overshoot, the scrim fades
+   and blurs, then the header drops in, the Blink pops, and each section
+   rises on a short stagger. Exit: accelerates away, quicker than it came. */
+.bp-scrim{position:fixed;inset:0;z-index:240;background:rgba(10,10,10,.34);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:bpFade .34s var(--ease-out) both}
+.bp-scrim.out{animation:bpFadeOut .22s var(--ease-in) both}
+@keyframes bpFade{from{opacity:0;backdrop-filter:blur(0)}}
+@keyframes bpFadeOut{to{opacity:0}}
+.bpanel{position:fixed;top:0;right:0;bottom:0;z-index:250;width:min(440px,100vw);display:flex;flex-direction:column;background:var(--surface);border-left:var(--bd);box-shadow:-6px 0 0 color-mix(in srgb,var(--blink,#D44D2A) 70%,transparent);padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) 0;animation:bpIn .62s var(--sp-snap) both}
+.bpanel.out{animation:bpOut .26s var(--ease-in) both}
+@keyframes bpIn{from{translate:104% 0}}
+@keyframes bpOut{to{translate:104% 0;opacity:.6}}
+.bp-head{display:flex;align-items:center;gap:14px;flex:none;min-height:96px;padding:16px 18px;border-bottom:var(--bd);background:color-mix(in srgb,var(--blink,#D44D2A) 14%,var(--surface))}
+.bp-av{width:64px;height:64px;flex:none}
+.bp-who{flex:1;min-width:0}
+.bp-who h2{margin:0;font:800 1.35rem/1.05 var(--fd);text-transform:uppercase;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bp-who span{display:block;margin-top:4px;font-size:.84rem;color:var(--ink-3)}
+.bp-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 20px 24px}
+.bp-actions:not(:empty){padding:16px 0 4px}
+.bpanel:not(.out) .bp-head{animation:bpDrop .5s var(--ease-out) .14s backwards}
+.bpanel:not(.out) .bp-av{animation:bpPop .62s var(--sp-pop) .2s backwards}
+.bpanel:not(.out) .bp-who{animation:bpSlide .5s var(--ease-out) .24s backwards}
+.bpanel:not(.out) #bpClose{animation:bpSpin .5s var(--sp-pop) .3s backwards}
+.bpanel:not(.out) .bp-actions>*{animation:rvUp .5s var(--ease-out) .3s backwards}
+.bpanel #mind>.srow{animation:rvUp .5s var(--ease-out) backwards;animation-delay:calc(.32s + var(--k,0) * 60ms)}
+.bpanel #mind>.srow:nth-child(2){--k:1}.bpanel #mind>.srow:nth-child(3){--k:2}.bpanel #mind>.srow:nth-child(4){--k:3}
+@keyframes bpDrop{from{opacity:0;translate:0 -10px}}
+@keyframes bpPop{from{opacity:0;scale:.4;rotate:-14deg}}
+@keyframes bpSlide{from{opacity:0;translate:14px 0}}
+@keyframes bpSpin{from{opacity:0;rotate:-90deg;scale:.5}}
+#bpClose:hover svg{rotate:90deg;transition:rotate .5s var(--sp-pop)}
+@media (max-width:780px){.bpanel{width:100vw;border-left:0;box-shadow:none}.top .chip-who{max-width:62vw}.top .chip-who .mood-tx{display:none}}
+@media (prefers-reduced-motion:reduce){.bpanel,.bp-scrim,.bpanel *,.chip-who{animation:none!important}}
