@@ -656,8 +656,6 @@ figure.drawn .note{font-size:1.05rem;rotate:-2deg}
 /* ════ Working, the Grok way: the Blink itself, next to what it is doing ═══ */
 .now{gap:10px;min-height:40px}
 .now-av{position:relative;width:34px;height:34px;flex:none;margin-left:-2px}
-.now-av::after{content:"";position:absolute;left:18%;right:18%;bottom:-3px;height:4px;border-radius:50%;background:var(--ink);opacity:.14;animation:now-shadow .385s linear infinite}
-@keyframes now-shadow{0%,100%{scale:1 1}38%{scale:.62 1;opacity:.07}}
 .now-t span{font-weight:500}
 .now-n{flex:none;font:500 .74rem/1 var(--fm);color:var(--ink-3);padding:3px 6px;border:1.5px solid var(--line);animation:pop .4s var(--sp-snap) both}
 
