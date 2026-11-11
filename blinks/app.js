@@ -72,62 +72,118 @@
   function uid() { return (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)); }
 
   /* ── Creatures ─────────────────────────────────────────────────── */
-  function mood(m) {
-    ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].set(m); });
-    $("mood").textContent = MOOD_LABEL[m] || "Here";
+  // Every live figure of a Blink on the page (the big block, the top chip,
+  // its sidebar row, every little avatar in the chat) is in this crowd, and
+  // they all feel the same thing at the same moment.
+  var crowd = [];
+  function track(id, f) { crowd.push({ id: id, f: f }); return f; }
+  function mates() {
+    crowd = crowd.filter(function (x) { return x.f.el && x.f.el.isConnected; });
+    return crowd.filter(function (x) { return x.id === state.companion; }).map(function (x) { return x.f; });
   }
-  function pulse(n) { ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].pulse(n); }); }
-  function each(fn) { ["stage", "top", "empty"].forEach(function (k) { if (fig[k] && fig[k][fn]) fig[k][fn](); }); }
-  function cheer() { ["stage", "top", "empty"].forEach(function (k) { if (fig[k]) fig[k].cheer(); }); }
+  var nowMood = "idle";
+  function mood(m) {
+    nowMood = m;
+    mates().forEach(function (f) { f.set(m); });
+    $("mood").textContent = MOOD_LABEL[m] || "Here";
+    $("feature").setAttribute("data-mood", m);
+  }
+  function pulse(n) { mates().forEach(function (f) { f.pulse(n); }); }
+  function each(fn) { mates().forEach(function (f) { if (f[fn]) f[fn](); }); }
+  function cheer() { each("cheer"); }
   function mountFigs() {
     var c = who(state.companion);
     ["stage", "top"].forEach(function (k) { if (fig[k]) fig[k].destroy(); });
-    fig.stage = Creatures.mount($("stageFig"), look(c), { label: c.name });
-    fig.top = Creatures.mount($("topAv"), look(c), { label: c.name });
-    $("topName").textContent = $("stName").textContent = c.name;
+    fig.stage = track(c.id, Creatures.mount($("featFig"), look(c), { label: c.name, mood: nowMood }));
+    fig.top = Creatures.mount($("topAv"), look(c), { label: c.name, still: true }); // the header chip is a still drawing
+    $("topName").textContent = $("featName").textContent = c.name;
     $("topRole").textContent = c.role;
-    $("stLine").textContent = c.line;
-    $("input").placeholder = "Talk to " + c.name;
+    $("feature").style.setProperty("--blink", Creatures.color(look(c)));
+    $("input").placeholder = "Message " + c.name;
     document.title = c.name + " | " + Kit.brand;
     setTimeout(function () { each("wave"); }, 250);
   }
 
   /* ── Sidebar ───────────────────────────────────────────────────── */
   var sideFigs = [];
+  // Last thing said with a Blink, for its row. Plain text, no tags.
+  function preview(id) {
+    var ch = state.chats.filter(function (c) { return c.companion === id && c.messages.length; }).sort(function (a, b) { return b.updated - a.updated; })[0];
+    if (!ch) return null;
+    var m = ch.messages[ch.messages.length - 1];
+    var t = String(m.onRead ? "Read" : m.content || "").replace(/```[\s\S]*?```/g, "[code]").replace(/\[react:[^\]]*\]|\[read\]/gi, "").replace(/[*_#>`]/g, "").replace(/\s+/g, " ").trim();
+    return (m.role === "user" ? "You: " : "") + t;
+  }
   function renderComps() {
     var host = $("comps");
     sideFigs.forEach(function (f) { f.destroy(); });
     sideFigs = [];
-    host.innerHTML = "";
-    function row(c) {
+    host.innerHTML = '<i class="sb-ink" aria-hidden="true"></i>';
+    var q = ($("search").value || "").toLowerCase();
+    function row(c, k) {
+      if (q && c.name.toLowerCase().indexOf(q) === -1) return;
       var b = document.createElement("div");
-      b.className = "comp";
+      b.className = "comp conv-in";
+      b.style.setProperty("--k", k);
       b.setAttribute("role", "button");
       b.tabIndex = 0;
+      b.dataset.id = c.id;
       b.setAttribute("aria-current", c.id === state.companion ? "true" : "false");
-      b.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "</b><span>" + Kit.esc(c.role) + "</span></div>" +
+      var pv = preview(c.id);
+      b.innerHTML = '<div class="comp-av"></div><div class="comp-tx"><b>' + Kit.esc(c.name) + "</b><span>" + Kit.esc(pv || c.role) + "</span></div>" +
         (c.custom ? '<button class="iconbtn comp-edit" aria-label="Edit ' + Kit.esc(c.name) + '">' + Kit.icon("pencil-simple") + "</button>" : "");
-      var go = function () { setCompanion(c.id, true); closeSide(); };
+      var go = function () { openBlink(c.id); closeSide(); };
       b.addEventListener("click", function (e) {
         if (e.target.closest(".comp-edit")) { editBlink(c.id); return; }
         go();
       });
       b.addEventListener("keydown", function (e) { if ((e.key === "Enter" || e.key === " ") && e.target === b) { e.preventDefault(); go(); } });
       host.appendChild(b);
-      sideFigs.push(Creatures.mount(b.firstChild, look(c), { label: c.name }));
+      var f = Creatures.mount(b.querySelector(".comp-av"), look(c), { label: c.name, mood: c.id === state.companion ? nowMood : "idle" });
+      sideFigs.push(f);
+      track(c.id, f);
     }
-    C.filter(function (c) { return !c.custom; }).forEach(row);
-    var mine = C.filter(function (c) { return c.custom; });
-    var h = document.createElement("h2");
-    h.textContent = "Yours";
-    host.appendChild(h);
-    mine.forEach(row);
+    C.forEach(row);
     var mk = document.createElement("button");
-    mk.className = "make";
+    mk.className = "make conv-in";
+    mk.style.setProperty("--k", C.length);
     mk.type = "button";
-    mk.innerHTML = '<span class="make-av">' + Kit.icon("plus") + "</span><span><b>Make a Blink</b><small>" + (mine.length ? "Pick a shape, give it a job" : "Your own shape, name and purpose") + "</small></span>";
+    mk.innerHTML = '<span class="make-av">' + Kit.icon("plus") + "</span><span><b>Make a Blink</b></span>";
     mk.addEventListener("click", function () { editBlink(null); closeSide(); });
     host.appendChild(mk);
+    requestAnimationFrame(function () { inkTo(true); });
+  }
+  // The ink: one block that springs between rows, leading edge first.
+  var inkAt = null;
+  function inkTo(jump) {
+    var host = $("comps"), ink = host.querySelector(".sb-ink");
+    var on = host.querySelector('.comp[aria-current="true"]');
+    if (!ink) return;
+    if (!on) { ink.classList.remove("show"); return; }
+    var top = on.offsetTop, bottom = host.clientHeight - top - on.offsetHeight;
+    ink.classList.toggle("jump", !!jump || inkAt === null);
+    ink.classList.toggle("down", inkAt !== null && top > inkAt);
+    ink.classList.toggle("up", inkAt !== null && top < inkAt);
+    ink.style.setProperty("--ink-t", top + "px");
+    ink.style.setProperty("--ink-b", bottom + "px");
+    ink.classList.add("show");
+    inkAt = top;
+  }
+  // Opening a Blink picks up your latest chat with it, like a messaging app.
+  function openBlink(id) {
+    if (!byId[id]) return;
+    var last = state.chats.filter(function (c) { return c.companion === id; }).sort(function (a, b) { return b.updated - a.updated; })[0];
+    if (id !== state.companion) {
+      stop();
+      state.companion = id;
+      Kit.set("pv_companion", id);
+      document.querySelectorAll("#comps .comp").forEach(function (r) { r.setAttribute("aria-current", r.dataset.id === id ? "true" : "false"); });
+      inkTo(false);
+      mountFigs();
+    }
+    state.chatId = last ? last.id : null;
+    renderThread();
+    renderHist();
   }
   function editBlink(id) {
     var bot = id ? Maker.load().find(function (b) { return b.id === id; }) : null;
@@ -148,7 +204,9 @@
     var host = $("hist");
     host.innerHTML = "";
     if (!state.chats.length) { host.innerHTML = '<p class="hist-empty">Your chats will collect here.</p>'; return; }
+    var q = ($("search").value || "").toLowerCase();
     state.chats.forEach(function (c) {
+      if (q && String(c.title || "").toLowerCase().indexOf(q) === -1) return;
       var b = document.createElement("div");
       b.className = "hist";
       b.setAttribute("role", "button");
@@ -178,7 +236,8 @@
     state.companion = id;
     Kit.set("pv_companion", id);
     if (fresh) state.chatId = null;
-    renderComps();
+    document.querySelectorAll("#comps .comp").forEach(function (r) { r.setAttribute("aria-current", r.dataset.id === id ? "true" : "false"); });
+    inkTo(false);
     mountFigs();
     renderThread();
     renderHist();
@@ -351,7 +410,7 @@
   }
   function avatar(el, c) {
     var av = el.querySelector(".av");
-    if (av && !av.firstChild) Creatures.mount(av, look(c), { still: true, label: c.name });
+    if (av && !av.firstChild) track(c.id, Creatures.mount(av, look(c), { label: c.name, mood: c.id === state.companion ? nowMood : "idle" }));
   }
   function addBubble(turn, m, text, i, anim) {
     var b = document.createElement("div");
@@ -443,7 +502,7 @@
       var c = who(state.companion);
       var name = (state.user.name || "").trim();
       host.innerHTML = '<div class="empty"><div class="empty-fig"></div><h1>' + Kit.esc(c.hello) + "</h1><p>" + (name ? Kit.esc(name) + ", this is " : "This is ") + Kit.esc(c.name) + ". " + Kit.esc(c.about) + '</p><div class="starters"></div></div>';
-      fig.empty = Creatures.mount(host.querySelector(".empty-fig"), look(c), { label: c.name });
+      fig.empty = track(c.id, Creatures.mount(host.querySelector(".empty-fig"), look(c), { label: c.name, mood: nowMood }));
       var st = host.querySelector(".starters");
       c.starters.forEach(function (s) {
         var b = document.createElement("button");
@@ -491,6 +550,15 @@
   }
   function stop() { if (state.ctrl) state.ctrl.abort(); }
 
+  function flySend() {
+    var b = $("send"), ic = b.querySelector("svg");
+    if (!ic || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var ghost = ic.cloneNode(true);
+    ghost.classList.add("send-fly");
+    b.appendChild(ghost);
+    ic.style.animation = "none"; void ic.offsetWidth; ic.style.animation = "";
+    setTimeout(function () { ghost.remove(); }, 460);
+  }
   async function send(text) {
     var texts = (Array.isArray(text) ? text : [text == null ? $("input").value : text]).map(function (t) { return String(t || "").trim(); }).filter(Boolean);
     if (!texts.length && !state.files.length) return;
@@ -509,6 +577,7 @@
     }
     text = texts[texts.length - 1];
     closePicker();
+    flySend();
     var ch = chat();
     if (!ch) {
       ch = { id: uid(), companion: state.companion, title: texts[0].slice(0, 60), messages: [], updated: Date.now() };
@@ -649,7 +718,7 @@
       while (queued < complete) enqueue(queued++);
       // The text being written now: if it is long and nothing is waiting, write it live.
       var cur = segs[queued];
-      if (!done && cur != null && queued === shown && (live || cur.length > 220)) {
+      if (false) { // whole texts only: nothing is written live
         if (!live) {
           typing(false);
           if (!bm.at) bm.at = Date.now();
@@ -741,6 +810,8 @@
     ch.updated = Date.now();
     receipt();
     save();
+    var pvRow = document.querySelector('#comps .comp[data-id="' + ch.companion + '"] .comp-tx span');
+    if (pvRow) pvRow.textContent = preview(ch.companion) || "";
     if (window.Sync) Sync.push(ch);
     setBusy(false);
     // Settle: stay soft if care is showing, otherwise back to idle.
@@ -993,7 +1064,7 @@
 
     var sp = SPONSORS[Math.floor(Math.random() * SPONSORS.length)];
     $("spTitle").textContent = sp.title;
-    $("spBody").textContent = sp.body;
+    $("sponsor").title = sp.body;
 
     $("form").addEventListener("submit", function (e) { e.preventDefault(); send(); });
     $("input").addEventListener("input", function () {
@@ -1023,6 +1094,14 @@
       renderThumbs();
     });
     $("newChat").addEventListener("click", function () { newChat(); closeSide(); });
+    $("searchBtn").addEventListener("click", function () {
+      var r = $("searchRow");
+      r.hidden = !r.hidden;
+      if (!r.hidden) $("search").focus(); else { $("search").value = ""; renderComps(); renderHist(); }
+    });
+    $("search").addEventListener("input", function () { renderComps(); renderHist(); });
+    $("feature").addEventListener("click", function () { cheer(); });
+    window.addEventListener("resize", function () { inkTo(true); });
     $("menu").addEventListener("click", function () { $("app").classList.add("open"); });
     $("scrim").addEventListener("click", closeSide);
     // Thinking mode: one quiet button, the choices in a menu.
