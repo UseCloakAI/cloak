@@ -511,3 +511,166 @@ figure.drawn .note{font-size:1.05rem;rotate:-2deg}
   .composer{padding:0 10px 10px}
 }
 @media (prefers-reduced-motion:reduce){.sb-ink,.sb-ink.show{transition:none}}
+
+/* ════ Sidebar v4: chat.usecloak.org's sidebar, with Blinks in it ═══════════
+   One spine: icons sit centered on --sb-axis and labels start at --sb-tx in
+   both states, so folding to the rail (.app.rail, desktop) only narrows the
+   panel and folds the words away. The header band is the top bar's height
+   and the bottom band the composer's (--input-h, measured in app.js): their
+   lines are the top bar's and the composer's lines, continued. Below 780px
+   it is a drawer instead (.app.open). */
+.app{display:flex;height:100dvh;--sw:288px;--sw-c:76px;--bar-h:64px}
+.app>.main{flex:1;min-width:0}
+.sidebar{
+  --sb-pad:16px;--sb-axis:37px;--sb-tx:59px;
+  position:relative;z-index:2;width:var(--sw);flex:none;display:flex;flex-direction:column;min-height:0;
+  padding:0 var(--sb-pad);overflow:hidden;background:var(--sunk);border-right:var(--bd);
+  transition:width .56s var(--ease-out);
+}
+.app.rail .sidebar{width:var(--sw-c);transition:width .44s cubic-bezier(.65,0,.35,1) .06s}
+
+/* What only exists in the open panel: unfolds on its own beat, folds at once. */
+.sidebar :is(.sb-word>span:not(.sb-c),.sbl,.sb-label,.user-info,.feature-tx,.comp-tx,.side-search){
+  transition:opacity .36s var(--ease-out) var(--sb-d,.1s),translate .62s var(--sp-snap) var(--sb-d,.1s),filter .36s var(--ease-out) var(--sb-d,.1s);
+}
+.app.rail .sidebar :is(.sb-word>span:not(.sb-c),.sbl,.sb-label,.user-info,.feature-tx,.comp-tx,.side-search,.comp-edit,.user-row .badge){
+  opacity:0;translate:-10px 0;filter:blur(3px);visibility:hidden;pointer-events:none;
+  transition:opacity .14s ease,translate .22s var(--ease-in),filter .14s ease,visibility 0s .22s;
+}
+.sb-word>span:nth-child(2){--sb-d:.05s}.sb-word>span:nth-child(3){--sb-d:.08s}.sb-word>span:nth-child(4){--sb-d:.11s}
+.sb-word>span:nth-child(5){--sb-d:.14s}.sb-word>span:nth-child(6){--sb-d:.2s}
+.sb-feature .feature-tx{--sb-d:.08s}.sb-new .sbl{--sb-d:.12s}.sb-find .sbl{--sb-d:.15s}.sb-label{--sb-d:.18s}
+.comp:nth-child(2) .comp-tx{--sb-d:.2s}.comp:nth-child(3) .comp-tx{--sb-d:.23s}.comp:nth-child(n+4) .comp-tx{--sb-d:.26s}
+.user-info{--sb-d:.1s}.sb-actions .sb-btn:first-child .sbl{--sb-d:.13s}.sb-actions .sb-btn:last-child .sbl{--sb-d:.16s}
+
+/* Header: the top bar's height; CL(O)AK with the C on the spine */
+.sb-logo{display:flex;align-items:center;flex:none;height:var(--bar-h);margin:0 calc(-1 * var(--sb-pad)) 12px;padding:0 var(--sb-pad);background:var(--surface);border-bottom:var(--bd);white-space:nowrap}
+.sb-word{--c-w:.84em;display:flex;align-items:center;margin-left:calc(var(--sb-axis) - var(--sb-pad) - var(--c-w) / 2);font:800 19px/1 var(--fd);letter-spacing:.02em;text-transform:uppercase;color:var(--ink);text-decoration:none}
+.sb-word>span{display:inline-block}
+.sb-word .sb-o{width:.9em;height:.9em;margin:0 .04em}
+.sb-word .sb-o .o{width:100%;height:100%;margin:0;display:block}
+.sb-word .sb-o svg{display:block;width:100%;height:100%;overflow:visible}
+.sb-word .sub{font:700 1.12em/1 var(--fh);letter-spacing:0;text-transform:none;color:var(--accent);margin-left:.2em;rotate:-6deg;translate:0 .08em}
+.sb-c{transform-origin:50% 60%;animation:sbC1 .62s var(--sp-pop)}
+.app.rail .sb-c{animation-name:sbC2}
+@keyframes sbC1{from{scale:.82;rotate:-10deg}}
+@keyframes sbC2{from{scale:.82;rotate:10deg}}
+
+/* The Blink you are with, alive, in a block (folds to just the Blink) */
+.sb-feature{position:relative;display:flex;align-items:center;gap:12px;flex:none;width:100%;margin:0 0 10px;padding:10px 12px 10px 10px;border:var(--bd);background:color-mix(in srgb,var(--blink,#D44D2A) 16%,var(--surface));color:var(--ink);text-align:left;cursor:pointer;box-shadow:var(--shadow);transition:box-shadow var(--lift),transform var(--lift),background-color .4s var(--ease-out),padding .5s var(--ease-out)}
+.sb-feature:hover{transform:translate(-2px,-2px);box-shadow:var(--shadow-lg)}
+.sb-feature:active{transform:translate(4px,4px);box-shadow:none;transition-duration:var(--tp)}
+.sb-feature .feature-fig{width:64px;height:64px;flex:none;transition:width .5s var(--sp-snap),height .5s var(--sp-snap)}
+.sb-feature .feature-tx{display:grid;gap:7px;min-width:0}
+.sb-feature .feature-tx b{font:800 1.12rem/1.05 var(--fd);text-transform:uppercase;letter-spacing:-.02em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.sb-feature .mood{position:static;justify-self:start;rotate:-2deg;transition:background-color .3s}
+.sb-feature[data-mood="think"] .mood,.sb-feature[data-mood="search"] .mood,.sb-feature[data-mood="work"] .mood{background:var(--surface)}
+.sb-feature[data-mood="talk"] .mood{background:var(--accent);color:#fff}
+.app.rail .sb-feature{padding:2px;box-shadow:var(--shsm)}
+.app.rail .sb-feature .feature-fig{width:36px;height:36px}
+
+/* Rows: icon on the spine, label on --sb-tx */
+.sb-btn{position:relative;display:flex;align-items:center;flex:none;width:100%;height:38px;gap:calc(var(--sb-tx) - var(--sb-axis) - 8px);padding:0 10px 0 calc(var(--sb-axis) - var(--sb-pad) - 9.5px);border:1.5px solid transparent;background:transparent;color:var(--ink);font:600 13px/1 var(--fb);text-align:left;white-space:nowrap;cursor:pointer;text-decoration:none;transition:background-color .15s,border-color .15s,transform var(--lift)}
+.sb-btn .ic{width:16px;height:16px;flex:none;transition:rotate .5s var(--sp-pop),scale var(--lift)}
+.sbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sb-btn:hover{background:var(--p3);border-color:var(--ink)}
+.sb-btn:hover .ic{scale:1.08}
+.sb-btn:active{transform:translate(1px,1px);transition-duration:var(--tp)}
+.sb-btn:focus-visible,.user-row:focus-visible,.comp:focus-visible,.sb-feature:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sb-new{font-weight:700;text-transform:uppercase;letter-spacing:.09em;font-size:11px}
+.sb-new .ic{color:var(--accent)}
+.sb-new:hover .ic{rotate:90deg;scale:1}
+.sb-find{font-size:12px;opacity:.78}
+.sb-find:hover,.sb-find[aria-expanded="true"]{opacity:1}
+.sidebar .side-search{padding:4px 0 2px;animation:dropIn .34s var(--sp-snap) both;transform-origin:top}
+.sidebar .side-search .field{height:38px}
+.sidebar .sb-label{flex:none;margin:0;font:800 9px/1 var(--fb);color:var(--ink);text-transform:uppercase;letter-spacing:.18em;padding:16px 0 6px calc(var(--sb-axis) - var(--sb-pad) - 8px);opacity:.36;white-space:nowrap}
+
+/* Blinks: one continuous chat each, like a messaging app's list */
+.sidebar .blist{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;gap:2px;overflow-y:auto;overflow-x:hidden;margin:0 calc(-1 * var(--sb-pad));padding:0 var(--sb-pad) 10px;scrollbar-width:thin}
+.sidebar .comp{position:relative;z-index:1;flex:none;display:flex;align-items:center;gap:10px;width:100%;padding:6px 8px 6px calc(var(--sb-axis) - var(--sb-pad) - 19px);border:1.5px solid transparent;background:transparent;color:var(--ink);text-align:left;cursor:pointer;transition:background-color .15s,border-color .15s,color .12s ease .13s,transform var(--lift)}
+.sidebar .comp:hover{background:var(--p3);border-color:var(--ink)}
+.sidebar .comp[aria-current="true"],.sidebar .comp[aria-current="true"]:hover{background:transparent;border-color:transparent;color:var(--bg);transition:color .1s ease .04s}
+.sidebar .comp:active{transform:translate(1px,1px);transition-duration:var(--tp)}
+.sidebar .comp-av{position:relative;width:38px;height:38px;flex:none}
+.sidebar .comp-tx{flex:1;min-width:0}
+.sidebar .comp-tx b{display:flex;align-items:baseline;gap:6px;font:800 .9rem/1.2 var(--fd);letter-spacing:-.01em;text-transform:none}
+.sidebar .comp-tx b em{margin-left:auto;font:500 .68rem/1 var(--fb);font-style:normal;opacity:.55;white-space:nowrap}
+.sidebar .comp-tx span{display:block;font-size:.78rem;opacity:.68;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar .comp.unread .comp-tx span{opacity:1;font-weight:600}
+.sidebar .comp .dot{position:absolute;right:-2px;top:-1px;width:11px;height:11px;border-radius:50%;background:var(--accent);border:2px solid var(--sunk);animation:pop .5s var(--sp-snap) both}
+.sidebar .comp-edit{width:28px;height:28px;opacity:0;color:inherit;flex:none}
+.sidebar .comp:hover .comp-edit,.sidebar .comp-edit:focus-visible{opacity:.7}
+.sidebar .comp-edit:hover{opacity:1;background:var(--accent);color:#fff;border-color:transparent}
+.sidebar .sb-ink{left:var(--sb-pad);right:var(--sb-pad)}
+.app.rail .sidebar .blist{scrollbar-width:none}
+
+/* Bottom band: the composer's height, account + Settings + Values on the spine */
+.sb-footer{flex:none;display:flex;flex-direction:column;justify-content:center;gap:2px;height:max(var(--input-h,120px),118px);margin:0 calc(-1 * var(--sb-pad));padding:0 var(--sb-pad);background:var(--surface);border-top:var(--bd)}
+.sb-actions{display:flex;flex-direction:column;gap:2px}
+.sb-util{height:32px;font-size:12px;opacity:.78}
+.sb-util:hover{opacity:1}
+.sb-actions .sb-btn:first-child:hover .ic{rotate:90deg}
+.sb-actions .sb-btn:last-child:hover .ic{scale:1.15}
+.user-row{position:relative;display:flex;align-items:center;flex:none;width:100%;height:42px;gap:calc(var(--sb-tx) - var(--sb-axis) - 14px);padding:0 10px 0 calc(var(--sb-axis) - var(--sb-pad) - 15.5px);background:transparent;border:1.5px solid transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;transition:background-color .15s,border-color .15s,box-shadow var(--lift),transform var(--lift)}
+.user-row:hover{background:var(--sunk);border-color:var(--ink);box-shadow:var(--shsm);transform:translate(-1px,-1px)}
+.user-row:active{box-shadow:none;transform:translate(1px,1px);transition-duration:var(--tp)}
+.user-av{width:28px;height:28px;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--ink);color:var(--bg);font:700 10px/1 var(--fb);letter-spacing:.02em;transition:scale var(--lift),rotate .5s var(--sp-pop)}
+.user-row:hover .user-av{scale:1.06;rotate:-4deg}
+.user-info{display:block;min-width:0;flex:1}
+.user-name{display:block;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-email{display:block;font-size:10px;opacity:.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-row .badge{flex:none}
+
+/* Arrival: the column rises into place top to bottom */
+.sidebar :is(.sb-word,.sb-feature,.sb-new,.sb-find,.sb-label,.user-row,.sb-actions>.sb-btn){animation:sbIn .6s var(--ease-out) backwards}
+.sidebar .sb-feature{animation-delay:.04s}.sidebar .sb-new{animation-delay:.09s}.sidebar .sb-find{animation-delay:.12s}.sidebar .sb-label{animation-delay:.15s}
+.sidebar .user-row{animation-delay:.1s}.sidebar .sb-actions>.sb-btn:first-child{animation-delay:.14s}.sidebar .sb-actions>.sb-btn:last-child{animation-delay:.18s}
+@keyframes sbIn{from{opacity:0;translate:-12px 0}}
+
+/* The rail: hovering an item flies its name out beside it */
+.sb-tip{position:fixed;left:0;top:0;z-index:300;pointer-events:none;padding:6px 10px;background:var(--ink);color:var(--bg);box-shadow:var(--shsm);font:700 11px/1.2 var(--fb);letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;opacity:0;translate:-8px calc(var(--tip-y,0px) - 50%);transition:opacity .14s ease,translate .26s var(--ease-in)}
+.sb-tip::before{content:"";position:absolute;right:100%;top:50%;margin-top:-5px;border:5px solid transparent;border-right-color:var(--ink);border-left:0}
+.sb-tip.show{opacity:1;translate:0 calc(var(--tip-y,0px) - 50%);transition:opacity .16s ease,translate .5s var(--sp-snap)}
+.sb-tip.jump{transition:none}
+
+/* Top bar */
+.top .sb-toggle{display:inline-grid;width:40px;height:40px;flex:none}
+.top .sb-toggle .ic{transition:rotate .5s var(--sp-pop)}
+.app.rail .top .sb-toggle .ic{rotate:90deg}
+.top-mode{width:40px;height:40px;flex:none}
+
+@media (max-width:780px){
+  .app{--sw:min(86vw,300px)}
+  .sidebar{position:fixed;inset:0 auto 0 0;z-index:200;width:var(--sw);padding-top:env(safe-area-inset-top,0px);translate:calc(-100% - 8px) 0;transition:translate .34s cubic-bezier(.65,0,.35,1);box-shadow:none;pointer-events:none}
+  .app.open .sidebar{translate:0 0;transition:translate .5s var(--ease-out);box-shadow:6px 0 0 rgba(10,10,10,.12);pointer-events:auto}
+  .scrim{display:block;position:fixed;inset:0;z-index:199;background:rgba(10,10,10,.48);opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  .app.open .scrim{opacity:1;visibility:visible;transition:opacity .28s ease,visibility 0s}
+  .sb-footer{height:auto;padding:10px var(--sb-pad) max(10px,env(safe-area-inset-bottom))}
+  .sb-actions{flex-direction:row}
+  .sb-actions .sb-btn{flex:1;min-width:0}
+  .top-mode{display:none}
+}
+@media (prefers-reduced-motion:reduce){.sidebar,.sidebar *{transition:none!important;animation:none!important}}
+
+/* ════ Working, the Grok way: the Blink itself, next to what it is doing ═══ */
+.now{gap:10px;min-height:40px}
+.now-av{position:relative;width:34px;height:34px;flex:none;margin-left:-2px}
+.now-av::after{content:"";position:absolute;left:18%;right:18%;bottom:-3px;height:4px;border-radius:50%;background:var(--ink);opacity:.14;animation:now-shadow .385s linear infinite}
+@keyframes now-shadow{0%,100%{scale:1 1}38%{scale:.62 1;opacity:.07}}
+.now-t span{font-weight:500}
+.now-n{flex:none;font:500 .74rem/1 var(--fm);color:var(--ink-3);padding:3px 6px;border:1.5px solid var(--line);animation:pop .4s var(--sp-snap) both}
+
+/* Messages between Blinks, shown in the Blink's chat */
+.relay{display:flex;gap:10px;align-items:flex-start;max-width:min(560px,92%);margin:6px auto 14px;padding:10px 12px;border:1.5px dashed var(--line-2);background:var(--surface);font-size:.88rem;color:var(--ink-2);animation:pop .5s var(--sp-snap) both}
+.relay .relay-av{width:28px;height:28px;flex:none}
+.relay b{display:block;font:700 .66rem/1.2 var(--fb);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+.relay p{margin:0;white-space:pre-wrap;word-break:break-word}
+.task-tag{display:inline-flex;align-items:center;gap:6px;margin:0 0 6px;font:700 .66rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+
+/* Settings: a Blink's own files */
+.files-tabs{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px}
+.files-tabs button{height:30px;padding:0 10px;border:1.5px solid var(--line-2);background:transparent;color:var(--ink);font:600 .78rem/1 var(--fm);cursor:pointer}
+.files-tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.md-file{width:100%;min-height:180px;max-height:46vh;padding:10px 12px;border:var(--bd);background:var(--surface);color:var(--ink);font:400 .8rem/1.5 var(--fm);resize:vertical;white-space:pre-wrap}
+.md-file[readonly]{background:var(--sunk)}

@@ -18,12 +18,13 @@ import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { openSql } from "./sqlite.js";
-import { runAgent, setIO } from "../blinks-api/src/agent.js";
+import { runAgent, setIO, collect } from "../blinks-api/src/agent.js";
+import { makeBlinks } from "./blinks.js";
 import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -144,19 +145,23 @@ const env = {
   BRAND: config.brand,
   CONVICTIONS: config.convictions,
   // Durable Object calls are always async; MindCore's sometimes are not.
-  MIND: { idFromName: (k) => k, get: (k) => new Proxy(mind(k), { get: (t, n) => (typeof t[n] === "function" ? (...a) => Promise.resolve().then(() => t[n](...a)) : t[n]) }) },
+  MIND: { idFromName: (k) => k, get: (k) => new Proxy(String(k).includes("#") ? blinks.mind(k) : mind(k), { get: (t, n) => (typeof t[n] === "function" ? (...a) => Promise.resolve().then(() => t[n](...a)) : t[n]) }) },
   LEDGER: { idFromName: () => "global", get: () => ({ recordReply: (r) => worker("/internal/ledger", r).catch(() => {}) }) },
 };
 
-// ── Chats: a copy of every conversation ─────────────────────────────────────
-async function keepChat(req, reply) {
-  if (!req.chat_id || !/^[\w-]{8,64}$/.test(req.chat_id)) return;
-  const dir = path.join(DATA, "chats", userDir(req.userKey));
-  await fsp.mkdir(dir, { recursive: true });
-  const msgs = (req.messages || []).map((m) => ({ role: m.role, content: m.content }));
-  if (reply) msgs.push({ role: "assistant", content: reply });
-  await fsp.writeFile(path.join(dir, req.chat_id + ".json"), JSON.stringify({ id: req.chat_id, user: req.userKey, companion: req.companion || "cloak", updated: Date.now(), messages: msgs }));
+// ── Blinks: one folder of Markdown + one continuous chat per Blink ──────────
+async function utility(system, user, maxTokens = 900) {
+  let out = "";
+  for await (const ev of workerLane(env, "utility", { system, messages: [{ role: "user", content: user }], maxTokens })) if (ev.done) out = ev.text;
+  return out;
 }
+// Memories kept before each Blink had its own files (one SQLite per person).
+function legacy(user) {
+  const file = path.join(DATA, "users", userDir(user) + ".sqlite");
+  if (!fs.existsSync(file)) return [];
+  try { return mind(user).memories(); } catch { return []; }
+}
+const blinks = makeBlinks({ DATA, userDir, env, utility, runAgent, collect, log, legacy });
 
 // ── Files ────────────────────────────────────────────────────────────────────
 const FILE_MAX = 100 * 1024 * 1024; // Cloudflare's request limit on the free plan
@@ -211,54 +216,74 @@ async function dirSize(dir) {
 const sh = (cmd, args) => new Promise((resolve) => execFile(cmd, args, { timeout: 4000 }, (err, out) => resolve(err ? "" : String(out).trim())));
 
 // ── A turn, sent by the Worker ───────────────────────────────────────────────
+// Once the brain has the message it finishes the reply no matter what: the
+// browser (or the Worker) can go away and the answer still lands in the
+// Blink's chat, where the app picks it up next time it opens.
 async function handleTurn(req, res) {
   const body = await readJson(req);
   const id = crypto.randomBytes(6).toString("hex");
-  const ctrl = new AbortController();
-  res.on("close", () => { if (!res.writableEnded) ctrl.abort(); });
+  const ctrl = new AbortController(); // never aborted by a closed connection
   res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" });
-  const ping = setInterval(() => res.write(`data: {"ping":1}\n\n`), 10_000);
+  const out = (ev) => { if (!res.writableEnded && !res.destroyed) res.write(`data: ${JSON.stringify(ev)}\n\n`); };
+  const ping = setInterval(() => out({ ping: 1 }), 10_000);
   const ask = String(body.messages?.[body.messages.length - 1]?.content || "").slice(0, 80);
   stats.active.set(id, { started: Date.now(), user: userDir(body.userKey || ""), ask, step: "" });
   const today = new Date().toDateString();
   if (stats.day !== today) { stats.day = today; stats.turnsToday = 0; }
   stats.turns++; stats.turnsToday++;
-  let text = "";
+  const ctx = { waitUntil: (p) => p?.catch?.(() => {}) };
+  let text = null;
   try {
-    for await (const ev of runAgent(env, { waitUntil: (p) => p?.catch?.(() => {}) }, body, ctrl.signal)) {
+    const turn = await blinks.prepare(body, out);
+    turn.bindTalk(ctx, ctrl.signal);
+    for await (const ev of runAgent(env, ctx, turn.body, ctrl.signal)) {
       if (ev.step?.label) stats.active.get(id).step = ev.step.label;
-      if (ev.done) text = ev.text || text;
-      res.write(`data: ${JSON.stringify(ev)}\n\n`);
+      if (ev.done) {
+        text = ev.text || "";
+        const at = turn.finish(text);
+        out({ ...ev, stored_at: at });
+        continue;
+      }
+      out(ev);
     }
-    keepChat(body, stripTags(text)).catch((e) => log("error", `could not save chat: ${e.message}`));
   } catch (e) {
     stats.errors++;
     log("error", `turn failed: ${String(e?.message || e)}`, e?.tried);
-    res.write(`data: ${JSON.stringify({ error: "Something went wrong while answering. Try again in a moment." })}\n\n`);
+    out({ error: "Something went wrong while answering. Try again in a moment." });
   } finally {
     clearInterval(ping);
     stats.active.delete(id);
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 }
 
-// ── Memory, tasks, inbox (same routes as the Worker's /v1/me) ────────────────
+// ── Memory, tasks, inbox, and each Blink's files ────────────────────────────
+// Everything is per Blink: ?blink=<id> (Cloak when left out).
 async function handleMe(req, res, p) {
   const key = String(req.headers["x-user-key"] || "");
   if (!/^[ud]:[\w-]{8,80}$/.test(key)) return send(res, 400, { error: "no user" });
-  const m = mind(key);
+  const q = new URL(req.url, "http://brain").searchParams;
+  const blink = /^(cloak|u_[a-z0-9]{4,36})$/i.test(q.get("blink") || "") ? q.get("blink") : "cloak";
+  const m = blinks.mind(`${key}#${blink}`);
   const method = req.method;
   const body = method === "POST" ? await readJson(req) : {};
   let r;
-  if (p === "/v1/me" && method === "GET") return send(res, 200, { power: "full", ...m.overview() });
+  if (p === "/v1/blink/since" && method === "GET") return send(res, 200, { now: Date.now(), chats: blinks.since(key, Number(q.get("t")) || 0, q.get("blink") ? blink : null) });
+  if (p === "/v1/blink/files" && method === "GET") return send(res, 200, blinks.files(key, blink));
+  if (p === "/v1/blink/soul" && method === "POST") return send(res, 200, { ok: blinks.setSoul(key, blink, body.text) });
+  if (p === "/v1/me" && method === "GET") return send(res, 200, { power: "full", ...m.overview(), files: blinks.files(key, blink) });
   if (p === "/v1/me" && method === "DELETE") return send(res, 200, { ok: await m.erase() });
   if (p === "/v1/memory" && method === "POST") return send(res, 200, m.remember({ fact: body.fact, kind: body.kind, by: "you" }));
   if (p === "/v1/memory" && method === "DELETE") return send(res, 200, { ok: m.forgetAll() });
   if ((r = /^\/v1\/memory\/(\d+)$/.exec(p)) && method === "DELETE") return send(res, 200, { ok: m.forgetId(+r[1]) });
-  if (p === "/v1/tasks" && method === "POST") return send(res, 200, await m.addTask({ ...body, companion: "cloak", brand: config.brand }));
+  if (p === "/v1/tasks" && method === "POST") return send(res, 200, await m.addTask({ ...body, companion: blink, brand: config.brand }));
   if ((r = /^\/v1\/tasks\/(\d+)$/.exec(p)) && method === "DELETE") return send(res, 200, { ok: await m.removeTask(+r[1]) });
   if (p === "/v1/inbox/seen" && method === "POST") return send(res, 200, { ok: m.seen(body.ids) });
-  if (p === "/v1/inbox/deliver" && method === "POST") return send(res, 200, { ok: (m.deliver(body), true) });
+  if (p === "/v1/inbox/deliver" && method === "POST") {
+    const to = /^(cloak|u_[a-z0-9]{4,36})$/i.test(body.companion || "") ? body.companion : blink;
+    blinks.mind(`${key}#${to}`).deliver(body);
+    return send(res, 200, { ok: true });
+  }
   if ((r = /^\/v1\/inbox\/(\d+)$/.exec(p)) && method === "DELETE") return send(res, 200, { ok: m.removeInbox(+r[1]) });
   return send(res, 404, { error: "Not found" });
 }
@@ -393,7 +418,7 @@ const server = http.createServer(async (req, res) => {
     if (!fromWorker(req)) return send(res, 401, { error: "Unauthorized" });
     if (config.paused && p !== "/health") return send(res, 503, { error: "paused" });
     if (p === "/v1/turn" && req.method === "POST") return await handleTurn(req, res);
-    if (p === "/v1/me" || p.startsWith("/v1/memory") || p.startsWith("/v1/tasks") || p.startsWith("/v1/inbox")) return await handleMe(req, res, p);
+    if (p === "/v1/me" || p.startsWith("/v1/memory") || p.startsWith("/v1/tasks") || p.startsWith("/v1/inbox") || p.startsWith("/v1/blink/")) return await handleMe(req, res, p);
     if (p === "/v1/files" || p.startsWith("/v1/files/")) return await handleFiles(req, res, p);
     send(res, 404, { error: "Not found" });
   } catch (e) {
@@ -406,5 +431,13 @@ server.requestTimeout = 0; // turns and uploads can take minutes
 server.listen(config.port, "127.0.0.1", () => {
   log("info", `Cloak Brain ${VERSION} listening on 127.0.0.1:${config.port}`);
   wakeAll();
+  blinks.wakeAll();
 });
-for (const s of ["SIGTERM", "SIGINT"]) process.on(s, () => { log("info", "shutting down"); server.close(); setTimeout(() => process.exit(0), 500); });
+// Stopping (an update, a reboot): take no new turns, let the ones in
+// progress finish (up to two minutes), then exit.
+for (const s of ["SIGTERM", "SIGINT"]) process.on(s, () => {
+  log("info", stats.active.size ? `shutting down after ${stats.active.size} reply(s) in progress` : "shutting down");
+  server.close();
+  const until = Date.now() + 120_000;
+  const wait = setInterval(() => { if (!stats.active.size || Date.now() > until) { clearInterval(wait); process.exit(0); } }, 250);
+});

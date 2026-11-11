@@ -3,7 +3,7 @@
    paths, rigged and animated in code: no image files, no generated art.
 
    Everything they say is in the eyes and the body. One state machine drives
-   it: idle, listen, think, search, talk, happy, care, sleep. Eyes lead, the
+   it: idle, listen, think, search, work, talk, happy, care, sleep. Eyes lead, the
    face follows, the body leans last, toppers arrive late. Talking is a pulse
    through the whole shape, driven by real energy (stream chunks or audio
    level), like a voice orb with a face. Gestures on top: cheer (crouch, hop,
@@ -176,6 +176,7 @@
     listen: { tilt: 7, lift: -3, lookX: 0, lookY: 0.15, open: 1.14, lean: 2.5, top: 1.4, breathe: 1 },
     think: { tilt: -7, lift: -1, lookX: 0.85, lookY: -0.9, open: 0.88, lean: -2, top: 0.6, breathe: 0.8 },
     search: { tilt: 0, lift: -2, lookX: 0, lookY: 0.1, open: 1.08, lean: 0, top: 2, breathe: 1.2 },
+    work: { tilt: 0, lift: -3, lookX: 0, lookY: -0.1, open: 1.06, lean: 0, top: 2.4, breathe: 1.6 },
     talk: { tilt: 0, lift: -1.5, lookX: 0, lookY: 0, open: 1, lean: 0, top: 1.3, breathe: 1.15 },
     happy: { tilt: 5, lift: -4, lookX: 0, lookY: 0, open: 1, lean: 0, top: 2.6, breathe: 1.3 },
     care: { tilt: -5, lift: 3, lookX: 0, lookY: 0.35, open: 0.8, lean: 3, top: 0.4, breathe: 0.7 },
@@ -257,6 +258,18 @@
       if (self.mood === "search") {
         lx = Math.sin(t * 5.2) * 0.95;
         ly = 0.15 + Math.sin(t * 1.3) * 0.25;
+      } else if (self.mood === "work") {
+        // Busy: the eyes dart from one thing to the next, quick and sure.
+        if (t > glanceAt) {
+          glanceAt = t + 0.32 + Math.random() * 0.42;
+          glance = { x: Math.random() * 1.8 - 0.9, y: Math.random() * 1 - 0.6 };
+        }
+        lx = glance.x;
+        ly = glance.y;
+      } else if (self.mood === "think") {
+        // Thinking: the eyes drift in a slow loop up and to the side.
+        lx = 0.55 + Math.cos(t * 1.5) * 0.4;
+        ly = -0.7 + Math.sin(t * 1.5) * 0.25;
       } else if (self.mood === "idle" || self.mood === "listen" || self.mood === "talk") {
         if (now - pointer.t < 2600) {
           var r = el.getBoundingClientRect();
@@ -309,6 +322,13 @@
         else if (c < 0.68) squash = 0.12 * (1 - (c - 0.54) / 0.14);
         else if (c > 1.5) cheerT = -1;
       }
+      // Working (and searching, a little): a springy bob, landing with a squash.
+      if (self.mood === "work" || self.mood === "search") {
+        var amp = self.mood === "work" ? 1 : 0.45;
+        var ph = (t * 2.6) % 1;
+        hopY += -9 * amp * Math.sin(Math.PI * Math.min(1, ph / 0.62));
+        if (ph > 0.62) squash += 0.07 * amp * Math.sin(Math.PI * (ph - 0.62) / 0.38);
+      }
       var rock = 0;
       if (waveT >= 0) { waveT += dt; rock = Math.sin(waveT * 11) * 9 * Math.max(0, 1 - waveT / 1.1); if (waveT > 1.2) waveT = -1; }
       var nod = 0;
@@ -322,7 +342,7 @@
       var beat = voice * 0.05; // no mouth: the whole shape pulses with each syllable
       var tilt = spring(s.tilt, m.tilt + fx * 3 + Math.sin(t * 0.6) * 1, 48, 0.86, dt);
       var lift = spring(s.lift, m.lift + ey * 1.6 - voice * 2 + nod, 80, 0.82, dt);
-      var lean = spring(s.lean, m.lean + fx * 2.2 + Math.sin(t * 0.43) * 0.8, 26, 0.9, dt) + rock;
+      var lean = spring(s.lean, m.lean + fx * 2.2 + Math.sin(t * 0.43) * 0.8 + (self.mood === "work" ? Math.sin(t * 2.6 * Math.PI) * 4 : 0), 26, 0.9, dt) + rock;
       var topE = spring(s.top, m.top, 30, 0.9, dt);
 
       var dTilt = (tilt - lastTilt) / Math.max(dt, 0.001);
@@ -338,7 +358,7 @@
       each("hat", function (p) { X(p, 0, 0, hat + Math.sin(t * (1 + topE * 0.8)) * (1.2 + topE * 1.6), 1, 1 + Math.sin(t * 2.2) * 0.02 * topE); });
 
       // Thought bubbles while thinking or searching (the ambient layer).
-      var dv = spring(s.dots, self.mood === "think" || self.mood === "search" ? 1 : 0, 60, 0.8, dt);
+      var dv = spring(s.dots, self.mood === "think" ? 1 : 0, 60, 0.8, dt);
       dots.setAttribute("opacity", Math.max(0, Math.min(0.9, dv)).toFixed(2));
       if (dv > 0.02) {
         var cs = dots.childNodes;
