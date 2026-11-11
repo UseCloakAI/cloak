@@ -1297,7 +1297,17 @@
 
   /* ── The code canvas (code.js): files live here, not in the messages ── */
   var codeSt = CodeCanvas.replay([]), cv = { file: null, v: 0, view: "code" }, hlLoad = null;
-  function codeState() { var ch = chat(); codeSt = CodeCanvas.replay(ch ? ch.messages : []); return codeSt; }
+  // The code button only exists once this chat has code.
+  function codeState() {
+    var ch = chat();
+    codeSt = CodeCanvas.replay(ch ? ch.messages : []);
+    var b = $("codeBtn"), had = !b.hidden;
+    b.hidden = !codeSt.order.length;
+    if (!had && !b.hidden) { b.classList.remove("arrive"); void b.offsetWidth; b.classList.add("arrive"); }
+    if (had === b.hidden) window.dispatchEvent(new Event("resize")); // the pill re-measures its room
+    if (b.hidden && dock === "code") closeDock();
+    return codeSt;
+  }
   function hl() {
     if (window.hljs) return Promise.resolve(window.hljs);
     if (!hlLoad) hlLoad = new Promise(function (res) {
@@ -1616,6 +1626,7 @@
       });
     }
     fitTop();
+    window.addEventListener("resize", fitTop);
     if (window.ResizeObserver) new ResizeObserver(fitTop).observe($("main"));
     // The bottom band is exactly the composer's height: one line across.
     if (window.ResizeObserver) new ResizeObserver(function (es) { $("app").style.setProperty("--input-h", Math.round(es[0].target.getBoundingClientRect().height) + "px"); }).observe(document.querySelector(".composer"));
