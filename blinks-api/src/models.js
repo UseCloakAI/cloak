@@ -14,6 +14,9 @@ const NV = "nvidia";
 
 // Nemotron family
 const ULTRA = { provider: NV, model: "nvidia/nemotron-3-ultra-550b-a55b", size: "xl", firstTokenMs: 30_000 };
+// Probed live 2026-11-11: SUPER, KIMI and PALMYRA 404 on our key ring, and
+// GLM_FLASH, DEEPSEEK_FLASH and OSS20_NV timed out. The 404s are out of every
+// lineup; the slow ones only sit at the end as last resorts. Re-run /admin/probe.
 const SUPER = { provider: NV, model: "nvidia/nemotron-3-super-120b-a12b", size: "l", firstTokenMs: 20_000 };
 const LIGHTNING = { provider: NV, model: "nvidia/nemotron-3.5-lightning-30b-a3b", size: "s", firstTokenMs: 8_000 };
 const BOLT = { provider: NV, model: "nvidia/nemotron-3.5-bolt-e4b", size: "xs", firstTokenMs: 6_000 };
@@ -45,21 +48,21 @@ export const LANES = {
     label: "Swift",
     blurb: "Small, fast models for quick answers. Lowest energy.",
     maxTokens: 1024,
-    lineup: [at(LIGHTNING, { temperature: 0.6 }), at(BOLT, { temperature: 0.6 }), at(GEMMA4, { temperature: 0.6 }), at(GLM_FLASH, { temperature: 0.6 }), GROQ_20, GEMINI],
+    lineup: [at(LIGHTNING, { temperature: 0.6 }), at(BOLT, { temperature: 0.6 }), at(GEMMA4, { temperature: 0.6 }), GROQ_20, GEMINI, at(GLM_FLASH, { temperature: 0.6 })],
   },
   // The default: strong general model that still answers at chat speed.
   smart: {
     label: "Balanced",
     blurb: "Strong general models at chat speed. The default.",
     maxTokens: 3072,
-    lineup: [at(SUPER, { temperature: 0.6 }), at(DEEPSEEK_FLASH, { temperature: 0.6 }), at(MINIMAX_FLASH, { temperature: 0.6 }), at(GLM_FLASH, { temperature: 0.6 }), GROQ_120, GEMINI],
+    lineup: [at(MINIMAX_FLASH, { temperature: 0.6 }), GROQ_120, GEMINI, at(GEMMA4, { temperature: 0.6 }), at(DEEPSEEK_FLASH, { temperature: 0.6 })],
   },
   // Hard reasoning, research, long analysis. Biggest models, patient deadlines.
   deep: {
     label: "Deep",
     blurb: "The largest models, for hard problems. Slower, more energy.",
     maxTokens: 6144,
-    lineup: [at(ULTRA, { temperature: 0.5 }), at(MISTRAL_L4, { temperature: 0.5 }), at(KIMI, { temperature: 0.5 }), at(SUPER, { temperature: 0.5 }), GROQ_120, GEMINI],
+    lineup: [at(ULTRA, { temperature: 0.5 }), at(MISTRAL_L4, { temperature: 0.5 }), GROQ_120, GEMINI],
   },
   // Code. Order follows what production Cloak learned: only models that answer
   // at chat speed on the free tier belong at the front.
@@ -68,14 +71,14 @@ export const LANES = {
     blurb: "Code-tuned models with a senior-engineer playbook.",
     maxTokens: 8192,
     playbook: "code",
-    lineup: [at(GLM_FLASH, { temperature: 0.4 }), at(LAGUNA, { temperature: 0.3 }), at(DEEPSEEK_FLASH, { temperature: 0.3 }), at(SUPER, { temperature: 0.3 }), GROQ_120, GEMINI],
+    lineup: [at(LAGUNA, { temperature: 0.3 }), GROQ_120, at(MINIMAX_FLASH, { temperature: 0.3 }), GEMINI, at(GLM_FLASH, { temperature: 0.4 }), at(DEEPSEEK_FLASH, { temperature: 0.3 })],
   },
   // Stories, voice, wordplay. A writing-tuned model first.
   creative: {
     label: "Create",
     blurb: "Writing-tuned models with more range.",
     maxTokens: 4096,
-    lineup: [at(PALMYRA, { temperature: 0.95 }), at(MISTRAL_L4, { temperature: 0.9 }), at(SUPER, { temperature: 0.9 }), at(MINIMAX_FLASH, { temperature: 0.9 }), GROQ_120, GEMINI],
+    lineup: [at(MISTRAL_L4, { temperature: 0.9 }), at(MINIMAX_FLASH, { temperature: 0.9 }), GROQ_120, GEMINI],
   },
   // Images in the turn.
   vision: {
@@ -90,7 +93,7 @@ export const LANES = {
     blurb: "Background jobs.",
     maxTokens: 512,
     internal: true,
-    lineup: [at(BOLT, { temperature: 0.2 }), at(OSS20_NV, { temperature: 0.2 }), at(LIGHTNING, { temperature: 0.2 }), GROQ_20, GEMINI],
+    lineup: [at(BOLT, { temperature: 0.2 }), at(LIGHTNING, { temperature: 0.2 }), GROQ_20, GEMINI],
   },
 };
 
