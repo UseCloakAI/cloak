@@ -15,13 +15,19 @@
     "bindings": [
       { "name": "LEDGER", "class_name": "Ledger" },
       { "name": "MIND", "class_name": "Mind" },
-      { "name": "AGENT_RUN", "class_name": "AgentRun" }
+      { "name": "AGENT_RUN", "class_name": "AgentRun" },
+      { "name": "EXEC", "class_name": "Exec" }
     ]
   },
   "migrations": [
     { "tag": "v1-ledger", "new_sqlite_classes": ["Ledger"] },
-    { "tag": "v2-agents", "new_sqlite_classes": ["Mind", "AgentRun"] }
+    { "tag": "v2-agents", "new_sqlite_classes": ["Mind", "AgentRun"] },
+    // EXEC: one model call or web fetch per instance, each in its own
+    // invocation, so a reply never runs out of outbound requests.
+    { "tag": "v3-exec", "new_sqlite_classes": ["Exec"] }
   ],
+  // Every minute: check whether the brain (home PC) is awake.
+  "triggers": { "crons": ["* * * * *"] },
   // Same key ring as production (read-only here): {"nvidia":[…],"groq":[…],"gemini":[…]}
   "kv_namespaces": [{ "binding": "PROVIDER_KEYS", "id": "0778af1d9ecb491ba397cc9ae0e2b064" }],
   // BRAND: working name until one is picked. CONVICTIONS: "off" leaves the
@@ -30,6 +36,11 @@
   "vars": {
     "BRAND": "Cloak Blinks",
     "CONVICTIONS": "on",
+    // REQUIRE_AUTH: "off" lets a device id stand in for an account (only until
+    // the site's sign-in ships). BRAIN_URL: the home-PC brain through its
+    // Cloudflare Tunnel; leave it out and this Worker does everything itself.
+    // Secret: BRAIN_TOKEN, shared with the brain.
+    "REQUIRE_AUTH": "off",
     "SUPABASE_URL": "https://kdawsqrrmwirilyhcolk.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkYXdzcXJybXdpcmlseWhjb2xrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NjUxNjAsImV4cCI6MjA4OTU0MTE2MH0.cMN9V51J3042DrdaDmL7-ro-AMaw-IU47wQLnW2NMBE"
   },

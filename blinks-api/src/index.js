@@ -14,16 +14,35 @@
 //   GET  /admin/probe      time every model in every lane        (X-Admin-Token)
 //   POST /admin/offsets    record retired credits with a receipt (X-Admin-Token)
 //   POST /admin/revenue    book real sponsor revenue             (X-Admin-Token)
+//   GET  /v1/status        is the brain (home PC) awake? {mode: full | lowlight}
+//   POST /v1/files, GET|DELETE /v1/files/:id   chat files, stored on the brain
+//   POST /internal/lane|net|ledger   the brain calling back for models, the web
+//                          and the ledger                        (X-Brain-Token)
+// Every /v1 route except status, impact, companions, tools and ads needs a
+// signed-in Cloak account (Supabase access token as Bearer).
 
 import { LANES, PUBLIC_LANES } from "./models.js";
 import { companionList, COMPANIONS, BRANDS } from "./prompts.js";
 import { probe } from "./engine.js";
-import { runAgent, mindFor } from "./agent.js";
+import { runAgent, mindFor, setIO } from "./agent.js";
+import { streamLane } from "./engine.js";
+import { search, readPage } from "./tools.js";
+import { execLane, execNet } from "./exec.js";
+import { turn, brainState, checkBrain, statusBody, toBrain, markDown } from "./brainlink.js";
+import { friendly } from "./run.js";
 import { catalog } from "./tools.js";
 import { handleSpeech } from "../../api-worker/src/speech.js";
 export { Ledger } from "./ledger.js";
 export { Mind } from "./mind.js";
 export { AgentRun } from "./run.js";
+export { Exec } from "./exec.js";
+
+// Model calls and web fetches go through Exec when it is bound: one outbound
+// request each, however much failover happens inside.
+setIO({
+  lane: (env, lane, opts, ctx) => (env.EXEC ? execLane(env, lane, opts) : streamLane(env, ctx, lane, opts)),
+  net: (env) => (env.EXEC ? execNet(env) : null),
+});
 
 const VERSION = "0.2.0";
 const MAX_TURNS = 60;
@@ -43,7 +62,7 @@ function corsFor(request, env) {
   return {
     "Access-Control-Allow-Origin": ok ? origin : "https://usecloak.org",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Device, X-Admin-Token",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Device, X-Admin-Token, X-File-Name",
     "Access-Control-Expose-Headers": "X-Run-Id, X-Run-Status",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
@@ -111,6 +130,9 @@ async function identify(request, body, env) {
       }
     } catch {}
   }
+  // Blinks needs a Cloak account. A device id only counts while REQUIRE_AUTH
+  // is "off" (local development, or before the site's sign-in shipped).
+  if (env.REQUIRE_AUTH !== "off") return null;
   const device = request.headers.get("X-Device") || (typeof body?.device === "string" ? body.device : "");
   return /^[\w-]{24,80}$/.test(device) ? `d:${device}` : null;
 }
@@ -124,7 +146,7 @@ function sseFrom(gen, abort, cors) {
         for await (const ev of gen) send(ev.done ? { ...ev, text: undefined } : ev);
       } catch (e) {
         console.error("[blinks-api] all models failed", JSON.stringify(e.tried || String(e.message || e)));
-        send({ error: "Every model is busy right now. Give it a moment and try again." });
+        send({ error: friendly(e) });
       }
       controller.close();
     },
@@ -146,6 +168,8 @@ async function handleChat(request, env, ctx, cors) {
   } catch {
     return json({ error: "Invalid JSON" }, cors, 400);
   }
+  const userKey = await identify(request, body, env);
+  if (!userKey) return json({ error: "Sign in with your Cloak account to use Blinks.", signin: true }, cors, 401);
   const messages = sanitize(body.messages);
   if (!messages.length || messages[messages.length - 1].role !== "user") return json({ error: "messages must end with a user turn" }, cors, 400);
 
@@ -157,7 +181,7 @@ async function handleChat(request, env, ctx, cors) {
     messages,
     images: readImages(body),
     user: body.user && typeof body.user === "object" ? { name: body.user.name, about: body.user.about, tz: body.user.tz } : {},
-    userKey: await identify(request, body, env),
+    userKey,
     country: request.cf?.country || null,
     max_tokens: body.max_tokens,
     chat_id: typeof body.chat_id === "string" ? body.chat_id.slice(0, 64) : null,
@@ -170,7 +194,7 @@ async function handleChat(request, env, ctx, cors) {
     return new Response(res.body, { status: res.status, headers: { ...cors, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "X-Run-Id": body.run_id } });
   }
   const abort = new AbortController();
-  return sseFrom(runAgent(env, ctx, req, abort.signal), abort, cors);
+  return sseFrom(turn(env, ctx, req, abort.signal), abort, cors);
 }
 
 async function handleRun(request, env, cors, id, action) {
@@ -186,7 +210,22 @@ async function handleRun(request, env, cors, id, action) {
 async function handleMe(request, env, cors, path) {
   const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
   const key = await identify(request, body, env);
-  if (!key) return json({ error: "No identity. Send X-Device or sign in." }, cors, 401);
+  if (!key) return json({ error: "Sign in with your Cloak account to use Blinks.", signin: true }, cors, 401);
+  // Memory, tasks and the inbox live on the brain while it is up.
+  const s = await brainState(env);
+  if (s.configured) {
+    if (!s.up || s.paused) {
+      if (path === "/v1/me" && request.method === "GET") return json({ power: "lowlight", memories: [], tasks: [], inbox: [] }, cors);
+      return json({ error: "Memory and tasks are resting while Cloak is in Low Light.", power: "lowlight" }, cors, 503);
+    }
+    try {
+      const res = await toBrain(env, path, { method: request.method, headers: { "Content-Type": "application/json", "X-User-Key": key }, body: request.method === "GET" || request.method === "DELETE" ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
+      return new Response(res.body, { status: res.status, headers: { ...cors, "Content-Type": res.headers.get("Content-Type") || "application/json" } });
+    } catch (e) {
+      ctxWait(markDown(env, e?.message));
+      return json({ power: "lowlight", memories: [], tasks: [], inbox: [] }, cors, request.method === "GET" ? 200 : 503);
+    }
+  }
   const mind = mindFor(env, key);
   await mind.hello(key);
   const m = request.method;
@@ -201,6 +240,60 @@ async function handleMe(request, env, cors, path) {
   if (path === "/v1/inbox/seen" && m === "POST") return json({ ok: await mind.seen(body.ids) }, cors);
   if ((r = /^\/v1\/inbox\/(\d+)$/.exec(path)) && m === "DELETE") return json({ ok: await mind.removeInbox(+r[1]) }, cors);
   return json({ error: "Not found" }, cors, 404);
+}
+
+// Background work without a ctx (handleMe has none): best effort.
+const ctxWait = (p) => { p?.catch?.(() => {}); };
+
+// Chat files: stored on the brain, never here. Bytes stream straight through.
+async function handleFiles(request, env, cors, path) {
+  const key = await identify(request, null, env);
+  if (!key) return json({ error: "Sign in with your Cloak account to use Blinks.", signin: true }, cors, 401);
+  const s = await brainState(env);
+  if (!s.up || s.paused) return json({ error: "Files are resting while Cloak is in Low Light. They will be back when it wakes up.", power: "lowlight" }, cors, 503);
+  const headers = { "X-User-Key": key };
+  for (const h of ["Content-Type", "Content-Length", "X-File-Name"]) if (request.headers.get(h)) headers[h] = request.headers.get(h);
+  try {
+    const res = await toBrain(env, path, { method: request.method, headers, body: request.method === "POST" ? request.body : undefined, signal: AbortSignal.timeout(120_000) });
+    const out = { ...cors };
+    for (const h of ["Content-Type", "Content-Length", "Content-Disposition", "Cache-Control"]) if (res.headers.get(h)) out[h] = res.headers.get(h);
+    return new Response(res.body, { status: res.status, headers: out });
+  } catch (e) {
+    ctxWait(markDown(env, e?.message));
+    return json({ error: "Could not reach Cloak's files right now. Try again in a moment.", power: "lowlight" }, cors, 503);
+  }
+}
+
+// The brain calling back: models, the web and the ledger. Each call is its
+// own invocation here, so the brain is never short of request budget.
+async function handleInternal(request, env, ctx, path) {
+  if (!env.BRAIN_TOKEN || request.headers.get("X-Brain-Token") !== env.BRAIN_TOKEN) return new Response("Unauthorized", { status: 401 });
+  const body = await request.json().catch(() => ({}));
+  if (path === "/internal/lane") {
+    const enc = new TextEncoder();
+    const { readable, writable } = new TransformStream();
+    const w = writable.getWriter();
+    ctx.waitUntil((async () => {
+      try {
+        for await (const ev of streamLane(env, ctx, body.lane, { ...(body.opts || {}), signal: request.signal })) await w.write(enc.encode(JSON.stringify(ev) + "\n"));
+      } catch (e) {
+        await w.write(enc.encode(JSON.stringify({ error: String(e?.message || e).slice(0, 500), tried: e?.tried }) + "\n")).catch(() => {});
+      }
+      await w.close().catch(() => {});
+    })());
+    return new Response(readable, { headers: { "Content-Type": "application/x-ndjson" } });
+  }
+  if (path === "/internal/net") {
+    try {
+      if (body.kind === "search") return Response.json({ ok: true, data: await search(env, String(body.query || ""), !!body.recent) });
+      if (body.kind === "read") return Response.json({ ok: true, data: await readPage(env, String(body.url || "")) });
+    } catch (e) {
+      return Response.json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+    }
+    return Response.json({ ok: false, error: "unknown kind" }, { status: 400 });
+  }
+  if (path === "/internal/ledger") return Response.json(await ledger(env).recordReply(body));
+  return new Response("Not found", { status: 404 });
 }
 
 async function handleAdmin(request, env, ctx, cors, path) {
@@ -225,6 +318,9 @@ export default {
     try {
       if (path === "/" && request.method === "GET") return json({ service: "cloak-blinks-api", version: VERSION, lanes: PUBLIC_LANES }, cors);
       if (path === "/v1/chat" && request.method === "POST") return await handleChat(request, env, ctx, cors);
+      if (path === "/v1/status" && request.method === "GET") return json(statusBody(await brainState(env)), cors, 200, { "Cache-Control": "no-store" });
+      if (path === "/v1/files" || path.startsWith("/v1/files/")) return await handleFiles(request, env, cors, path);
+      if (path.startsWith("/internal/")) return await handleInternal(request, env, ctx, path);
       let m;
       if ((m = /^\/v1\/runs\/([\w-]{16,64})(?:\/(cancel))?$/.exec(path))) return await handleRun(request, env, cors, m[1], m[2]);
       if (path === "/v1/me" || path.startsWith("/v1/memory") || path.startsWith("/v1/tasks") || path.startsWith("/v1/inbox")) return await handleMe(request, env, cors, path);
@@ -254,5 +350,10 @@ export default {
       console.error("[blinks-api] unhandled", e?.stack || e);
       return json({ error: "Something went wrong." }, cors, 500);
     }
+  },
+
+  // Every minute: is the brain awake?
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(checkBrain(env));
   },
 };

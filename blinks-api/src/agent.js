@@ -19,7 +19,6 @@ import { buildSystem, COMPANIONS, BRANDS, resolveCompanion, stripTags } from "./
 import { detect, resources, careProtocol } from "./safety.js";
 import { estimate } from "./carbon.js";
 import { streamLane } from "./engine.js";
-import { execLane, execNet } from "./exec.js";
 import { toolbox, specs, runTool, toolLabel } from "./tools.js";
 
 const STEPS = { auto: 6, research: 10, sub: 4, background: 6 };
@@ -54,9 +53,12 @@ function channel() {
 
 const textOf = (m) => (typeof m?.content === "string" ? m.content : "");
 
-// A model call: through Exec when it is bound (its own request budget),
-// in-process otherwise (local dev without the binding).
-const callLane = (env, ctx, lane, opts) => (env.EXEC ? execLane(env, lane, opts) : streamLane(env, ctx, lane, opts));
+// How the agent reaches models and the web. The host sets this once:
+// the Worker routes both through Exec (one outbound request each), the
+// home-PC brain routes them through the Worker. Default: in-process.
+let IO = { lane: null, net: null };
+export function setIO(io) { IO = { ...IO, ...io }; }
+const callLane = (env, ctx, lane, opts) => (IO.lane ? IO.lane(env, lane, opts, ctx) : streamLane(env, ctx, lane, opts));
 
 export async function* runAgent(env, ctx, req, signal) {
   const depth = req.depth || 0;
@@ -77,7 +79,7 @@ export async function* runAgent(env, ctx, req, signal) {
   const help = danger ? resources(req.country) : null;
 
   // Team runs are orchestrated one level up.
-  if (!depth && req.mode === "team" && !crisis) {
+  if (!depth && req.mode === "team" && !crisis && !req.lowlight) {
     yield* runTeam(env, ctx, { ...req, companion: companionId, bot, lead: companion, brand, shared }, signal);
     return;
   }
@@ -99,15 +101,19 @@ export async function* runAgent(env, ctx, req, signal) {
     messages[messages.length - 1] = { role: "user", content: `${textOf(last)}\n\n[${images.length > 1 ? "Images" : "An image"} attached. What the vision model saw: ${seen || "it could not be read. Say so."}]` };
   }
 
-  const research = req.mode === "research" && !crisis;
+  // Low Light: the home-PC brain is away. Plain chat only: no memory, no
+  // tools, no team or research, never the heaviest models.
+  const lowlight = !!req.lowlight;
+  const research = req.mode === "research" && !crisis && !lowlight;
   const routed = research ? { lane: "deep", why: "research" } : routeLane({ text: textOf(last), mode: req.mode, home: companion.home, turns: messages.length, crisis });
   let lane = routed.lane;
-  const mind = mindFor(env, req.userKey);
+  if (lowlight && !["swift", "smart", "vision"].includes(lane)) lane = "smart";
+  const mind = lowlight ? null : mindFor(env, req.userKey);
   if (mind && !depth) await mind.hello(req.userKey).catch(() => {});
   const memories = mind && !depth ? await mind.context(textOf(last)).catch(() => []) : [];
 
   // No tools for a life at risk (the reply is the person, not a search) or for hellos.
-  let tools = crisis || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind });
+  let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind });
   // The smallest models get a short toolbelt: they plan poorly with a long one.
   if (lane === "swift") tools = tools.filter((t) => ["web_search", "calculate", "remember", "schedule_task"].includes(t));
   // A scheduled task must not schedule more work or rewrite the task list.
@@ -124,7 +130,7 @@ export async function* runAgent(env, ctx, req, signal) {
   });
 
   if (!depth) {
-    yield { meta: { companion: companionId, lane, lane_label: LANES[lane].label, why: routed.why, mode: req.mode || "auto", tools: tools.length > 0, memory: memories.length } };
+    yield { meta: { companion: companionId, lane, lane_label: LANES[lane].label, why: routed.why, mode: req.mode || "auto", tools: tools.length > 0, memory: memories.length, power: lowlight ? "lowlight" : "full" } };
     if (crisis) yield { care: help };
   }
 
@@ -182,7 +188,7 @@ export async function* runAgent(env, ctx, req, signal) {
       shared.spent++;
       const cx = {
         env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite,
-        net: env.EXEC ? execNet(env) : null,
+        net: IO.net ? IO.net(env) : null,
         delegate: async (who, task) => {
           const sub = runAgent(env, ctx, { brand, companion: who, userKey: req.userKey, user: req.user, country: req.country, depth: depth + 1, shared, messages: [{ role: "user", content: task }] }, signal);
           let out = "";
