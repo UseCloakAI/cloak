@@ -99,7 +99,7 @@
     nowMood = m;
     mates().forEach(function (f) { f.set(m); });
     $("mood").textContent = MOOD_LABEL[m] || "Here";
-    $("feature").setAttribute("data-mood", m);
+    $("blinkBtn").setAttribute("data-mood", m);
   }
   function pulse(n) { mates().forEach(function (f) { f.pulse(n); }); }
   function each(fn) { mates().forEach(function (f) { if (f[fn]) f[fn](); }); }
@@ -107,15 +107,19 @@
   function mountFigs() {
     var c = who(state.companion);
     ["stage", "top"].forEach(function (k) { if (fig[k]) fig[k].destroy(); });
-    fig.stage = track(c.id, Creatures.mount($("featFig"), look(c), { label: c.name, mood: nowMood }));
+    fig.stage = null;
     fig.top = Creatures.mount($("topAv"), look(c), { label: c.name, still: true }); // the header chip is a still drawing
-    Creatures.mount($("snavFig"), look(c), { label: c.name, still: true });
-    $("snavName").textContent = c.name;
+    if (bpFig) bpFig.destroy();
+    bpFig = track(c.id, Creatures.mount($("bpAv"), look(c), { label: c.name, mood: nowMood }));
+    $("bpName").textContent = c.name;
+    $("bpRole").textContent = c.role;
     setTimeout(favicon, 60);
-    $("topName").textContent = $("featName").textContent = c.name;
-    $("featName").classList.toggle("long", c.name.length > 8);
-    $("topRole").textContent = c.role;
-    $("feature").style.setProperty("--blink", Creatures.color(look(c)));
+    $("topName").textContent = c.name;
+    $("blinkBtn").setAttribute("aria-label", c.name + ", " + ($("mood").textContent || "Here") + ". Open " + c.name + "'s settings");
+
+    $("blinkBtn").style.setProperty("--blink", Creatures.color(look(c)));
+    $("bpanel").style.setProperty("--blink", Creatures.color(look(c)));
+    renderBpActions(c);
     $("input").placeholder = "Message " + c.name;
     document.title = c.name + " | " + Kit.brand;
     setTimeout(function () { each("wave"); }, 250);
@@ -235,7 +239,7 @@
     }
     if (state.unread[id]) { delete state.unread[id]; Kit.set("pv_unread", JSON.stringify(state.unread)); refreshRows(); }
     renderThread();
-    if (curPage === "settings") loadMind();
+    if (!$("bpanel").hidden) loadMind();
   }
   function editBlink(id) {
     var bot = id ? Maker.load().find(function (b) { return b.id === id; }) : null;
@@ -1145,6 +1149,33 @@
     if (p === "chat") scrollEnd(true);
   }
 
+  /* ── The Blink's own panel (opens from the pill in the top bar) ─── */
+  var bpFig = null, bpT = 0;
+  function renderBpActions(c) {
+    var host = $("bpActions");
+    host.innerHTML = c.custom ? '<button type="button" class="cta" id="bpEdit">Edit look and personality</button>' : "";
+    if (c.custom) $("bpEdit").addEventListener("click", function () { closePanel(); editBlink(c.id); });
+  }
+  function openPanel() {
+    clearTimeout(bpT);
+    var p = $("bpanel"), sc = $("bpScrim");
+    p.hidden = false; sc.hidden = false;
+    p.classList.remove("out"); sc.classList.remove("out");
+    $("blinkBtn").setAttribute("aria-expanded", "true");
+    loadMind();
+    setTimeout(function () { $("bpClose").focus(); }, 60);
+    each("wave");
+  }
+  function closePanel() {
+    var p = $("bpanel"), sc = $("bpScrim");
+    if (p.hidden) return;
+    p.classList.add("out"); sc.classList.add("out");
+    $("blinkBtn").setAttribute("aria-expanded", "false");
+    clearTimeout(bpT);
+    bpT = setTimeout(function () { p.hidden = true; sc.hidden = true; p.classList.remove("out"); sc.classList.remove("out"); }, matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 260);
+    $("blinkBtn").focus();
+  }
+
   /* ── Settings ──────────────────────────────────────────────────── */
   function openSettings(tab) { goPage("settings"); if (typeof tab === "string") settingsTab(tab); }
   function prepSettings() {
@@ -1155,7 +1186,6 @@
     $("sEmail").textContent = (u && u.email) || "";
     $("sAv").textContent = $("userAv").textContent;
     $("modeLabel").textContent = Kit.mode();
-    loadMind();
   }
   function settingsTab(t) {
     document.querySelectorAll(".snav-btn").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-tab") === t); });
@@ -1340,7 +1370,10 @@
       if (!r.hidden) $("search").focus(); else { $("search").value = ""; renderComps(); }
     });
     $("search").addEventListener("input", function () { renderComps(); });
-    $("feature").addEventListener("click", function () { cheer(); });
+    $("blinkBtn").addEventListener("click", function () { if ($("bpanel").hidden) openPanel(); else closePanel(); });
+    $("bpClose").addEventListener("click", closePanel);
+    $("bpScrim").addEventListener("click", closePanel);
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("bpanel").hidden) closePanel(); });
     window.addEventListener("resize", function () { inkTo(true); });
     if (Kit.get("pv_rail") && !phone.matches) $("app").classList.add("rail");
     document.querySelectorAll("[data-side-toggle]").forEach(function (b) { b.addEventListener("click", toggleSide); });

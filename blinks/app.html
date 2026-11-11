@@ -36,10 +36,6 @@
     <div class="sb-logo">
       <a class="sb-word" href="index.html" aria-label="Cloak Blinks"><span class="sb-c">C</span><span>L</span><span class="sb-o"><span data-brand-o></span></span><span>A</span><span>K</span><span class="sub">blinks</span></a>
     </div>
-    <button class="sb-feature" id="feature" type="button" data-tip="Your Blink">
-      <span class="feature-fig" id="featFig"></span>
-      <span class="feature-tx"><b id="featName">Cloak</b><span class="mood" id="mood">Here</span></span>
-    </button>
     <button class="sb-btn sb-new" id="newBlink" type="button" data-tip="New Blink"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#plus"/></svg><span class="sbl">New Blink</span></button>
     <button class="sb-btn sb-find" id="searchBtn" type="button" data-tip="Find a Blink" aria-expanded="false"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#magnifying-glass"/></svg><span class="sbl">Find a Blink</span></button>
     <div class="side-search" id="searchRow" hidden><input class="field" id="search" type="search" placeholder="Search your Blinks" aria-label="Search your Blinks"></div>
@@ -66,7 +62,7 @@
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         </button>
       </div>
-      <div class="chip-who"><span class="top-av" id="topAv"></span><span class="top-who"><b id="topName">Cloak</b><span id="topRole">Your Blink</span></span></div>
+      <button class="chip-who" id="blinkBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="bpanel"><span class="top-av" id="topAv"></span><span class="top-who"><b id="topName">Cloak</b><span class="mood-tx" id="mood">Here</span></span><svg class="ic chev" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#caret-down"/></svg></button>
       <div class="top-r">
       <div class="modes">
         <button class="mode-btn" id="modeBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="modeMenu"><span class="sr">Thinking mode: </span><span id="modeName">Auto</span><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#caret-down"/></svg></button>
@@ -121,7 +117,6 @@
       <div class="settings-layout">
         <nav class="settings-nav" aria-label="Settings sections">
           <button class="snav-btn on" type="button" data-tab="you"><span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>You</button>
-          <button class="snav-btn" type="button" data-tab="blink"><span class="snav-icon snav-blink" id="snavFig" aria-hidden="true"></span><span id="snavName">Cloak</span></button>
           <button class="snav-btn" type="button" data-tab="appearance"><span class="snav-icon"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>Appearance</button>
         </nav>
         <div class="settings-body">
@@ -150,7 +145,6 @@
               <button class="danger" type="button" id="signOut">Sign out of Cloak</button>
             </div>
           </div>
-          <div class="spane" id="spane-blink"><div id="mind"></div></div>
           <div class="spane" id="spane-appearance">
             <div class="srow">
               <div class="srow-head"><div class="srow-name">Light / Dark mode</div></div>
@@ -163,6 +157,18 @@
     </div>
   </section>
   </main>
+  <div class="bp-scrim" id="bpScrim" hidden></div>
+  <aside class="bpanel" id="bpanel" role="dialog" aria-modal="true" aria-labelledby="bpName" hidden>
+    <header class="bp-head">
+      <span class="bp-av" id="bpAv" aria-hidden="true"></span>
+      <div class="bp-who"><h2 id="bpName">Cloak</h2><span id="bpRole">Your Blink</span></div>
+      <button class="icon-btn" type="button" id="bpClose" aria-label="Close"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <div class="bp-body">
+      <div class="bp-actions" id="bpActions"></div>
+      <div id="mind"></div>
+    </div>
+  </aside>
 </div>
 
 
