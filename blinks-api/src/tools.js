@@ -85,7 +85,7 @@ async function duckduckgo(query) {
   return out;
 }
 
-async function search(env, query, recent) {
+export async function search(env, query, recent) {
   try {
     const data = await tavily(env, "search", { query, max_results: 7, search_depth: "basic", ...(recent ? { topic: "news", days: 7 } : {}) });
     const items = (data?.results || []).map((r) => ({ title: r.title || r.url, url: r.url, snippet: String(r.content || "").replace(/\s+/g, " ").trim().slice(0, 500), date: r.published_date || "" }));
@@ -106,7 +106,7 @@ function htmlToText(html) {
   );
 }
 
-async function readPage(env, url) {
+export async function readPage(env, url) {
   try {
     const data = await tavily(env, "extract", { urls: [url] });
     const text = data?.results?.[0]?.raw_content;
@@ -171,7 +171,7 @@ export const TOOLS = {
     async run(a, cx) {
       const q = String(a.query || "").trim().slice(0, 300);
       if (!q) return { text: "No query given." };
-      const items = await search(cx.env, q, !!a.recent);
+      const items = cx.net ? await cx.net.search(q, !!a.recent) : await search(cx.env, q, !!a.recent);
       if (!items.length) return { text: "No results. Try different words.", summary: "no results" };
       const sources = items.slice(0, 6).map((r) => ({ title: r.title, url: r.url }));
       const base = cx.cite(sources);
@@ -186,7 +186,7 @@ export const TOOLS = {
       const url = publicUrl(a.url);
       if (!url) return { text: "That address cannot be opened. Only public http(s) pages can be read." };
       try {
-        const text = await readPage(cx.env, url.href);
+        const text = cx.net ? await cx.net.read(url.href) : await readPage(cx.env, url.href);
         const sources = [{ title: url.hostname.replace(/^www\./, ""), url: url.href }];
         const n = cx.cite(sources);
         return { text: `[${n}] ${url.href}\n\n${clip(text, PAGE_CHARS)}`, sources, summary: `${Math.round(Math.min(text.length, PAGE_CHARS) / 1000)}k characters` };
@@ -285,7 +285,14 @@ export function toolbox({ depth = 0, hasMind = false }) {
     .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind))
     .map(([name]) => name);
 }
-export const specs = (names) => names.map((n) => TOOLS[n].spec);
+// Every tool also takes "status": the line the person sees while it runs,
+// written by the model in plain words ("Looking for cheaper homes around
+// Las Vegas"), the way a person would say what they are doing.
+const STATUS = { type: "string", description: "One short, friendly line telling the person what you are doing right now, in the present tense, with a capital letter and no full stop. For example: Looking for cheaper homes around Las Vegas" };
+export const specs = (names) => names.map((n) => {
+  const s = TOOLS[n].spec;
+  return { ...s, function: { ...s.function, parameters: { ...s.function.parameters, properties: { ...s.function.parameters.properties, status: STATUS } } } };
+});
 
 export async function runTool(name, rawArgs, cx) {
   const tool = TOOLS[name];
@@ -310,7 +317,8 @@ export async function runTool(name, rawArgs, cx) {
 export function toolLabel(name, rawArgs) {
   try {
     const args = typeof rawArgs === "string" ? JSON.parse(rawArgs || "{}") : rawArgs || {};
-    return TOOLS[name]?.label(args) || name;
+    const said = typeof args.status === "string" ? args.status.replace(/[\u0000-\u001f]+/g, " ").replace(/\s*[.…]+$/, "").trim().slice(0, 90) : "";
+    return said || TOOLS[name]?.label(args) || name;
   } catch {
     return name;
   }

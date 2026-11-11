@@ -14,6 +14,21 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
+<div class="gate" id="gate" hidden>
+  <form class="gate-card" novalidate>
+    <span class="brand" data-brand>Cloak</span>
+    <div class="gate-fig" aria-hidden="true"></div>
+    <h1 id="gTitle">Sign in to Blinks</h1>
+    <p class="muted" id="gSub"></p>
+    <div id="gNameRow" hidden><label class="lbl" for="gName">Your name</label><input class="field" id="gName" maxlength="40" autocomplete="given-name"></div>
+    <div><label class="lbl" for="gEm">Email</label><input class="field" id="gEm" type="email" autocomplete="email" required></div>
+    <div><label class="lbl" for="gPw">Password</label><input class="field" id="gPw" type="password" autocomplete="current-password" required></div>
+    <p class="err" id="gErr" hidden></p>
+    <button class="btn btn-accent" id="gGo">Sign in</button>
+    <div class="gate-links"><button type="button" class="linkbtn" id="gSwap"></button><a id="gReset" target="_blank" rel="noopener">Forgot your password?</a></div>
+  </form>
+</div>
+
 <div class="app" id="app">
   <aside class="side" id="side" aria-label="Companions and chats">
     <div class="side-head">
@@ -53,18 +68,20 @@
       </div>
     </header>
 
+    <div class="power" id="power" role="status" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#moon"/></svg><span><b>Cloak is in Low Light.</b> Chat works; memory, agents and files are resting until it wakes up.</span></div>
     <div class="thread" id="thread">
       <div class="banner" id="offline" hidden><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#info"/></svg><span>The Blinks backend is not connected yet, so replies here are short scripted demos.</span></div>
       <div class="thread-in" id="threadIn"></div>
     </div>
 
     <div class="composer">
+      <p class="notice" id="notice" role="alert" hidden></p>
       <div class="thumbs" id="thumbs" hidden></div>
       <form class="box" id="form">
         <label class="sr" for="input">Message</label>
         <textarea id="input" rows="1" placeholder="Say anything"></textarea>
-        <input type="file" id="file" accept="image/png,image/jpeg,image/webp" hidden multiple>
-        <button type="button" class="iconbtn" id="attach" aria-label="Attach an image"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#image"/></svg></button>
+        <input type="file" id="file" hidden multiple>
+        <button type="button" class="iconbtn" id="attach" aria-label="Attach files or images"><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#paperclip"/></svg></button>
         <button class="send" id="send" aria-label="Send" disabled><svg class="ic" viewBox="0 0 256 256" aria-hidden="true"><use href="icons.svg#arrow-up"/></svg></button>
       </form>
       <p class="fine">AI can be wrong. Check anything that matters.</p>

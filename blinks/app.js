@@ -14,7 +14,11 @@
   }
   rebuild();
   function who(id) { return byId[id] || byId.cloak; }
-  function look(c) { return c.look || c.id; }
+  // In Low Light every Blink's eyes go half-shut.
+  function look(c) {
+    var spec = c.look || c.id;
+    return state && state.power === "lowlight" ? Object.assign({}, Creatures.spec(spec), { eyes: "sleepy" }) : spec;
+  }
 
   var MOOD_LABEL = { idle: "Here", listen: "Listening", think: "Thinking", search: "Looking it up", talk: "Talking", happy: "Glad", care: "With you", sleep: "Resting" };
   var SPONSORS = [
@@ -31,16 +35,28 @@
     ctrl: null,
     images: [],
     sess: { wh: 0, g: 0 },
+    queue: [],
+    files: [],
+    power: "full",
     user: load("pv_user", { name: "", about: "" }),
   };
   // A random secret kept on this device: it is how memory, tasks and the inbox find you without an account.
   var device = Kit.get("pv_device");
   if (!device) { device = Array.from(crypto.getRandomValues(new Uint8Array(20)), function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); Kit.set("pv_device", device); }
   var TZ = ""; try { TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) {}
+  // Every request carries the Cloak account's token. Blinks needs one.
+  function authHeaders(extra) {
+    return (window.Sync ? Sync.token() : Promise.resolve(null)).then(function (t) {
+      return Object.assign(t ? { Authorization: "Bearer " + t } : { "X-Device": device }, extra || {});
+    });
+  }
+  function signedOut() { if (window.Sync && !document.documentElement.classList.contains("gated")) Sync.gate(function () { location.reload(); }); }
   function api(path, opts) {
     opts = opts || {};
-    opts.headers = Object.assign({ "X-Device": device }, opts.body ? { "Content-Type": "application/json" } : {}, opts.headers || {});
-    return fetch(Kit.api + path, opts).then(function (r) { return r.json(); });
+    return authHeaders(Object.assign(opts.body ? { "Content-Type": "application/json" } : {}, opts.headers || {})).then(function (h) {
+      opts.headers = h;
+      return fetch(Kit.api + path, opts).then(function (r) { if (r.status === 401) signedOut(); return r.json(); });
+    });
   }
   var fig = { stage: null, top: null, empty: null };
   var typingTimer = 0;
@@ -187,6 +203,25 @@
   }
   function dress(el) {
     el.querySelectorAll("a[href]").forEach(function (a) { a.target = "_blank"; a.rel = "noopener noreferrer"; });
+    // Cloak makes pictures only in code. An svg block shows as the picture,
+    // sanitised, with its code a tap away.
+    el.querySelectorAll("pre > code.language-svg").forEach(function (code) {
+      if (!window.DOMPurify || !/<svg[\s>]/i.test(code.textContent)) return;
+      var pre = code.parentNode;
+      var fig = document.createElement("figure");
+      fig.className = "drawn";
+      fig.innerHTML = DOMPurify.sanitize(code.textContent, { USE_PROFILES: { svg: true, svgFilters: true } });
+      var svg = fig.querySelector("svg");
+      if (!svg) return;
+      svg.setAttribute("role", "img");
+      if (!svg.getAttribute("aria-label")) svg.setAttribute("aria-label", "A picture Cloak drew in code");
+      var cap = document.createElement("figcaption");
+      cap.innerHTML = '<span class="note">drawn in code</span><button type="button" class="linkbtn">Show the code</button>';
+      cap.querySelector("button").addEventListener("click", function () { pre.hidden = !pre.hidden; this.textContent = pre.hidden ? "Show the code" : "Hide the code"; });
+      fig.appendChild(cap);
+      pre.hidden = true;
+      pre.parentNode.insertBefore(fig, pre);
+    });
     el.querySelectorAll("pre").forEach(function (pre) {
       if (pre.querySelector(".copy-code")) return;
       var b = document.createElement("button");
@@ -207,6 +242,21 @@
     return s;
   }
   var TOOL_ICON = { web_search: "magnifying-glass", read_page: "file-text", calculate: "gauge", remember: "brain", recall: "brain", forget: "brain", ask_companion: "chat-circle", schedule_task: "hourglass-medium", list_tasks: "hourglass-medium", cancel_task: "hourglass-medium", look: "eye", team: "stack" };
+  function didHtml(steps) {
+    if (!steps || !steps.length) return "";
+    var tool = function (n) { return steps.filter(function (s) { return s.tool === n; }).length; };
+    var parts = [];
+    if (tool("web_search")) parts.push("searched " + tool("web_search") + (tool("web_search") === 1 ? " time" : " times"));
+    if (tool("read_page")) parts.push("read " + tool("read_page") + (tool("read_page") === 1 ? " page" : " pages"));
+    if (tool("remember")) parts.push("saved " + tool("remember") + (tool("remember") === 1 ? " memory" : " memories"));
+    var t = parts.length ? parts.join(", ") : "took " + steps.length + (steps.length === 1 ? " step" : " steps");
+    t = t.charAt(0).toUpperCase() + t.slice(1);
+    return '<button type="button" class="did" aria-expanded="false">' + Kit.esc(t) + Kit.icon("caret-down") + "</button>" + stepsHtml(steps).replace('<ul class="steps">', '<ul class="steps" hidden>');
+  }
+  function hookDid(el) {
+    var b = el.querySelector(".did");
+    if (b) b.addEventListener("click", function () { var on = b.getAttribute("aria-expanded") !== "true"; b.setAttribute("aria-expanded", on ? "true" : "false"); el.querySelector(".steps").hidden = !on; });
+  }
   function stepsHtml(steps) {
     if (!steps || !steps.length) return "";
     return '<ul class="steps">' + steps.map(function (st) {
@@ -291,8 +341,9 @@
     var c = who(m.companion || state.companion);
     var el = document.createElement("div");
     el.className = "turn them";
-    el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="steps-host">' + stepsHtml(m.steps) + '</div><div class="row"><div class="av" aria-hidden="true"></div><div class="stack"></div></div><div class="tfoot"><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta">' + (m.content || m.care ? metaHtml(m.meta || {}) : "") + "</div></div>";
+    el.innerHTML = (m.care ? careHtml(m.care) : "") + '<div class="steps-host">' + didHtml(m.steps) + '</div><div class="row"><div class="av" aria-hidden="true"></div><div class="stack"></div></div><div class="tfoot"><div class="sources-host">' + sourcesHtml(m.sources) + '</div><div class="meta">' + (m.content || m.care ? metaHtml(m.meta || {}) : "") + "</div></div>";
     $("threadIn").appendChild(el);
+    hookDid(el);
     var segs = bubbles(m.content);
     segs.forEach(function (t, i) { addBubble(el, m, t, i, false); });
     if (segs.length) avatar(el, c);
@@ -419,22 +470,48 @@
   }
 
   /* ── Sending ───────────────────────────────────────────────────── */
+  // There is no stop button: while Cloak works you can keep texting, and
+  // what you send waits in line for the next turn.
   function setBusy(b) {
     state.busy = b;
-    var btn = $("send");
-    btn.innerHTML = Kit.icon(b ? "x" : "arrow-up");
-    btn.setAttribute("aria-label", b ? "Stop" : "Send");
-    btn.disabled = !b && !$("input").value.trim();
+    $("send").disabled = !$("input").value.trim();
+    $("send").setAttribute("aria-label", b ? "Send after this reply" : "Send");
+  }
+  function queueText(text) {
+    var el = userTurn({ content: text }, null);
+    el.classList.add("queued", "sent");
+    var r = document.createElement("div");
+    r.className = "receipt";
+    r.innerHTML = 'Queued <button type="button" class="linkbtn">Remove</button>';
+    el.appendChild(r);
+    var item = { text: text, el: el };
+    r.querySelector("button").addEventListener("click", function () { state.queue.splice(state.queue.indexOf(item), 1); el.remove(); });
+    state.queue.push(item);
+    scrollEnd(true);
   }
   function stop() { if (state.ctrl) state.ctrl.abort(); }
 
   async function send(text) {
-    text = (text == null ? $("input").value : text).trim();
-    if (!text || state.busy) return;
+    var texts = (Array.isArray(text) ? text : [text == null ? $("input").value : text]).map(function (t) { return String(t || "").trim(); }).filter(Boolean);
+    if (!texts.length && !state.files.length) return;
+    if (state.busy) {
+      texts.forEach(queueText);
+      $("input").value = "";
+      grow();
+      return;
+    }
+    // Files go to the brain first; their names (and small text files' text) ride along.
+    if (state.files.length) {
+      var note = await uploadFiles();
+      if (note === null) return;
+      texts.push(note.trim());
+      texts = [texts.join("\n\n")];
+    }
+    text = texts[texts.length - 1];
     closePicker();
     var ch = chat();
     if (!ch) {
-      ch = { id: uid(), companion: state.companion, title: text.slice(0, 60), messages: [], updated: Date.now() };
+      ch = { id: uid(), companion: state.companion, title: texts[0].slice(0, 60), messages: [], updated: Date.now() };
       state.chats.unshift(ch);
       state.chatId = ch.id;
       $("threadIn").innerHTML = "";
@@ -446,10 +523,13 @@
     var now = Date.now(), prevAt = 0;
     ch.messages.forEach(function (m) { if (m.at) prevAt = m.at; });
     if (now - prevAt > 20 * 60000) divider(now);
-    var um = { role: "user", content: text, at: now };
-    ch.messages.push(um);
-    var uEl = userTurn({ content: text, thumbs: images.map(function (i) { return "data:" + i.mime + ";base64," + i.data; }) }, null);
-    uEl.classList.add("sent");
+    var um, uEl;
+    texts.forEach(function (t, n) {
+      um = { role: "user", content: t, at: now };
+      ch.messages.push(um);
+      uEl = userTurn({ content: t, thumbs: n === texts.length - 1 ? images.map(function (i) { return "data:" + i.mime + ";base64," + i.data; }) : [] }, null);
+      uEl.classList.add("sent");
+    });
     receipt();
     $("input").value = "";
     grow();
@@ -461,9 +541,39 @@
     var bm = { role: "assistant", content: "", companion: state.companion, meta: {} };
     var el = null, typingEl = null, finished = false, readDone = false;
     var raw = "", queued = 0, shown = 0, live = null, liveRaf = 0, chain = Promise.resolve(), gen = 0, reacted = false;
-    function turn() { if (!el) el = botTurn({ companion: bm.companion, steps: bm.steps, sources: bm.sources, care: bm.care, meta: {} }); return el; }
+    function turn() { if (!el) el = botTurn({ companion: bm.companion, sources: bm.sources, care: bm.care, meta: {} }); return el; }
+    // One line that says what Cloak is doing right now, in its own words.
+    var nowEl = null;
+    function nowSay(label) {
+      var host = turn().querySelector(".steps-host");
+      if (!nowEl) {
+        nowEl = document.createElement("div");
+        nowEl.className = "now";
+        nowEl.setAttribute("role", "status");
+        nowEl.innerHTML = '<i class="now-dot" aria-hidden="true"></i><span class="now-t"></span>';
+        host.innerHTML = "";
+        host.appendChild(nowEl);
+      }
+      var box = nowEl.querySelector(".now-t");
+      var old = box.querySelector("span:not(.out)");
+      if (old && old.textContent === label + "...") return;
+      if (old) { old.classList.add("out"); setTimeout(function () { old.remove(); }, 320); }
+      var n = document.createElement("span");
+      n.textContent = label + "...";
+      box.appendChild(n);
+      typing(false);
+      scrollEnd();
+    }
+    function nowDone() {
+      if (!el) return;
+      var host = el.querySelector(".steps-host");
+      if (nowEl) { nowEl.remove(); nowEl = null; }
+      host.innerHTML = didHtml(bm.steps);
+      hookDid(el);
+      if (!finished && shown === queued && !live) typing(true);
+    }
     function typing(on) {
-      if (on && !typingEl && !finished) {
+      if (on && !typingEl && !finished && !nowEl) {
         var st = turn().querySelector(".stack");
         typingEl = document.createElement("div");
         typingEl.className = "bub them typing";
@@ -479,7 +589,8 @@
       readDone = true;
       um.read = Date.now();
       receipt();
-      setTimeout(function () { if (!finished && !live && shown === queued) typing(true); }, 420);
+      // It has read it: say so in one line until it either works or texts back.
+      setTimeout(function () { if (!finished && !live && shown === queued && !raw && !nowEl && !bm.care) nowSay("Thinking"); }, 420);
     }
     // Texts go out one at a time, with a beat of typing between them.
     function enqueue(i) {
@@ -551,7 +662,8 @@
 
     state.ctrl = new AbortController();
     var onEvent = function (ev) {
-      if (ev.meta) { Object.assign(bm.meta, { lane: ev.meta.lane, lane_label: ev.meta.lane_label }); markRead(); }
+      if (ev.meta) { Object.assign(bm.meta, { lane: ev.meta.lane, lane_label: ev.meta.lane_label }); if (ev.meta.power) setPower(ev.meta.power); markRead(); }
+      if (ev.notice) nowSay(ev.notice.replace(/[.]$/, ""));
       if (ev.care) {
         bm.care = ev.care;
         markRead();
@@ -563,7 +675,7 @@
         bm.steps = bm.steps || [];
         var cur = bm.steps.find(function (x) { return x.id === ev.step.id; });
         if (cur) Object.assign(cur, ev.step); else bm.steps.push(ev.step);
-        turn().querySelector(".steps-host").innerHTML = stepsHtml(bm.steps);
+        if (ev.step.state === "run" && ev.step.label) nowSay(ev.step.label);
         if (!bm.care) {
           var t = ev.step.tool;
           if (ev.step.state === "run") mood(t === "web_search" || t === "read_page" || t === "recall" ? "search" : "think");
@@ -580,6 +692,7 @@
       }
       if (ev.delta) {
         markRead();
+        if (nowEl) nowDone();
         if (!raw && !bm.care) mood("talk");
         raw += ev.delta;
         pulse(Math.min(0.9, 0.25 + ev.delta.length * 0.04));
@@ -604,6 +717,7 @@
     await chain;
     finished = true;
     typing(false);
+    nowDone();
     var said = bm.content.trim();
     // Left on read: only when there is truly nothing to say and nobody is at risk.
     if (!said && bm.read && !bm.care && !bm.error) {
@@ -632,6 +746,12 @@
     // Settle: stay soft if care is showing, otherwise back to idle.
     if (bm.care) mood("care"); else { mood("idle"); if (ch.messages.length === 2 && !bm.onRead) cheer(); }
     scrollEnd();
+    // Anything you sent meanwhile goes now, as the next turn.
+    if (state.queue.length && state.chatId === ch.id) {
+      var next = state.queue.splice(0);
+      next.forEach(function (q) { q.el.remove(); });
+      send(next.map(function (q) { return q.text; }));
+    }
   }
 
   // What the model sees: its own tags kept, your tapbacks noted on your next text.
@@ -676,7 +796,7 @@
     };
     var res = await fetch(Kit.api + "/v1/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Device": device },
+      headers: await authHeaders({ "Content-Type": "application/json" }),
       signal: signal,
       body: JSON.stringify({
         run_id: runId,
@@ -691,6 +811,7 @@
       }),
     });
     if (res.status === 429) { onEvent({ error: "That is a lot of messages in a minute. Give it a moment and try again." }); return; }
+    if (res.status === 401) { onEvent({ error: "Sign in again to keep texting." }); signedOut(); return; }
     if (!res.ok || !res.body) throw new Error("backend " + res.status);
     try { await read(res); } catch (e) { if (e.name === "AbortError") throw e; }
     // Dropped mid-run: the work is still going on the server. Pick it back up.
@@ -735,12 +856,47 @@
     var t = $("input");
     t.style.height = "auto";
     t.style.height = Math.min(190, t.scrollHeight) + "px";
-    if (!state.busy) $("send").disabled = !t.value.trim();
+    $("send").disabled = !t.value.trim() && !state.files.length;
+  }
+  var TEXTY = /^(text\/|application\/(json|xml|javascript|x-yaml|x-sh|sql))|\.(txt|md|csv|json|js|ts|py|html|css|xml|yml|yaml|sql|sh|log|ini|toml)$/i;
+  async function uploadFiles() {
+    var files = state.files.splice(0);
+    renderThumbs();
+    var notes = [];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      try {
+        var res = await fetch(Kit.api + "/v1/files", { method: "POST", headers: await authHeaders({ "Content-Type": f.type || "application/octet-stream", "X-File-Name": encodeURIComponent(f.name) }), body: f });
+        var meta = await res.json();
+        if (!res.ok) throw new Error(meta.error || "upload failed");
+        var line = "[File: " + f.name + ", " + Math.max(1, Math.round(f.size / 1024)) + " KB, id " + meta.id + "]";
+        if (f.size <= 200000 && (TEXTY.test(f.type) || TEXTY.test(f.name))) line += "\n```\n" + (await f.text()).slice(0, 200000) + "\n```";
+        notes.push(line);
+      } catch (e) {
+        showNotice(String(e.message || e).indexOf("Low Light") !== -1 ? e.message : "Could not attach " + f.name + ": " + (e.message || "upload failed") + ".");
+        return null;
+      }
+    }
+    return notes.join("\n\n");
+  }
+  function showNotice(t) {
+    var n = $("notice");
+    n.textContent = t;
+    n.hidden = false;
+    clearTimeout(showNotice.t);
+    showNotice.t = setTimeout(function () { n.hidden = true; }, 6000);
   }
   function renderThumbs() {
     var host = $("thumbs");
-    host.hidden = !state.images.length;
+    host.hidden = !state.images.length && !state.files.length;
     host.innerHTML = "";
+    state.files.forEach(function (f, i) {
+      var d = document.createElement("div");
+      d.className = "thumb file";
+      d.innerHTML = "<span>" + Kit.icon("file-text") + Kit.esc(f.name.length > 18 ? f.name.slice(0, 16) + "..." : f.name) + '</span><button type="button" aria-label="Remove file">' + Kit.icon("x") + "</button>";
+      d.querySelector("button").addEventListener("click", function () { state.files.splice(i, 1); renderThumbs(); });
+      host.appendChild(d);
+    });
     state.images.forEach(function (im, i) {
       var d = document.createElement("div");
       d.className = "thumb";
@@ -764,6 +920,20 @@
       img.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
       img.src = url;
     });
+  }
+
+  /* ── Low Light: the home brain is away ─────────────────────────── */
+  function setPower(p) {
+    p = p === "lowlight" ? "lowlight" : "full";
+    if (p === state.power) return;
+    state.power = p;
+    document.documentElement.classList.toggle("lowlight", p === "lowlight");
+    $("power").hidden = p !== "lowlight";
+    mountFigs();
+    renderComps();
+  }
+  function pollPower() {
+    fetch(Kit.api + "/v1/status", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (s) { setPower(s.mode); }).catch(function () {});
   }
 
   /* ── Settings ──────────────────────────────────────────────────── */
@@ -825,7 +995,7 @@
     $("spTitle").textContent = sp.title;
     $("spBody").textContent = sp.body;
 
-    $("form").addEventListener("submit", function (e) { e.preventDefault(); if (state.busy) stop(); else send(); });
+    $("form").addEventListener("submit", function (e) { e.preventDefault(); send(); });
     $("input").addEventListener("input", function () {
       grow();
       if (state.busy) return;
@@ -834,13 +1004,20 @@
       typingTimer = setTimeout(function () { if (!state.busy) mood("idle"); }, 1600);
     });
     $("input").addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!state.busy) send(); }
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
     });
     $("attach").addEventListener("click", function () { $("file").click(); });
     $("file").addEventListener("change", async function () {
-      for (var i = 0; i < this.files.length && state.images.length < 3; i++) {
-        var im = await readImage(this.files[i]);
-        if (im) state.images.push(im);
+      for (var i = 0; i < this.files.length; i++) {
+        var f = this.files[i];
+        if (/^image\/(png|jpeg|webp)$/.test(f.type) && state.images.length < 3) {
+          var im = await readImage(f);
+          if (im) state.images.push(im);
+          continue;
+        }
+        if (state.power === "lowlight") { showNotice("Files are resting while Cloak is in Low Light. Images still work."); continue; }
+        if (f.size > 100 * 1024 * 1024) { showNotice(f.name + " is over 100 MB."); continue; }
+        if (state.files.length < 5) state.files.push(f);
       }
       this.value = "";
       renderThumbs();
@@ -885,7 +1062,16 @@
     });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSide(); });
 
-    if (window.Sync) Sync.init({
+    var hooks = {
+      onBots: function (remote) {
+        var local = Maker.load();
+        if (!remote.length && local.length) { Sync.pushBots(local); return; }
+        Kit.set("pv_bots", JSON.stringify(remote));
+        rebuild();
+        if (!byId[state.companion]) state.companion = "cloak";
+        renderComps();
+        mountFigs();
+      },
       onChats: function (remote) {
         // Merge by id, newest copy wins.
         remote.forEach(function (r) {
@@ -896,12 +1082,19 @@
         renderHist();
       },
       local: function () { return state.chats; },
-    });
+    };
 
-    badge();
-    document.addEventListener("visibilitychange", function () { if (!document.hidden) badge(); });
-    if (q.get("q")) { history.replaceState(null, "", location.pathname); send(q.get("q")); }
-    else if (matchMedia("(min-width: 781px)").matches) $("input").focus();
+    pollPower();
+    setInterval(pollPower, 60000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) { badge(); pollPower(); } });
+    // Blinks needs a Cloak account: sign in first, then everything syncs.
+    function go() {
+      Sync.init(hooks);
+      badge();
+      if (q.get("q")) { history.replaceState(null, "", location.pathname); send(q.get("q")); }
+      else if (matchMedia("(min-width: 781px)").matches) $("input").focus();
+    }
+    Sync.ready().then(function (u) { if (u) go(); else Sync.gate(go); });
   }
   init();
 })();

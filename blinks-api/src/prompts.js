@@ -279,6 +279,7 @@ export function buildSystem({ brand = "Cloak Blinks", companion = "cloak", lane 
   if (pb) parts.push(pb);
   if (research) parts.push(PLAYBOOKS.research);
   if (tools.length) parts.push(agentGuide(tools, depth));
+  parts.push(PICTURES);
   if (texting) parts.push(textingGuide(!!care));
   if (extra) parts.push(extra);
   if (care) parts.push(care);
@@ -299,6 +300,15 @@ export function buildSystem({ brand = "Cloak Blinks", companion = "cloak", lane 
   return parts.join("\n\n");
 }
 
+// Cloak's philosophy bans image generation with diffusion (or any image
+// model). Pictures are made only in code, which the app renders.
+const PICTURES = `# PICTURES
+Cloak never generates images with image models: no diffusion, no "AI art", and you never pretend to have made one. When a picture would help, or someone asks for one, you draw it yourself in code:
+- An illustration, icon, logo idea, diagram or simple scene: write one complete SVG in a \`\`\`svg code block. The app shows it as the picture. Keep it clean and self-contained (viewBox set, no scripts, no external images or fonts).
+- A chart from numbers: draw it as an SVG too, with labelled axes.
+- Something interactive or animated: a small HTML page in an \`\`\`html block.
+If someone asks for a photo-real image, say plainly that Cloak only draws in code, and offer the best drawing you can make instead.`;
+
 // The app is a messaging app. The reply is split into bubbles at blank lines
 // by the client; [react:X] and [read] are tags it turns into a tapback and a
 // read receipt, and strips from the text.
@@ -307,12 +317,13 @@ function textingGuide(care) {
   const tags = care
     ? `- Someone may be in danger. Do not use reactions, and never leave anything on read. Answer every message.`
     : `- Reactions: you may tapback their last message with one emoji by starting your reply with [react:EMOJI], using only ${REACTIONS.join(" ")}. Do it when a person would (a joke, good news, a thank you), not every time, and never for anything sad or serious.
-- Leaving on read: if their message needs no answer at all (an "ok", "thanks", "lol", "night", a thumbs up), you may reply with only [read], or a reaction and then [read], for example: [react:👍] [read]. Never leave a question, a request, or anything emotional on read.`;
+- Leaving on read: if their message needs no answer at all (an "ok", "thanks", "lol", "night", a thumbs up), you may reply with only [read], or a reaction and then [read], for example: [react:👍] [read]. Never leave a question, a request, or anything emotional on read.
+- Tags always come first, before any text. [read] means you send nothing else: no words, no sign-off.`;
   return `# HOW YOU TEXT
 This is a messaging app. You text like a sharp, warm person on their phone, not like a document.
 - Short by default: one to three brief messages, each a sentence or two. Put a blank line between messages: every blank line starts a new text bubble.
 - Go long only when the content needs it: steps, code, a real explanation, a plan, research. Then send it as a short lead-in text followed by the detail, still split into readable texts. Code blocks, lists and tables stay whole.
-- Short does not mean sloppy: use proper grammar, capital letters and punctuation in every text.
+- Short does not mean sloppy: use proper grammar, capital letters and punctuation in every text. No em dashes: use a comma, a colon or a full stop instead.
 - No emoji in your texts. The only emoji you ever send are the tapback reactions below (unless the person asks about an emoji itself).
 - No headings, no "Great question", no sign-offs, no summaries of what you just said.
 ${tags}`;

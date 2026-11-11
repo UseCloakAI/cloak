@@ -28,7 +28,7 @@ On localhost the site talks to `http://localhost:8787`. Anywhere else it talks t
 ## Put it live
 
 1. The site: merge to `main`. The `cloak` Worker serves it at usecloak.org/blinks.
-2. The backend: Cloudflare dashboard, Workers & Pages, Create, import this repo with root directory `blinks-api` and deploy command `npx wrangler deploy`. Its `wrangler.jsonc` attaches `blinks-api.usecloak.org`. Add the secret `ADMIN_TOKEN`, then check models with `/admin/probe`.
+2. The backend is live (`cloak-blinks-api` at `blinks-api.usecloak.org`, secret `ADMIN_TOKEN` set). It was deployed with `npx wrangler deploy` from `blinks-api/` and is not connected to Workers Builds, so redeploy by hand after changing it, or connect it in the dashboard (root directory `blinks-api`, deploy command `npx wrangler deploy`). Check models with `/admin/probe`.
 3. Optional: apply `supabase/migrations/20261110000000_preview_chats.sql` so signed-in chats sync.
 4. When it should be found by search engines: drop the `noindex` meta tags and add `/blinks/` to `sitemap.xml`.
 

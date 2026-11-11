@@ -10,7 +10,8 @@
 // person's inbox (Mind), so it is waiting when they come back.
 
 import { DurableObject } from "cloudflare:workers";
-import { runAgent, mindFor } from "./agent.js";
+import { mindFor } from "./agent.js";
+import { turn, brainState, toBrain } from "./brainlink.js";
 import { stripTags } from "./prompts.js";
 
 const KEEP_MS = 10 * 60_000;
@@ -84,7 +85,7 @@ export class AgentRun extends DurableObject {
     this.pending = null;
     let final = null;
     try {
-      for await (const e of runAgent(this.env, { waitUntil: (p) => this.ctx.waitUntil(p) }, body, this.ctrl.signal)) {
+      for await (const e of turn(this.env, { waitUntil: (p) => this.ctx.waitUntil(p) }, body, this.ctrl.signal)) {
         if (this.status === "cancelled") break;
         if (e.done) final = e;
         this.push(e);
@@ -94,7 +95,7 @@ export class AgentRun extends DurableObject {
       console.error("[blinks-api] run failed", JSON.stringify(err?.tried || String(err?.message || err)));
       if (this.status === "running") {
         this.status = "error";
-        this.push({ error: "Every model is busy right now. Give it a moment and try again." });
+        this.push({ error: friendly(err) });
       }
     }
     const watched = this.subs.size > 0;
@@ -103,8 +104,21 @@ export class AgentRun extends DurableObject {
     // Nobody was here for the ending: leave the answer in their inbox.
     if (!watched && final?.text && body.userKey) {
       const ask = body.messages[body.messages.length - 1]?.content || "";
-      await mindFor(this.env, body.userKey)?.deliver({ kind: "reply", title: String(ask).slice(0, 100), companion: body.companion || "cloak", body: stripTags(final.text), meta: { chat_id: body.chat_id || null, sources: final.sources, impact: final.impact, lane: final.lane } }).catch(() => {});
+      const item = { kind: "reply", title: String(ask).slice(0, 100), companion: body.companion || "cloak", body: stripTags(final.text), meta: { chat_id: body.chat_id || null, sources: final.sources, impact: final.impact, lane: final.lane } };
+      // The inbox lives on the brain while it is up.
+      const s = await brainState(this.env).catch(() => ({}));
+      if (s.up) await toBrain(this.env, "/v1/inbox/deliver", { method: "POST", headers: { "Content-Type": "application/json", "X-User-Key": body.userKey }, body: JSON.stringify(item) }).catch(() => {});
+      else await mindFor(this.env, body.userKey)?.deliver(item).catch(() => {});
     }
     await this.ctx.storage.setAlarm(Date.now() + KEEP_MS);
   }
+}
+
+// What the person sees when a reply fails, in plain words, and honest about why.
+export function friendly(err) {
+  const tried = JSON.stringify(err?.tried || "") + String(err?.message || err || "");
+  if (/Too many subrequests/i.test(tried)) return "That one needed more work than a single reply allows. Ask again and I will pick it up from there.";
+  if (/HTTP 429|rate.?limit|quota/i.test(tried)) return "Every model is busy right now. Give it a moment and try again.";
+  if (/timeout|timed out/i.test(tried)) return "The models are slow to answer right now. Try again in a moment.";
+  return "Something went wrong while answering. Try again in a moment.";
 }

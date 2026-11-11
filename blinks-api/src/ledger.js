@@ -49,6 +49,35 @@ export class Ledger extends DurableObject {
     `);
   }
 
+  // The home-PC brain: up or down, as last seen by the cron check or a turn.
+  brainStatus() {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS brain (k TEXT PRIMARY KEY, v TEXT NOT NULL)`);
+    const row = this.sql.exec(`SELECT v FROM brain WHERE k = 'status'`).toArray()[0];
+    try { return row ? JSON.parse(row.v) : { up: false, checked: 0, since: 0 }; } catch { return { up: false, checked: 0, since: 0 }; }
+  }
+  setBrain(next) {
+    const prev = this.brainStatus();
+    const up = !!next.up && !next.paused;
+    const s = { up, paused: !!next.paused, checked: Date.now(), since: up === prev.up ? prev.since || Date.now() : Date.now(), version: next.version || prev.version || null, reason: next.reason || "" };
+    this.sql.exec(`INSERT INTO brain (k, v) VALUES ('status', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`, JSON.stringify(s));
+    return s;
+  }
+
+  // One-time pairing codes for the brain installer: short to type, used
+  // once, gone after an hour.
+  putPair(code, payload, ttlMs = 3600_000) {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pair (code TEXT PRIMARY KEY, payload TEXT NOT NULL, until INTEGER NOT NULL)`);
+    this.sql.exec(`DELETE FROM pair WHERE until < ?`, Date.now());
+    this.sql.exec(`INSERT OR REPLACE INTO pair (code, payload, until) VALUES (?, ?, ?)`, code, JSON.stringify(payload), Date.now() + ttlMs);
+    return { code, until: new Date(Date.now() + ttlMs).toISOString() };
+  }
+  takePair(code) {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS pair (code TEXT PRIMARY KEY, payload TEXT NOT NULL, until INTEGER NOT NULL)`);
+    const row = this.sql.exec(`SELECT payload, until FROM pair WHERE code = ?`, code).toArray()[0];
+    this.sql.exec(`DELETE FROM pair WHERE code = ? OR until < ?`, code, Date.now());
+    return row && row.until > Date.now() ? JSON.parse(row.payload) : null;
+  }
+
   recordReply({ lane = "smart", tokensIn = 0, tokensOut = 0, wh = 0, g = 0 }) {
     const d = today();
     this.sql.exec(

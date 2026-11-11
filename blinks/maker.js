@@ -19,7 +19,10 @@
   var NAMES = ["Biscuit", "Nova", "Pebble", "Ziggy", "Mochi", "Rook", "Tansy", "Bolt", "Clover", "Fig", "Echo", "Juniper"];
 
   function load() { try { var b = JSON.parse(Kit.get("pv_bots")); return Array.isArray(b) ? b : []; } catch (e) { return []; } }
-  function store(list) { Kit.set("pv_bots", JSON.stringify(list.slice(0, MAX))); }
+  function store(list) {
+    Kit.set("pv_bots", JSON.stringify(list.slice(0, MAX)));
+    if (window.Sync) Sync.pushBots(list.slice(0, MAX)); // your Blinks follow your account
+  }
   function id() { return "u_" + Array.from(crypto.getRandomValues(new Uint8Array(8)), function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
 
   // A saved Blink as the app sees it: the same fields as Cloak, plus look.

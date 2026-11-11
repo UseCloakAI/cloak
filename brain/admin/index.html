@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Cloak Brain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap">
+<style>
+:root{--ink:#0A0A0A;--bg:#F2EEE5;--surf:#FAFAF7;--sunk:#EAE5DB;--line:rgba(10,10,10,.14);--acc:#D44D2A;--yel:#F5C842;--good:#1F8A4C;--bad:#B3261E;--ink2:#3B3A36;--ink3:#6B6860;--bd:2px solid var(--ink);--sh:4px 4px 0 var(--ink);--shsm:2px 2px 0 var(--ink);--fd:"Syne",system-ui,sans-serif;--fb:"Space Grotesk",system-ui,sans-serif;--fm:ui-monospace,"SF Mono",Menlo,monospace;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--ink:#EDE8DF;--bg:#131110;--surf:#181512;--sunk:#22201C;--line:rgba(237,232,223,.14);--acc:#E5603E;--ink2:#C9C3B8;--ink3:#958F84;--good:#4ade80;--bad:#F2887F;--bd:2px solid rgba(237,232,223,.7);--sh:4px 4px 0 rgba(237,232,223,.4);--shsm:2px 2px 0 rgba(237,232,223,.4);color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--fb);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--fd);font-weight:800;margin:0;letter-spacing:-.02em;text-transform:uppercase}
+button,input,textarea{font:inherit;color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+header{border-bottom:var(--bd);background:var(--surf)}
+.bar{display:flex;align-items:center;gap:14px;height:64px}
+.brand{font:800 1.3rem/1 var(--fd);text-transform:uppercase;display:flex;align-items:baseline;gap:6px}
+.brand i{font:600 1.25rem/1 "Caveat",cursive;color:var(--acc);text-transform:none;font-style:normal;rotate:-6deg;display:inline-block}
+.sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px;border:var(--bd);background:var(--ink);color:var(--bg);font:700 .7rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;cursor:pointer;box-shadow:var(--shsm);transition:transform .2s,box-shadow .2s}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.btn:active{transform:translate(2px,2px);box-shadow:none}
+.btn.ghost{background:var(--surf);color:var(--ink)}
+.btn.acc{background:var(--acc);color:#fff}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.card{background:var(--surf);border:var(--bd);box-shadow:var(--sh);padding:18px}
+.lbl{font:700 .66rem/1 var(--fb);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin:0 0 8px}
+.big{font:800 1.9rem/1 var(--fd);letter-spacing:-.03em}
+.mono{font-family:var(--fm);font-size:.85rem}
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g2{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+@media (max-width:900px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g2{grid-template-columns:1fr}}
+main{padding:26px 0 60px}
+section{margin-top:26px}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:2px solid var(--ink);margin-right:8px;vertical-align:-1px}
+.ok{background:var(--good)}.bad{background:var(--bad)}.warn{background:var(--yel)}
+.pill{display:inline-flex;align-items:center;height:26px;padding:0 10px;border:1.5px solid var(--ink);font:700 .64rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:9px 8px;border-bottom:1.5px solid var(--line)}
+th{font:700 .64rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+tr.row{cursor:pointer}tr.row:hover td{background:var(--sunk)}
+.log{max-height:360px;overflow:auto;font:400 .78rem/1.5 var(--fm);background:#0A0A0A;color:#F2EEE5;border:var(--bd);padding:12px}
+.log .error{color:#F2887F}.log .t{color:#958F84;margin-right:8px}
+.field{width:100%;height:42px;padding:0 12px;border:var(--bd);background:var(--surf)}
+textarea.field{height:90px;padding:10px 12px;resize:vertical}
+.switch{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.toggle{width:58px;height:32px;border:var(--bd);background:var(--sunk);position:relative;cursor:pointer;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;background:var(--ink);transition:left .25s cubic-bezier(.3,1.35,.55,1)}
+.toggle[aria-checked="true"]{background:var(--yel)}
+.toggle[aria-checked="true"]::after{left:29px}
+.signin{max-width:420px;margin:12vh auto 0}
+.signin .card{display:grid;gap:12px}
+.err{color:var(--bad);font-weight:600;font-size:.9rem}
+.muted{color:var(--ink2)}
+.empty{color:var(--ink3);font-size:.9rem;padding:8px 0}
+dialog{width:min(760px,calc(100vw - 24px));max-height:calc(100dvh - 24px);border:var(--bd);background:var(--surf);color:var(--ink);box-shadow:6px 6px 0 var(--ink);padding:0}
+dialog::backdrop{background:rgba(10,10,10,.55)}
+.dlg{padding:20px;display:grid;gap:16px;overflow:auto;max-height:calc(100dvh - 30px)}
+.list li{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1.5px solid var(--line)}
+.list{list-style:none;margin:0;padding:0}
+.x{border:0;background:none;color:var(--bad);cursor:pointer;font-weight:700}
+.note{font:600 1.2rem/1 "Caveat",cursive;color:var(--acc)}
+</style>
+</head>
+<body>
+<header><div class="wrap bar"><span class="brand">Cloak <i>brain</i></span><span class="sp"></span><span id="who" class="muted"></span><button class="btn ghost" id="out" hidden>Sign out</button></div></header>
+
+<main class="wrap">
+  <div id="signin" class="signin" hidden>
+    <div class="card">
+      <h2>Sign in</h2>
+      <p class="muted" style="margin:0">Use your Cloak account. Only accounts on this brain's admin list get in.</p>
+      <div><p class="lbl">Email</p><input class="field" id="em" type="email" autocomplete="email"></div>
+      <div><p class="lbl">Password</p><input class="field" id="pw" type="password" autocomplete="current-password"></div>
+      <p class="err" id="err" hidden></p>
+      <button class="btn acc" id="go">Sign in</button>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+    <div class="grid g4">
+      <div class="card"><p class="lbl">Brain</p><div class="big" id="sBrain">...</div><p class="muted" id="sBrainSub" style="margin:6px 0 0"></p></div>
+      <div class="card"><p class="lbl">Cloudflare sees</p><div class="big" id="sCf">...</div><p class="muted" id="sCfSub" style="margin:6px 0 0"></p></div>
+      <div class="card"><p class="lbl">Turns today</p><div class="big" id="sTurns">0</div><p class="muted" id="sTurnsSub" style="margin:6px 0 0"></p></div>
+      <div class="card"><p class="lbl">Storage</p><div class="big" id="sDisk">...</div><p class="muted" id="sDiskSub" style="margin:6px 0 0"></p></div>
+    </div>
+
+    <section class="grid g2">
+      <div class="card">
+        <div class="switch">
+          <div><h3>Low Light</h3><p class="muted" style="margin:6px 0 0">Send everyone to Low Light: plain chat only, served by Cloudflare. Memory, agents and files rest here until you switch it back.</p></div>
+          <button class="toggle" id="pause" role="switch" aria-checked="false" aria-label="Low Light"></button>
+        </div>
+      </div>
+      <div class="card">
+        <p class="lbl">Working right now</p>
+        <ul class="list" id="active"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="switch" style="margin-bottom:10px"><h3>People</h3><span class="pill" id="pCount">0</span></div>
+      <table><thead><tr><th>Person</th><th>Memories</th><th>Tasks</th><th>Inbox</th><th>Files</th><th>Chats</th></tr></thead><tbody id="people"></tbody></table>
+    </section>
+
+    <section class="grid g2">
+      <div class="card"><div class="switch" style="margin-bottom:10px"><h3>Log</h3><button class="btn ghost" id="logRefresh">Refresh</button></div><div class="log" id="log"></div></div>
+      <div class="card" style="display:grid;gap:14px;align-content:start">
+        <h3>Settings</h3>
+        <div><p class="lbl">Admins (one email per line)</p><textarea class="field" id="admins"></textarea></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="saveAdmins">Save admins</button><button class="btn ghost" id="restart">Restart brain</button></div>
+        <p class="muted mono" id="facts"></p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<dialog id="person"><div class="dlg" id="personBody"></div></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  var sb = window.supabase.createClient("__SB_URL__", "__SB_KEY__", { auth: { persistSession: true, storageKey: "cloak_brain_auth" } });
+  var $ = function (id) { return document.getElementById(id); };
+  var token = null, timer = 0;
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+  function bytes(n) { if (n == null) return "?"; var u = ["B", "KB", "MB", "GB", "TB"], i = 0; while (n >= 1024 && i < 4) { n /= 1024; i++; } return n.toFixed(n < 10 && i ? 1 : 0) + " " + u[i]; }
+  function ago(ms) { var s = Math.round(ms / 1000); if (s < 60) return s + "s"; var m = Math.round(s / 60); if (m < 60) return m + " min"; var h = Math.round(m / 60); return h < 48 ? h + " h" : Math.round(h / 24) + " days"; }
+  async function api(p, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ Authorization: "Bearer " + token }, opts.body ? { "Content-Type": "application/json" } : {});
+    var r = await fetch(p, opts);
+    if (r.status === 401) { show(false); throw new Error("signed out"); }
+    return r.json();
+  }
+  function show(signed) { $("signin").hidden = signed; $("app").hidden = !signed; $("out").hidden = !signed; if (!signed) clearInterval(timer); }
+
+  async function refresh() {
+    var o = await api("/admin/api/overview");
+    $("who").textContent = o.admin;
+    $("sBrain").innerHTML = '<span class="dot ' + (o.paused ? "warn" : "ok") + '"></span>' + (o.paused ? "Low Light" : "Awake");
+    $("sBrainSub").textContent = "Up " + ago(o.uptime) + ". Tunnel: " + o.tunnel + ".";
+    var cf = o.cloudflare;
+    $("sCf").innerHTML = cf ? '<span class="dot ' + (cf.mode === "full" ? "ok" : "bad") + '"></span>' + (cf.mode === "full" ? "Full" : "Low Light") : '<span class="dot bad"></span>Unknown';
+    $("sCfSub").textContent = cf && cf.checked ? "Checked " + ago(Date.now() - Date.parse(cf.checked)) + " ago." : "No check yet.";
+    $("sTurns").textContent = o.turnsToday;
+    $("sTurnsSub").textContent = o.turns + " since start, " + o.errors + " errors, " + o.people + " people.";
+    $("sDisk").textContent = bytes(o.storage.used);
+    $("sDiskSub").textContent = o.storage.diskFree != null ? bytes(o.storage.diskFree) + " free of " + bytes(o.storage.diskSize) + "." : "";
+    $("pause").setAttribute("aria-checked", o.paused ? "true" : "false");
+    $("active").innerHTML = o.active.length ? o.active.map(function (a) { return "<li><span>" + esc(a.step || a.ask || "Thinking") + '</span><span class="mono muted">' + ago(Date.now() - a.started) + "</span></li>"; }).join("") : '<li class="empty">Nothing right now.</li>';
+    $("facts").textContent = "Version " + o.version + ", Node " + o.node + ", using " + bytes(o.memory) + " of RAM.";
+  }
+  async function loadPeople() {
+    var d = await api("/admin/api/people");
+    $("pCount").textContent = d.people.length;
+    $("people").innerHTML = d.people.length ? d.people.map(function (p) {
+      return '<tr class="row" data-id="' + p.id + '"><td class="mono">' + esc(p.key || p.id) + "</td><td>" + p.memories + "</td><td>" + p.tasks + "</td><td>" + p.inbox + "</td><td>" + p.files + "</td><td>" + p.chats + "</td></tr>";
+    }).join("") : '<tr><td colspan="6" class="empty">Nobody yet.</td></tr>';
+  }
+  async function loadLog() {
+    var d = await api("/admin/api/log");
+    var el = $("log");
+    el.innerHTML = d.lines.map(function (l) { return '<div class="' + l.level + '"><span class="t">' + new Date(l.t).toLocaleTimeString() + "</span>" + esc(l.msg) + "</div>"; }).join("");
+    el.scrollTop = el.scrollHeight;
+  }
+  async function loadSettings() {
+    var s = await api("/admin/api/settings");
+    $("admins").value = s.admins.join("\n");
+  }
+  async function openPerson(id) {
+    var d = await api("/admin/api/people/" + id);
+    function list(items, kind, label) {
+      return "<div><p class=\"lbl\">" + label + " (" + items.length + ")</p>" + (items.length ? '<ul class="list">' + items.map(function (i) {
+        var text = kind === "memory" ? i.fact : kind === "task" ? i.title + " (" + i.repeat + ")" : i.name + " (" + bytes(i.size) + ")";
+        return "<li><span>" + esc(text) + '</span><button class="x" data-kind="' + kind + '" data-id="' + i.id + '">Delete</button></li>';
+      }).join("") + "</ul>" : '<p class="empty">None.</p>') + "</div>";
+    }
+    $("personBody").innerHTML = '<div class="switch"><h3>Person</h3><button class="btn ghost" id="pClose">Close</button></div><p class="mono muted" style="margin:0">' + esc(d.key || d.id) + "</p>" + list(d.memories || [], "memory", "Memories") + list(d.tasks || [], "task", "Scheduled tasks") + list(d.files || [], "file", "Files");
+    $("person").showModal();
+    $("pClose").onclick = function () { $("person").close(); };
+    $("personBody").querySelectorAll(".x").forEach(function (b) {
+      b.onclick = async function () {
+        if (!confirm("Delete this for good?")) return;
+        await api("/admin/api/people/" + id + "/" + b.dataset.kind + "/" + b.dataset.id, { method: "DELETE" });
+        openPerson(id);
+        loadPeople();
+      };
+    });
+  }
+
+  async function start(session) {
+    token = session.access_token;
+    show(true);
+    try { await Promise.all([refresh(), loadPeople(), loadLog(), loadSettings()]); } catch (e) { return; }
+    clearInterval(timer);
+    timer = setInterval(function () { refresh().catch(function () {}); }, 5000);
+  }
+
+  $("go").onclick = async function () {
+    $("err").hidden = true;
+    var r = await sb.auth.signInWithPassword({ email: $("em").value.trim(), password: $("pw").value });
+    if (r.error) { $("err").textContent = r.error.message; $("err").hidden = false; return; }
+    start(r.data.session).catch(function () { $("err").textContent = "That account is not on this brain's admin list."; $("err").hidden = false; });
+  };
+  $("pw").addEventListener("keydown", function (e) { if (e.key === "Enter") $("go").click(); });
+  $("out").onclick = function () { sb.auth.signOut().then(function () { token = null; show(false); }); };
+  $("pause").onclick = async function () {
+    var on = this.getAttribute("aria-checked") !== "true";
+    await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ paused: on }) });
+    refresh();
+  };
+  $("saveAdmins").onclick = async function () {
+    var s = await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ admins: $("admins").value.split(/\s+/).filter(Boolean) }) });
+    $("admins").value = s.admins.join("\n");
+  };
+  $("restart").onclick = async function () {
+    if (!confirm("Restart the brain? Replies in progress will move to Low Light.")) return;
+    await api("/admin/api/restart", { method: "POST" });
+    setTimeout(refresh, 4000);
+  };
+  $("logRefresh").onclick = loadLog;
+  $("people").addEventListener("click", function (e) { var tr = e.target.closest("tr.row"); if (tr) openPerson(tr.dataset.id); });
+  sb.auth.onAuthStateChange(function (ev, s) { if (s && ev === "TOKEN_REFRESHED") token = s.access_token; });
+  sb.auth.getSession().then(function (r) { if (r.data.session) start(r.data.session).catch(function () { show(false); }); else show(false); });
+})();
+</script>
+</body>
+</html>

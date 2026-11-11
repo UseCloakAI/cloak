@@ -23,6 +23,11 @@ import { toolbox, specs, runTool, toolLabel } from "./tools.js";
 
 const STEPS = { auto: 6, research: 10, sub: 4, background: 6 };
 const MAX_CALLS_PER_STEP = 4;
+// Outbound requests one reply may spend, counting each model call and each
+// tool call as one (Exec makes that true). Cloudflare's free plan allows 50
+// per invocation; the rest is headroom for memory, the ledger and learning.
+const REQUEST_BUDGET = 40;
+const RESERVE = 6; // kept back so the final answer can always be written
 const SMALLTALK = /^(hi|hey|hello|yo|sup|thanks|thank you|ok|okay|cool|nice|lol|good (morning|night|evening)|bye|goodnight)\b[\s!.?]*$/i;
 
 export const mindFor = (env, key) => (key && env.MIND ? env.MIND.get(env.MIND.idFromName(key)) : null);
@@ -48,6 +53,13 @@ function channel() {
 
 const textOf = (m) => (typeof m?.content === "string" ? m.content : "");
 
+// How the agent reaches models and the web. The host sets this once:
+// the Worker routes both through Exec (one outbound request each), the
+// home-PC brain routes them through the Worker. Default: in-process.
+let IO = { lane: null, net: null };
+export function setIO(io) { IO = { ...IO, ...io }; }
+const callLane = (env, ctx, lane, opts) => (IO.lane ? IO.lane(env, lane, opts, ctx) : streamLane(env, ctx, lane, opts));
+
 export async function* runAgent(env, ctx, req, signal) {
   const depth = req.depth || 0;
   // One of the five, or a Blink the person built (req.bot carries its spec).
@@ -57,7 +69,8 @@ export async function* runAgent(env, ctx, req, signal) {
   const brand = BRANDS.includes(req.brand) ? req.brand : env.BRAND || "Cloak Blinks";
   const messages = req.messages.slice();
   const last = messages[messages.length - 1];
-  const shared = req.shared || { sources: [], wh: 0, g: 0, tokensIn: 0, tokensOut: 0, steps: 0 };
+  const shared = req.shared || { sources: [], wh: 0, g: 0, tokensIn: 0, tokensOut: 0, steps: 0, spent: 0 };
+  shared.spent = shared.spent || 0;
   const by = depth ? companionId : undefined;
 
   // Safety before anything else.
@@ -66,7 +79,7 @@ export async function* runAgent(env, ctx, req, signal) {
   const help = danger ? resources(req.country) : null;
 
   // Team runs are orchestrated one level up.
-  if (!depth && req.mode === "team" && !crisis) {
+  if (!depth && req.mode === "team" && !crisis && !req.lowlight) {
     yield* runTeam(env, ctx, { ...req, companion: companionId, bot, lead: companion, brand, shared }, signal);
     return;
   }
@@ -79,7 +92,8 @@ export async function* runAgent(env, ctx, req, signal) {
     try {
       const sys = buildSystem({ brand, companion, lane: "vision", convictions: env.CONVICTIONS !== "off" });
       const ask = [{ role: "user", content: [{ type: "text", text: `Describe what is in ${images.length > 1 ? "these images" : "this image"} in the detail needed to answer this, including any text exactly as written:\n\n${textOf(last)}` }, ...images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] }];
-      for await (const ev of streamLane(env, ctx, "vision", { system: sys, messages: ask, signal })) {
+      shared.spent++;
+      for await (const ev of callLane(env, ctx, "vision", { system: sys, messages: ask, signal })) {
         if (ev.done) { seen = ev.text; tally(shared, ev); }
       }
     } catch {}
@@ -87,15 +101,19 @@ export async function* runAgent(env, ctx, req, signal) {
     messages[messages.length - 1] = { role: "user", content: `${textOf(last)}\n\n[${images.length > 1 ? "Images" : "An image"} attached. What the vision model saw: ${seen || "it could not be read. Say so."}]` };
   }
 
-  const research = req.mode === "research" && !crisis;
+  // Low Light: the home-PC brain is away. Plain chat only: no memory, no
+  // tools, no team or research, never the heaviest models.
+  const lowlight = !!req.lowlight;
+  const research = req.mode === "research" && !crisis && !lowlight;
   const routed = research ? { lane: "deep", why: "research" } : routeLane({ text: textOf(last), mode: req.mode, home: companion.home, turns: messages.length, crisis });
   let lane = routed.lane;
-  const mind = mindFor(env, req.userKey);
+  if (lowlight && !["swift", "smart", "vision"].includes(lane)) lane = "smart";
+  const mind = lowlight ? null : mindFor(env, req.userKey);
   if (mind && !depth) await mind.hello(req.userKey).catch(() => {});
   const memories = mind && !depth ? await mind.context(textOf(last)).catch(() => []) : [];
 
   // No tools for a life at risk (the reply is the person, not a search) or for hellos.
-  let tools = crisis || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind });
+  let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind });
   // The smallest models get a short toolbelt: they plan poorly with a long one.
   if (lane === "swift") tools = tools.filter((t) => ["web_search", "calculate", "remember", "schedule_task"].includes(t));
   // A scheduled task must not schedule more work or rewrite the task list.
@@ -112,7 +130,7 @@ export async function* runAgent(env, ctx, req, signal) {
   });
 
   if (!depth) {
-    yield { meta: { companion: companionId, lane, lane_label: LANES[lane].label, why: routed.why, mode: req.mode || "auto", tools: tools.length > 0, memory: memories.length } };
+    yield { meta: { companion: companionId, lane, lane_label: LANES[lane].label, why: routed.why, mode: req.mode || "auto", tools: tools.length > 0, memory: memories.length, power: lowlight ? "lowlight" : "full" } };
     if (crisis) yield { care: help };
   }
 
@@ -129,13 +147,16 @@ export async function* runAgent(env, ctx, req, signal) {
 
   for (let step = 0; step < budget; step++) {
     if (signal?.aborted) return;
-    const final = step === budget - 1;
+    // Out of steps, or out of outbound requests: this call writes the answer.
+    const broke = shared.spent >= REQUEST_BUDGET - RESERVE;
+    const final = step === budget - 1 || broke;
     const offer = tools.length && !final ? specs(tools) : undefined;
     if (final && tools.length && step > 0) msgs.push({ role: "user", content: "[Platform note: you have used all your tool calls for this turn. Answer now with what you have, and say what you could not check.]" });
 
     let text = "", calls = [], got = false;
+    shared.spent++;
     const attempt = async function* (withTools) {
-      for await (const ev of streamLane(env, ctx, lane, { system, messages: msgs, maxTokens: req.max_tokens, signal, tools: withTools })) {
+      for await (const ev of callLane(env, ctx, lane, { system, messages: msgs, maxTokens: req.max_tokens, signal, tools: withTools })) {
         if (ev.delta) { text += ev.delta; if (!depth) yield { delta: ev.delta }; }
         else if (ev.done) { got = true; calls = ev.toolCalls || []; partial = !!ev.partial; tally(shared, ev); }
       }
@@ -153,7 +174,7 @@ export async function* runAgent(env, ctx, req, signal) {
 
     // The model spoke before reaching for tools: that was a working note.
     if (text.trim() && !depth) yield { reset: true, note: text.trim().slice(0, 300) };
-    calls = calls.slice(0, MAX_CALLS_PER_STEP);
+    calls = calls.slice(0, Math.max(1, Math.min(MAX_CALLS_PER_STEP, REQUEST_BUDGET - RESERVE - shared.spent)));
     msgs.push({ role: "assistant", content: text || "", tool_calls: calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } })) });
 
     const ch = channel();
@@ -164,8 +185,10 @@ export async function* runAgent(env, ctx, req, signal) {
       const id = `${by || "me"}-${step}-${i}`;
       ch.emit({ step: { id, by, tool: c.name, label: toolLabel(c.name, c.arguments), state: "run" } });
       if (c.name === "remember") remembered = true;
+      shared.spent++;
       const cx = {
         env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite,
+        net: IO.net ? IO.net(env) : null,
         delegate: async (who, task) => {
           const sub = runAgent(env, ctx, { brand, companion: who, userKey: req.userKey, user: req.user, country: req.country, depth: depth + 1, shared, messages: [{ role: "user", content: task }] }, signal);
           let out = "";
@@ -274,7 +297,7 @@ Do NOT extract: anything about the assistant, one-off requests, passing moods, g
 Reply with ONLY a JSON array of at most 3 objects: [{"fact": "full sentence about the person", "kind": "profile|preference|project|person|other"}]. If nothing qualifies, reply [].`;
   const user = `Already known:\n${known.map((m) => `- ${m.fact}`).join("\n") || "(nothing)"}\n\nPerson said:\n${said.slice(0, 2500)}\n\nAssistant replied:\n${replied.slice(0, 1200)}`;
   let out = "";
-  for await (const ev of streamLane(env, ctx, "utility", { system, messages: [{ role: "user", content: user }], maxTokens: 300 })) if (ev.done) out = ev.text;
+  for await (const ev of callLane(env, ctx, "utility", { system, messages: [{ role: "user", content: user }], maxTokens: 300 })) if (ev.done) out = ev.text;
   const m = /\[[\s\S]*\]/.exec(out);
   if (!m) return;
   let facts;
