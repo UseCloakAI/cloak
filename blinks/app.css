@@ -1041,3 +1041,5 @@ html.resizing iframe{pointer-events:none}
 /* Headings in any reply never use the display face: texts, not posters. */
 .bub .prose :is(h1,h2,h3,h4,h5,h6){font-family:var(--fb);text-transform:none;letter-spacing:0;font-size:1rem;font-weight:700}
 .bub .prose hr{display:none}
+/* The code button appears the moment a chat has code, with a pop. */
+#codeBtn.arrive{animation:pop .5s var(--sp-snap) both}
