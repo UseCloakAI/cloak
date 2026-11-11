@@ -372,14 +372,31 @@
   }
   // Blank lines split texts. Code stays whole, a list stays one bubble, a
   // heading rides with what follows it.
+  // A long, structured answer (headings, a table, lots of sections) reads as
+  // one card, not a pile of texts.
+  var HR = /^\s*([-*_])(\s*\1){2,}\s*$/;
+  function isDoc(text) {
+    var t = String(text || "").replace(/```[\s\S]*?```/g, "");
+    var heads = (t.match(/^\s*#{1,6}\s/gm) || []).length, table = /^\s*\|.*\|\s*$/m.test(t), paras = t.split(/\n\s*\n/).filter(function (x) { return x.trim(); }).length;
+    return heads >= 1 || table || (t.length > 900 && paras > 3) || (HR.test(t) && t.length > 400);
+  }
   function bubbles(text) {
     var out = [], cur = [], fence = false;
-    String(text || "").split("\n").forEach(function (line) {
+    var lines = String(text || "").split("\n").filter(function (l) { return !HR.test(l); }); // dividers never become their own boxes
+    if (isDoc(text)) {
+      // The answer first: a "Bottom line" / "TL;DR" paragraph moves to the top.
+      var paras = lines.join("\n").split(/\n\s*\n/).filter(function (x) { return x.trim(); });
+      var bi = paras.findIndex(function (x) { return /^\s*(\*\*|__)?\s*(bottom line|tl;?dr|in short|short answer)\b/i.test(x); });
+      if (bi > 0) paras.unshift(paras.splice(bi, 1)[0]);
+      return [paras.join("\n\n").trim()].filter(Boolean);
+    }
+    lines.forEach(function (line) {
       if (/^\s*(```|~~~)/.test(line)) fence = !fence;
       if (!fence && !line.trim()) { if (cur.length) { out.push(cur.join("\n")); cur = []; } return; }
       cur.push(line);
     });
     if (cur.length) out.push(cur.join("\n"));
+    out = out.filter(function (x) { return x.trim(); });
     var LIST = /^\s*([-*+]|\d+[.)])\s/, TABLE = /^\s*\|/;
     var merged = [];
     out.forEach(function (seg) {
@@ -452,6 +469,14 @@
     var cz = CodeCanvas.chipify(text, st0);
     p.innerHTML = chipHtml(md(cz.text), cz.chips);
     if (cz.chips.length) b.classList.add("has-code");
+    if (isDoc(text)) {
+      b.classList.add("doc");
+      var more = document.createElement("button");
+      more.type = "button"; more.className = "doc-more"; more.textContent = "Show all";
+      more.addEventListener("click", function (e) { e.stopPropagation(); var open = b.classList.toggle("open"); more.textContent = open ? "Show less" : "Show all"; if (!open) b.scrollIntoView({ block: "nearest", behavior: "smooth" }); });
+      b.appendChild(more);
+      requestAnimationFrame(function () { if (p.scrollHeight > 400) b.classList.add("clip"); });
+    }
     dress(p);
     if (m.taps && m.taps[i]) b.insertAdjacentHTML("beforeend", reactHtml(m.taps[i]));
     hookTap(b, m);
