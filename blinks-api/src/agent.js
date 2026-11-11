@@ -113,7 +113,7 @@ export async function* runAgent(env, ctx, req, signal) {
   const memories = mind && !depth ? await mind.context(textOf(last)).catch(() => []) : [];
 
   // No tools for a life at risk (the reply is the person, not a search) or for hellos.
-  let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind });
+  let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind, hasTalk: typeof req.talk === "function" && !depth });
   // The smallest models get a short toolbelt: they plan poorly with a long one.
   if (lane === "swift") tools = tools.filter((t) => ["web_search", "calculate", "remember", "schedule_task"].includes(t));
   // A scheduled task must not schedule more work or rewrite the task list.
@@ -127,6 +127,7 @@ export async function* runAgent(env, ctx, req, signal) {
     user: req.user && typeof req.user === "object" ? req.user : {},
     convictions: env.CONVICTIONS !== "off",
     extra: req.extra || "",
+    soul: req.soul || "",
   });
 
   if (!depth) {
@@ -187,7 +188,7 @@ export async function* runAgent(env, ctx, req, signal) {
       if (c.name === "remember") remembered = true;
       shared.spent++;
       const cx = {
-        env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite,
+        env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite, talk: req.talk,
         net: IO.net ? IO.net(env) : null,
         delegate: async (who, task) => {
           const sub = runAgent(env, ctx, { brand, companion: who, userKey: req.userKey, user: req.user, country: req.country, depth: depth + 1, shared, messages: [{ role: "user", content: task }] }, signal);
@@ -215,7 +216,7 @@ export async function* runAgent(env, ctx, req, signal) {
     const impact = { wh: round(shared.wh), g: round(shared.g) };
     ctx.waitUntil?.(ledger(env).recordReply({ lane, tokensIn: shared.tokensIn, tokensOut: shared.tokensOut, wh: impact.wh, g: impact.g }).catch(() => {}));
     // Quietly keep anything lasting the person said, if the companion did not.
-    if (mind && !remembered && !crisis && !req.background && textOf(last).length >= 25 && answer) {
+    if (mind && !remembered && !crisis && !req.background && !req.peer && textOf(last).length >= 25 && answer) {
       ctx.waitUntil?.(learn(env, ctx, mind, companionId, textOf(last), stripTags(answer), memories).catch(() => {}));
     }
     yield { done: true, partial, lane, text: answer, steps: shared.steps, sources: shared.sources, usage: { tokens_in: shared.tokensIn, tokens_out: shared.tokensOut }, impact };

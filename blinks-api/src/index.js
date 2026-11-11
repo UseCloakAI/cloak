@@ -177,6 +177,8 @@ async function handleChat(request, env, ctx, cors) {
     brand: body.brand,
     companion: body.companion,
     bot: body.bot && typeof body.bot === "object" ? { id: body.bot.id, name: body.bot.name, purpose: body.bot.purpose, persona: body.bot.persona, lane: body.bot.lane } : null,
+    // The person's other Blinks, so theirs can message each other (brain only).
+    blinks: Array.isArray(body.blinks) ? body.blinks.slice(0, 13).filter((b) => b && typeof b.id === "string").map((b) => ({ id: String(b.id).slice(0, 40), name: String(b.name || "").slice(0, 32), purpose: String(b.purpose || "").slice(0, 160), persona: String(b.persona || "").slice(0, 1500), lane: String(b.lane || "").slice(0, 12) })) : [],
     mode: ["auto", "swift", "deep", "research", "team"].includes(body.mode) ? body.mode : "auto",
     messages,
     images: readImages(body),
@@ -219,7 +221,7 @@ async function handleMe(request, env, cors, path) {
       return json({ error: "Memory and tasks are resting while Cloak is in Low Light.", power: "lowlight" }, cors, 503);
     }
     try {
-      const res = await toBrain(env, path, { method: request.method, headers: { "Content-Type": "application/json", "X-User-Key": key }, body: request.method === "GET" || request.method === "DELETE" ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
+      const res = await toBrain(env, path + new URL(request.url).search, { method: request.method, headers: { "Content-Type": "application/json", "X-User-Key": key }, body: request.method === "GET" || request.method === "DELETE" ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000) });
       return new Response(res.body, { status: res.status, headers: { ...cors, "Content-Type": res.headers.get("Content-Type") || "application/json" } });
     } catch (e) {
       ctxWait(markDown(env, e?.message));
@@ -338,7 +340,7 @@ export default {
       }
       let m;
       if ((m = /^\/v1\/runs\/([\w-]{16,64})(?:\/(cancel))?$/.exec(path))) return await handleRun(request, env, cors, m[1], m[2]);
-      if (path === "/v1/me" || path.startsWith("/v1/memory") || path.startsWith("/v1/tasks") || path.startsWith("/v1/inbox")) return await handleMe(request, env, cors, path);
+      if (path === "/v1/me" || path.startsWith("/v1/memory") || path.startsWith("/v1/tasks") || path.startsWith("/v1/inbox") || path.startsWith("/v1/blink/")) return await handleMe(request, env, cors, path);
       if (path === "/v1/tools" && request.method === "GET") return json({ tools: catalog(), modes: ["auto", "swift", "deep", "research", "team"] }, cors, 200, { "Cache-Control": "public, max-age=300" });
       if (path === "/v1/speech" || path === "/v1/speech/voices") {
         if (path === "/v1/speech" && limited(`tts:${request.headers.get("CF-Connecting-IP") || "anon"}`, 20)) return json({ error: "Slow down a little." }, cors, 429);

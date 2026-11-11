@@ -73,7 +73,7 @@ else
 fi
 
 say "3/6  The brain"
-FILES="brain/server.js brain/sqlite.js brain/package.json brain/admin/index.html
+FILES="brain/server.js brain/blinks.js brain/sqlite.js brain/package.json brain/admin/index.html
 blinks-api/src/agent.js blinks-api/src/carbon.js blinks-api/src/engine.js blinks-api/src/mind-core.js
 blinks-api/src/models.js blinks-api/src/prompts.js blinks-api/src/safety.js blinks-api/src/tools.js
 api-worker/src/governor.js"

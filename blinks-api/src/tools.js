@@ -245,6 +245,20 @@ export const TOOLS = {
       return { text: clip(text || "They had nothing to add.", RESULT_CHARS), summary: "answered" };
     },
   },
+  // Blink to Blink. Only where the host can run another Blink (the home-PC
+  // brain sets cx.talk), only from a Blink the person is talking to, and
+  // the Blink that receives can never message anyone in turn (no loops).
+  message_blink: {
+    spec: fn("message_blink", "Send a message to another of this person's Blinks and get its reply. Use it when the person asks you to tell or ask another Blink something, or when another Blink's purpose makes it clearly better placed to answer part of this. Write the message so it stands alone; the other Blink does not see this conversation. Never use it to chat for its own sake.", { to: str("The other Blink's name, exactly as listed under OTHER BLINKS."), message: str("What to send, in your own voice.") }, ["to", "message"]),
+    label: (a) => `Messaging ${String(a.to || "another Blink").slice(0, 40)}`,
+    needs: "talk",
+    top: true,
+    outward: (a) => a.message,
+    async run(a, cx) {
+      const r = await cx.talk(String(a.to || ""), String(a.message || "").slice(0, 4000));
+      return r.ok ? { text: `${r.name} replied:\n${clip(r.reply, RESULT_CHARS)}`, summary: "replied" } : { text: `Not sent: ${r.error}`, summary: "not sent" };
+    },
+  },
   schedule_task: {
     spec: fn("schedule_task", "Schedule work to run later, once or on a repeat, without the person being here. When it runs, a companion does the task with tools and the result lands in their inbox. Use for reminders, recurring briefings, and checking on something later. Times are UTC: convert from the person's local time given in your context.", { title: str("Short name shown in their task list."), prompt: str("The full instruction to carry out at that time, written so it makes sense with no other context."), run_at: str("When to run first, ISO 8601 in UTC, for example 2026-11-11T14:00:00Z."), repeat: str("How often to repeat after the first run.", { enum: ["none", "hourly", "daily", "weekly"] }) }, ["title", "prompt", "run_at"]),
     label: (a) => `Scheduling: ${String(a.title || "task").slice(0, 60)}`,
@@ -280,9 +294,9 @@ export const TOOLS = {
 
 // The tools on offer for this call. Sub-agents (depth > 0) cannot delegate or
 // schedule; without a user key there is no memory.
-export function toolbox({ depth = 0, hasMind = false }) {
+export function toolbox({ depth = 0, hasMind = false, hasTalk = false }) {
   return Object.entries(TOOLS)
-    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind))
+    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind) && !(t.needs === "talk" && !hasTalk))
     .map(([name]) => name);
 }
 // Every tool also takes "status": the line the person sees while it runs,
