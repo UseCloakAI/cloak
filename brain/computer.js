@@ -86,8 +86,25 @@ export function makeComputer({ file = "/etc/cloak-brain/computer.json", stateDir
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || `the ${slot.kind} answered ${res.status}`);
+    if (slot.occ && slot.occ.uid === uid) slot.occ.seen = Date.now();
     return out;
   }
+  // One call to this person's machine. If the connection dropped (the VM
+  // restarted, slept, or its network blinked), reconnect, waking it if it
+  // has to, and try once more instead of failing the task.
+  async function call(kind, key, p, body, ms, onWake) {
+    let s = await machine(kind, key);
+    try { return { s, r: await agent(s, s.occ.uid, p, body, ms) }; }
+    catch (e) {
+      if (/answered \d/.test(e.message)) throw e; // the machine answered: a real error, not a lost connection
+      log("info", `lost the ${kind} (${e.message}); reconnecting`);
+      if (s.occ) { s.occ.state = "lost"; s.occ.seen = 0; }
+      onWake?.();
+      s = await machine(kind, key);
+      return { s, r: await agent(s, s.occ.uid, p, body, ms) };
+    }
+  }
+  const awake = (kind, key) => { const s = kind === "desktop" ? slots.desktop : slots.servers.find((x) => x.occ?.key === key); return !!(s?.occ && s.occ.key === key && s.occ.state === "ready"); };
   const healthy = (slot, uid) => agent(slot, uid, "/health", null, 4_000).catch(() => null);
 
   // ── A person's machine: disk, seed and definition ─────────────────────
@@ -220,7 +237,8 @@ runcmd:
       const now = Date.now();
       if (kind === "desktop") {
         const s = slots.desktop;
-        if (s.occ && s.occ.key === key && s.occ.state === "ready" && (await healthy(s, s.occ.uid))) return s;
+        // Answered moments ago: no need to ask again (that check cost every action time).
+        if (s.occ && s.occ.key === key && s.occ.state === "ready" && (Date.now() - (s.occ.seen || 0) < 20_000 || (await healthy(s, s.occ.uid)))) return s;
         if (s.occ && s.occ.key !== key) {
           if (s.lease && s.lease.until > now) throw new Busy("The computer is being used by someone else right now.");
           await stopMachine(s);
@@ -229,7 +247,7 @@ runcmd:
         return bootInto(s, "desktop", key);
       }
       let s = slots.servers.find((x) => x.occ && x.occ.key === key);
-      if (s && s.occ.state === "ready" && (await healthy(s, s.occ.uid))) return s;
+      if (s && s.occ.state === "ready" && (Date.now() - (s.occ.seen || 0) < 20_000 || (await healthy(s, s.occ.uid)))) return s;
       if (!s) s = slots.servers.find((x) => !x.occ);
       if (!s) {
         const quiet = slots.servers.filter((x) => x.occ && x.occ.state === "ready" && now - x.occ.lastUse > HANDOVER_MS).sort((a, b) => a.occ.lastUse - b.occ.lastUse)[0];
@@ -333,8 +351,7 @@ runcmd:
       return {
         async look(question) {
           claim(key);
-          const s = await machine("desktop", key);
-          const shot = await agent(s, s.occ.uid, "/screen", {}, 40_000);
+          const { s, r: shot } = await call("desktop", key, "/screen", {}, 40_000);
           touch(s);
           frame = { key, png: shot.png, at: Date.now() };
           notify();
@@ -343,8 +360,7 @@ runcmd:
         },
         async input(action) {
           claim(key);
-          const s = await machine("desktop", key);
-          const r = await agent(s, s.occ.uid, "/input", action, 30_000);
+          const { s, r } = await call("desktop", key, "/input", action, 30_000);
           touch(s);
           await wait(350);
           notify();
@@ -354,7 +370,9 @@ runcmd:
         // call per step, until the goal is met. The Blink hands it a goal.
         async operate(goal, signal, onStep = () => {}) {
           claim(key);
-          const s = await machine("desktop", key);
+          if (!awake("desktop", key)) onStep("Waking the computer (about a minute)");
+          await machine("desktop", key);
+          const wake = () => onStep("Reconnecting to the computer");
           const done = [];
           const system = `You operate a Linux desktop (XFCE, Firefox, a terminal) for an AI assistant. Goal: ${goal}
 Each turn you get a screenshot with a labelled 100px grid; the large white arrow is the mouse pointer. Choose the ONE next action and answer with only a JSON object, no prose:
@@ -369,7 +387,7 @@ Each turn you get a screenshot with a labelled 100px grid; the large white arrow
 Prefer run for opening programs and URLs over hunting for icons. Click the centre of things. Check the screenshot shows the last action worked before moving on. Never type passwords or pay for anything.`;
           for (let i = 0; i < 18; i++) {
             if (signal?.aborted) return { ok: false, text: "Stopped." };
-            const shot = await agent(s, s.occ.uid, "/screen", {}, 40_000);
+            const { s, r: shot } = await call("desktop", key, "/screen", {}, 40_000, wake);
             touch(s);
             frame = { key, png: shot.png, at: Date.now() };
             notify();
@@ -384,14 +402,14 @@ Prefer run for opening programs and URLs over hunting for icons. Click the centr
             onStep(why || a.action);
             try {
               if (a.action === "run") {
-                const r = await agent(s, s.occ.uid, "/run", { cmd: String(a.cmd || ""), timeout: 60 }, 90_000);
+                const { r } = await call("desktop", key, "/run", { cmd: String(a.cmd || ""), timeout: 60 }, 90_000, wake);
                 done.push(`ran \`${String(a.cmd).slice(0, 120)}\` -> exit ${r.code}${r.stderr ? `, ${String(r.stderr).slice(-160)}` : ""}${r.stdout ? `, ${String(r.stdout).slice(-200)}` : ""}`);
-                await wait(1500);
-              } else if (a.action === "wait") { done.push("waited"); await wait(2000); }
+                await wait(900);
+              } else if (a.action === "wait") { done.push("waited"); await wait(1500); }
               else {
-                await agent(s, s.occ.uid, "/input", a, 30_000);
+                await call("desktop", key, "/input", a, 30_000, wake);
                 done.push(`${a.action}${a.x != null ? ` at ${a.x},${a.y}` : ""}${a.text ? ` "${String(a.text).slice(0, 60)}"` : ""}${a.keys ? ` ${a.keys}` : ""}${why ? ` (${why})` : ""}`);
-                await wait(600);
+                await wait(350);
               }
             } catch (e) { done.push(`${a.action} failed: ${String(e.message).slice(0, 120)}`); }
             touch(s);
@@ -400,9 +418,8 @@ Prefer run for opening programs and URLs over hunting for icons. Click the centr
         },
         async run(kind, cmd, timeout) {
           if (kind === "desktop") claim(key);
-          const s = await machine(kind, key);
           if (kind === "desktop") notify();
-          const r = await agent(s, s.occ.uid, "/run", { cmd, timeout }, (Math.min(Number(timeout) || 60, 600) + 30) * 1000);
+          const { s, r } = await call(kind, key, "/run", { cmd, timeout }, (Math.min(Number(timeout) || 60, 600) + 30) * 1000);
           touch(s);
           return r;
         },

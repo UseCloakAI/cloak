@@ -94,7 +94,7 @@ export const LANES = {
     blurb: "Reads the computer's screen for the agent.",
     internal: true,
     maxTokens: 1200,
-    lineup: [at(OMNI, { temperature: 0.2 }), at(SUPER_VL, { temperature: 0.2 }), at(LLAMA_VISION, { temperature: 0.2 })],
+    lineup: [at(OMNI, { temperature: 0.2, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(SUPER_VL, { temperature: 0.2, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(LLAMA_VISION, { temperature: 0.2 })],
   },
   // Background work (titles, summaries). Never a chat lane.
   utility: {
