@@ -296,7 +296,8 @@
   function openBlink(id) {
     if (!byId[id]) return;
     if (id !== state.companion) {
-      stop();
+      // Let go of the reply here, but leave it running: it keeps going and we keep watching it.
+      if (state.ctrl) { state.leaving = true; state.ctrl.abort(); state.leaving = false; }
       state.companion = id;
       Kit.set("pv_companion", id);
       document.querySelectorAll("#comps .comp").forEach(function (r) { r.setAttribute("aria-current", r.dataset.id === id ? "true" : "false"); });
@@ -989,8 +990,11 @@
     Kit.set("pv_live_run", "");
     state.ctrl = null;
     if (left) {
-      // You moved to another Blink: the brain is finishing this one. Its
-      // reply arrives in this chat by itself.
+      // You moved to another Blink: the brain is finishing this one. Watch it
+      // from here, so coming back shows it still working, then its reply.
+      var rid = state.runId;
+      state.runId = null;
+      if (rid && !resuming) { Kit.set("pv_live_run", JSON.stringify({ id: rid, companion: ch.companion, chat: ch.id, at: Date.now() })); resumeRun(); }
       um.read = um.read || Date.now();
       ch.updated = Date.now();
       save();
@@ -1074,7 +1078,7 @@
     // Remembered until the reply is in, so a reload can pick the run back up.
     Kit.set("pv_live_run", JSON.stringify({ id: runId, companion: state.companion, chat: ch.id, at: Date.now() }));
     var seen = 0, finished = false;
-    var cancel = function () { fetch(Kit.api + "/v1/runs/" + runId + "/cancel", { method: "POST" }).catch(function () {}); };
+    var cancel = function () { if (state.leaving) return; fetch(Kit.api + "/v1/runs/" + runId + "/cancel", { method: "POST" }).catch(function () {}); };
     signal.addEventListener("abort", cancel, { once: true });
     var read = async function (res) {
       var reader = res.body.getReader(), dec = new TextDecoder(), buf = "";
