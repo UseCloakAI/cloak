@@ -114,6 +114,24 @@
     n.textContent = text;
     el.appendChild(n);
   }
+  // A counter on a scroll wheel: each digit that changes rolls to the next, blurred in motion.
+  function wheel(el, text) {
+    var cells = el.querySelectorAll(":scope > .wd");
+    if (cells.length !== text.length) {
+      el.textContent = "";
+      for (var i = 0; i < text.length; i++) { var c = document.createElement("span"); c.className = "wd"; c.innerHTML = "<b></b>"; c.firstChild.textContent = text[i]; el.appendChild(c); }
+      return;
+    }
+    cells.forEach(function (c, i) {
+      var cur = c.querySelector("b:not(.wd-out)");
+      if (cur.textContent === text[i]) return;
+      c.querySelectorAll(".wd-out").forEach(function (x) { x.remove(); });
+      cur.className = "wd-out";
+      setTimeout(function () { cur.remove(); }, 380);
+      var n = document.createElement("b"); n.className = "wd-in"; n.textContent = text[i];
+      c.appendChild(n);
+    });
+  }
   function pulse(n) { mates().forEach(function (f) { f.pulse(n); }); }
   function each(fn) { mates().forEach(function (f) { if (f[fn]) f[fn](); }); }
   function cheer() { each("cheer"); }
@@ -662,6 +680,8 @@
     r.innerHTML = 'Queued <button type="button" class="linkbtn">Remove</button>';
     el.appendChild(r);
     var item = { text: text, el: el };
+    // Mid-reply: hand it to the running turn so the Blink can take it in now.
+    if (state.runId) fetch(Kit.api + "/v1/runs/" + state.runId + "/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text }) }).catch(function () {});
     r.querySelector("button").addEventListener("click", function () { state.queue.splice(state.queue.indexOf(item), 1); el.remove(); });
     state.queue.push(item);
     scrollEnd(true);
@@ -735,7 +755,9 @@
     var raw = "", queued = 0, shown = 0, live = null, liveRaf = 0, chain = Promise.resolve(), gen = 0, reacted = false;
     function turn() { if (!el) el = botTurn({ companion: bm.companion, sources: bm.sources, care: bm.care, meta: {} }); return el; }
     // One line that says what Cloak is doing right now, in its own words.
-    var nowEl = null;
+    var nowEl = null, thinking = false, thinkAt = 0;
+    // While it only thinks, the line moves on so it never looks stuck.
+    var THINK = ["Thinking", "Reading what you said", "Working out what you mean", "Weighing it up", "Putting it together", "Getting the words right", "Nearly there"];
     function nowSay(label) {
       var host = turn().querySelector(".steps-host");
       if (!nowEl) {
@@ -752,7 +774,11 @@
         var tick = setInterval(function () {
           if (!box0.isConnected) return clearInterval(tick);
           var sec = Math.round((Date.now() - t0) / 1000);
-          if (sec >= 3) { n.hidden = false; n.textContent = sec < 60 ? sec + "s" : Math.floor(sec / 60) + "m " + (sec % 60) + "s"; }
+          if (thinking && !finished) {
+            var k = Math.min(THINK.length - 1, Math.floor((Date.now() - thinkAt) / 4500));
+            if (k > 0) nowSay(THINK[k]);
+          }
+          if (sec >= 3) { n.hidden = false; wheel(n, sec < 60 ? sec + "s" : Math.floor(sec / 60) + "m " + (sec % 60) + "s"); }
         }, 1000);
       }
       var box = nowEl.querySelector(".now-t");
@@ -797,7 +823,7 @@
       um.read = Date.now();
       receipt();
       // It has read it: say so in one line until it either works or texts back.
-      setTimeout(function () { if (!finished && !live && shown === queued && !raw && !nowEl && !bm.care) nowSay("Thinking"); }, 420);
+      setTimeout(function () { if (!finished && !live && shown === queued && !raw && !nowEl && !bm.care) { thinking = true; thinkAt = Date.now(); nowSay("Thinking"); } }, 420);
     }
     // Texts go out one at a time, with a beat of typing between them.
     function enqueue(i) {
@@ -882,13 +908,26 @@
         bm.steps = bm.steps || [];
         var cur = bm.steps.find(function (x) { return x.id === ev.step.id; });
         if (cur) Object.assign(cur, ev.step); else bm.steps.push(ev.step);
-        if (ev.step.state === "run" && ev.step.label) nowSay(ev.step.label);
+        if (ev.step.state === "run" && ev.step.label) { thinking = false; nowSay(ev.step.label); }
         if (!bm.care) {
           var t = ev.step.tool;
           if (ev.step.state === "run") mood(t === "web_search" || t === "read_page" || t === "recall" ? "search" : "work");
           else if (t === "remember" && ev.step.state !== "blocked") each("nod");
         }
         scrollEnd();
+      }
+      if (ev.absorbed) {
+        // Messages you queued, taken in by this reply: they become real messages now.
+        ev.absorbed.forEach(function (t) {
+          var i = state.queue.findIndex(function (q) { return q.text.trim() === String(t).trim(); });
+          if (i < 0) return;
+          var q = state.queue.splice(i, 1)[0];
+          q.el.classList.remove("queued");
+          var rc = q.el.querySelector(".receipt"); if (rc) rc.remove();
+          ch.messages.push({ role: "user", content: q.text, at: Date.now(), read: Date.now() });
+        });
+        save();
+        thinking = true; thinkAt = Date.now(); nowSay("Reading what you added");
       }
       if (ev.blink && window.Maker) {
         // A Blink made a Blink: it joins the sidebar at once.
@@ -913,6 +952,7 @@
         typing(true);
       }
       if (ev.delta) {
+        thinking = false;
         markRead();
         if (nowEl) nowDone();
         if (!raw && !bm.care) mood("talk");
@@ -998,6 +1038,7 @@
     else if (dock === "code") renderCode();
     setTimeout(catchUp, 600); // anything your Blinks said to each other meanwhile
     setBusy(false);
+    state.runId = null;
     // Settle: stay soft if care is showing, otherwise back to idle.
     if (bm.care) mood("care"); else { mood("idle"); if (ch.messages.length === 2 && !bm.onRead) cheer(); }
     scrollEnd();
@@ -1029,6 +1070,7 @@
   // from the last event seen. Stop cancels the run on the server too.
   async function stream(ch, images, onEvent, signal) {
     var runId = "r-" + uid().replace(/[^\w-]/g, "");
+    state.runId = runId;
     // Remembered until the reply is in, so a reload can pick the run back up.
     Kit.set("pv_live_run", JSON.stringify({ id: runId, companion: state.companion, chat: ch.id, at: Date.now() }));
     var seen = 0, finished = false;

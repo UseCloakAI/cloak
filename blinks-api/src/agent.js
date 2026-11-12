@@ -152,6 +152,14 @@ export async function* runAgent(env, ctx, req, signal) {
 
   for (let step = 0; step < budget; step++) {
     if (signal?.aborted) return;
+    // Messages they sent while this was running join the conversation now.
+    if (!depth && typeof req.pending === "function") {
+      const more = (await req.pending()) || [];
+      if (more.length) {
+        msgs.push({ role: "user", content: `[They sent more while you were working. Take it into account from here:]\n${more.join("\n")}` });
+        yield { absorbed: more };
+      }
+    }
     // Out of steps, or out of outbound requests: this call writes the answer.
     const broke = shared.spent >= CAP - RESERVE;
     const final = step === budget - 1 || broke;

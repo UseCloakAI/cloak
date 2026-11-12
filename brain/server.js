@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -226,6 +226,8 @@ async function dirSize(dir) {
 }
 const sh = (cmd, args) => new Promise((resolve) => execFile(cmd, args, { timeout: 4000 }, (err, out) => resolve(err ? "" : String(out).trim())));
 
+const injects = new Map(); // run id -> messages sent while it runs
+
 // ── A turn, sent by the Worker ───────────────────────────────────────────────
 // Once the brain has the message it finishes the reply no matter what: the
 // browser (or the Worker) can go away and the answer still lands in the
@@ -247,6 +249,8 @@ async function handleTurn(req, res) {
   try {
     const turn = await blinks.prepare(body, out);
     turn.bindTalk(ctx, ctrl.signal);
+    // Messages sent while this runs (POST /v1/blink/inject) join before the next step.
+    if (body.run_id) turn.body.pending = () => { const n = injects.get(body.run_id) || []; injects.delete(body.run_id); n.forEach((t) => turn.note(t)); return n; };
     if (computer.available && computer.allowed(body.email)) turn.body.computer = computer.forUser(body.userKey, out);
     for await (const ev of runAgent(env, ctx, turn.body, ctrl.signal)) {
       if (ev.step?.label) stats.active.get(id).step = ev.step.label;
@@ -304,6 +308,13 @@ async function handleMe(req, res, p) {
     if (computer.available) await computer.wipe(key).catch((e) => log("error", `computer wipe failed: ${e.message}`));
     for (const f of [path.join(DATA, "users", userDir(key) + ".sqlite"), path.join(DATA, "files", userDir(key)), path.join(DATA, "chats", userDir(key))]) await fsp.rm(f, { recursive: true, force: true }).catch(() => {});
     log("info", "a person reset everything");
+    return send(res, 200, { ok: true });
+  }
+  if (p === "/v1/blink/inject" && method === "POST") {
+    const id = String(body.run_id || ""), t = String(body.text || "").trim().slice(0, 4000);
+    if (!/^[\w-]{8,64}$/.test(id) || !t) return send(res, 400, { error: "bad note" });
+    injects.set(id, [...(injects.get(id) || []), t].slice(-10));
+    setTimeout(() => injects.delete(id), 15 * 60_000).unref?.();
     return send(res, 200, { ok: true });
   }
   if (p === "/v1/blink/since" && method === "GET") return send(res, 200, { now: Date.now(), chats: blinks.since(key, Number(q.get("t")) || 0, q.get("blink") ? blink : null) });
