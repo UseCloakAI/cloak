@@ -40,16 +40,23 @@ def run(cmd, timeout):
     if KIND == "desktop":
         env += ["-E", "DISPLAY=:0", "-E", f"XAUTHORITY={home}/.Xauthority"]
     # Limits keep one runaway command from freezing the person's own machine.
+    # KillMode=process: programs the command leaves running (firefox &) stay
+    # open after it returns, instead of dying with it. Output goes to files,
+    # not pipes, so a program left running never holds the call open.
     argv = ["systemd-run", "--quiet", "--wait", "--pipe", "--collect", f"--uid={USER}", f"--gid={USER}",
             f"--working-directory={home}",
-            "-p", "MemoryMax=85%", "-p", "TasksMax=2048", "-p", f"RuntimeMaxSec={timeout}",
+            "-p", "MemoryMax=85%", "-p", "TasksMax=2048", "-p", f"RuntimeMaxSec={timeout}", "-p", "KillMode=process",
             *env, "/bin/bash", "-lc", cmd]
     t0 = time.time()
-    try:
-        p = subprocess.run(argv, capture_output=True, timeout=timeout + 15, stdin=subprocess.DEVNULL)
-        out, err, code = p.stdout, p.stderr, p.returncode
-    except subprocess.TimeoutExpired as e:
-        out, err, code = e.stdout or b"", (e.stderr or b"") + b"\n[stopped: took longer than the time limit]", 124
+    import tempfile
+    with tempfile.TemporaryFile() as fo, tempfile.TemporaryFile() as fe:
+        try:
+            code = subprocess.run(argv, stdout=fo, stderr=fe, timeout=timeout + 15, stdin=subprocess.DEVNULL).returncode
+            note = b""
+        except subprocess.TimeoutExpired:
+            code, note = 124, b"\n[stopped: took longer than the time limit]"
+        fo.seek(0); fe.seek(0)
+        out, err = fo.read(), fe.read() + note
     cut = lambda b: b[-OUT_MAX:].decode("utf-8", "replace")
     return {"code": code, "stdout": cut(out), "stderr": cut(err), "seconds": round(time.time() - t0, 1),
             "truncated": len(out) > OUT_MAX or len(err) > OUT_MAX}
