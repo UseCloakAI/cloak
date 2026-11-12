@@ -66,6 +66,18 @@ def screen():
     raw = subprocess.run(["import", "-display", ":0", "-window", "root", "png:-"], capture_output=True, env=env, timeout=20).stdout
     if not raw:
         raise RuntimeError("could not capture the screen (is the desktop up?)")
+    # Screenshots leave the pointer out: draw a large one where it is, so the
+    # model and the person watching both see it.
+    try:
+        loc = subprocess.run(["xdotool", "getmouselocation", "--shell"], capture_output=True, env=env, timeout=5).stdout.decode()
+        px = int(re.search(r"X=(\d+)", loc).group(1)); py = int(re.search(r"Y=(\d+)", loc).group(1))
+        pts = [(0, 0), (0, 34), (9, 26), (15, 39), (21, 36), (15, 24), (27, 24)]
+        poly = " ".join(f"{px + dx},{py + dy}" for dx, dy in pts)
+        drawn = subprocess.run(["convert", "png:-", "-fill", "white", "-stroke", "black", "-strokewidth", "2.5", "-draw", f"polygon {poly}", "png:-"],
+                               input=raw, capture_output=True, timeout=15).stdout
+        if drawn: raw = drawn
+    except Exception:
+        pass
     size = subprocess.run(["identify", "-format", "%w %h", "png:-"], input=raw, capture_output=True, timeout=10).stdout.decode().split()
     w, h = (int(size[0]), int(size[1])) if len(size) == 2 else (1280, 800)
     # A labelled 100px grid, so a vision model can name coordinates.
