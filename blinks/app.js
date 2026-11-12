@@ -718,7 +718,8 @@
     el.appendChild(r);
     var item = { text: text, el: el };
     // Mid-reply: hand it to the running turn so the Blink can take it in now.
-    if (state.runId) fetch(Kit.api + "/v1/runs/" + state.runId + "/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text }) }).catch(function () {});
+    var rid = state.runId || (resuming && resuming.id && resuming.companion === state.companion ? resuming.id : null);
+    if (rid) fetch(Kit.api + "/v1/runs/" + rid + "/note", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text }) }).catch(function () {});
     r.querySelector("button").addEventListener("click", function () { state.queue.splice(state.queue.indexOf(item), 1); el.remove(); });
     state.queue.push(item);
     scrollEnd(true);
@@ -739,7 +740,8 @@
   async function send(text) {
     var texts = (Array.isArray(text) ? text : [text == null ? $("input").value : text]).map(function (t) { return String(t || "").trim(); }).filter(Boolean);
     if (!texts.length && !state.files.length) return;
-    if (state.busy) {
+    // Busy, or a reply picked up after a reload is still running here: it waits in line.
+    if (state.busy || (resuming && resuming.companion === state.companion)) {
       texts.forEach(queueText);
       $("input").value = "";
       grow();
@@ -1103,6 +1105,13 @@
     }
   }
 
+  // Messages that waited for a reply to finish go out now, as the next turn.
+  function flushQueue() {
+    if (state.busy || resuming || !state.queue.length) return;
+    var next = state.queue.splice(0);
+    next.forEach(function (q) { q.el.remove(); });
+    send(next.map(function (q) { return q.text; }));
+  }
   // What the model sees: its own tags kept, your tapbacks noted on your next text.
   function history(ch) {
     return ch.messages.filter(function (m) { return !m.sent; }).map(function (m, i, all) {
@@ -1334,6 +1343,7 @@
       }
       if (state.companion === ch.companion) { renderThread(); mood("idle"); }
       refreshRows();
+      flushQueue();
       setTimeout(catchUp, 800);
     };
     var attach = function () { fetch(Kit.api + "/v1/runs/" + encodeURIComponent(lr.id) + "?from=" + count).then(function (res) {
@@ -1351,6 +1361,14 @@
             if (line.indexOf("data:") !== 0 || !resuming) continue;
             var ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
             count++;
+            if (ev.absorbed) ev.absorbed.forEach(function (t) {
+              var qi = state.queue.findIndex(function (q) { return q.text.trim() === String(t).trim(); });
+              if (qi < 0) return;
+              var q = state.queue.splice(qi, 1)[0];
+              q.el.classList.remove("queued"); var rc = q.el.querySelector(".receipt"); if (rc) rc.remove();
+              ch.messages.push({ role: "user", content: q.text, at: Date.now(), read: Date.now() }); save();
+              var tr = $("threadIn").querySelector(".turn.resumed"); if (tr) $("threadIn").appendChild(tr);
+            });
             if (ev.reset) resuming.raw = "";
             if (ev.delta) resuming.raw += ev.delta;
             if (ev.step && ev.step.state === "run" && ev.step.label) { resuming.label = ev.step.label; drawResume(); }
@@ -1396,7 +1414,7 @@
     var tick = function () {
       if (!resuming || !resuming.poll) return;
       if (ch.messages.slice(n0).some(function (m) { return m.role === "assistant"; }) || ++tries > 60) {
-        resuming = null; drawResume(); if (state.companion === ch.companion) mood("idle"); return;
+        resuming = null; drawResume(); if (state.companion === ch.companion) mood("idle"); flushQueue(); return;
       }
       catchUp(true);
       setTimeout(tick, tries < 10 ? 2500 : 6000);
@@ -1463,7 +1481,7 @@
       Kit.set("pv_unread", JSON.stringify(state.unread));
       save();
       refreshRows();
-      if (resuming && resuming.poll && fresh.some(function (m) { return m.role === "assistant"; })) { resuming = null; drawResume(); mood("idle"); }
+      if (resuming && resuming.poll && fresh.some(function (m) { return m.role === "assistant"; })) { resuming = null; drawResume(); mood("idle"); setTimeout(flushQueue, 0); }
       if (redraw) {
         // New messages at the end pop in where you are; anything older means a redraw.
         var ch0 = chat(), tail = ch0 ? ch0.messages.slice(-fresh.length) : [];
@@ -1575,6 +1593,8 @@
     asleep: ["The computer is asleep", "It wakes up when your Blink needs it, or now if you want to watch. Waking takes about a minute."],
     waking: ["Waking up", "Starting the desktop. This takes about a minute."],
     sleeping: ["Going to sleep", "Nobody used it for a while."],
+    stopping: ["Going to sleep", "Shutting the desktop down."],
+    lost: ["Reconnecting", "The connection to the desktop dropped. Getting it back."],
     someone: ["Someone else's desktop is running", "This PC runs one desktop at a time, and someone else is using theirs right now. Your Blink can still use your server, and your desktop can start when they are done."],
   };
   function compStatus() {
@@ -1595,10 +1615,10 @@
     var st = comp.st || {}, d = st.desktop || { state: "asleep" }, sv = st.server || { state: "asleep" };
     var mine = d.holder === "you", other = d.holder === "someone";
     var view = other ? "someone" : d.state === "ready" ? (mine ? "live" : "asleep") : d.state;
-    var words = { asleep: "Asleep", waking: "Waking up", sleeping: "Going to sleep", ready: mine ? "Yours right now" : "Awake" };
+    var words = { asleep: "Asleep", waking: "Waking up", sleeping: "Going to sleep", stopping: "Going to sleep", lost: "Reconnecting", ready: mine ? "Yours right now" : "Awake" };
     rollText($("kState"), other ? "In use by someone else" : words[d.state] || "Asleep");
     $("kDesk").textContent = other ? "in use by someone else" : (words[d.state] || "asleep").toLowerCase();
-    $("kServ").textContent = ({ asleep: "asleep", waking: "waking up", sleeping: "going to sleep", ready: "awake" })[sv.state] || "asleep";
+    $("kServ").textContent = ({ asleep: "asleep", waking: "waking up", sleeping: "going to sleep", stopping: "going to sleep", lost: "reconnecting", ready: "awake" })[sv.state] || "asleep";
     $("kLedD").className = "k-led " + (other ? "busy" : d.state);
     $("kLedS").className = "k-led " + sv.state;
     $("kScreen").setAttribute("data-state", view);
