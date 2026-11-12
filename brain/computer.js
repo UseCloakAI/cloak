@@ -128,8 +128,14 @@ runcmd:
     }
     // (Re)define it for the slot it is about to run in.
     const name = domName(kind, uid);
+    // Already running (a wake raced another): leave it be.
+    const ds = await virsh("domstate", name);
+    if (ds.ok && /running|paused/.test(ds.out)) return { uid, name };
+    // Already defined: keep its UUID, or libvirt refuses the redefine.
+    const du = await virsh("domuuid", name);
+    const uuid = du.ok && /^[0-9a-f-]{36}$/i.test(du.out.trim()) ? du.out.trim() : "";
     const xml = `<domain type='kvm'>
-  <name>${name}</name>
+  <name>${name}</name>${uuid ? `<uuid>${uuid}</uuid>` : ""}
   <memory unit='MiB'>${slot.mb}</memory><currentMemory unit='MiB'>${slot.mb}</currentMemory>
   <vcpu>${slot.cpus}</vcpu>
   <os><type arch='x86_64' machine='q35'>hvm</type><boot dev='hd'/></os>

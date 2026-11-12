@@ -370,11 +370,11 @@ html.gated body{overflow:hidden}
 .now-dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid var(--accent);opacity:0;animation:now-ring 1.6s var(--ease) infinite}
 @keyframes now-beat{50%{scale:.72}}
 @keyframes now-ring{0%{opacity:.6;scale:.4}100%{opacity:0;scale:1.25}}
-.now-t{position:relative;display:grid;min-width:0;flex:1}
-.now-t span{grid-area:1/1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:linear-gradient(90deg,var(--ink-3),var(--ink) 40%,var(--ink-3) 80%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:now-in 360ms var(--ease) both,sheen 1.6s linear infinite}
-.now-t span.out{animation:now-out 300ms var(--ease-in) both}
-@keyframes now-in{from{opacity:0;translate:0 10px;filter:blur(3px)}}
-@keyframes now-out{to{opacity:0;translate:0 -10px;filter:blur(3px)}}
+.now-t{position:relative;display:grid;overflow:hidden;min-width:0;flex:1}
+.now-t span{grid-area:1/1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:linear-gradient(90deg,var(--ink-3),var(--ink) 40%,var(--ink-3) 80%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:now-in 420ms var(--ease-back) 60ms both,sheen 1.6s linear infinite}
+.now-t span.out{animation:now-out 200ms var(--ease-in) both}
+@keyframes now-in{from{translate:0 105%}}
+@keyframes now-out{to{opacity:0;translate:0 -105%}}
 .did{display:inline-flex;align-items:center;gap:6px;padding:3px 0;border:0;background:none;color:var(--ink-3);font:500 .82rem/1.4 var(--fb);cursor:pointer}
 .did:hover{color:var(--ink)}
 .did .ic{width:13px;height:13px;transition:rotate var(--t2) var(--ease)}
@@ -1127,3 +1127,7 @@ html.resizing iframe{pointer-events:none}
 @keyframes wdIn{from{translate:0 100%;filter:blur(3px);opacity:.2}to{translate:0 0;filter:none;opacity:1}}
 @keyframes wdOut{to{translate:0 -100%;filter:blur(3px);opacity:0}}
 @media (prefers-reduced-motion:reduce){.wd .wd-in,.wd .wd-out{animation:none}.wd .wd-out{display:none}}
+
+/* Slot roll, as on chat.usecloak.org (rollText) */
+.m-roll{display:inline-grid;overflow:hidden;justify-items:start;vertical-align:top}
+.m-roll>span{grid-area:1/1;white-space:nowrap}

@@ -102,17 +102,39 @@
     $("blinkBtn").setAttribute("data-mood", m);
   }
   // Swaps a label by sliding the old one up and out and the new one in.
+  // Cloak's slot roll (chat.usecloak.org Effort label): the slot eases to the
+  // new width, the old text leaves upward, the new one springs up from below.
   function rollText(el, text) {
-    var cur = el.querySelector("span.rt-in");
-    if ((cur ? cur.textContent : el.textContent) === text) return;
-    if (!cur) { el.textContent = ""; }
-    el.classList.add("rt");
-    el.querySelectorAll("span.rt-out").forEach(function (x) { x.remove(); });
-    if (cur) { cur.className = "rt-out"; setTimeout(function () { cur.remove(); }, 260); }
-    var n = document.createElement("span");
-    n.className = "rt-in";
-    n.textContent = text;
-    el.appendChild(n);
+    if (!el) return;
+    var from = el._rollTo != null ? el._rollTo : el.textContent;
+    if (from === text) return;
+    if (el._roll) el._roll();
+    if (!from || matchMedia("(prefers-reduced-motion: reduce)").matches || !el.animate || !el.isConnected || !el.offsetWidth) { el.textContent = text; return; }
+    var slot = document.createElement("span"), out = document.createElement("span"), inn = document.createElement("span");
+    slot.className = "m-roll";
+    out.textContent = from; inn.textContent = text;
+    out.setAttribute("aria-hidden", "true");
+    el.textContent = "";
+    el.appendChild(slot);
+    slot.appendChild(out);
+    var w0 = slot.getBoundingClientRect().width;
+    slot.replaceChild(inn, out);
+    var w1 = slot.getBoundingClientRect().width;
+    slot.appendChild(out);
+    el._rollTo = text;
+    var anims = [
+      slot.animate([{ width: w0 + "px" }, { width: w1 + "px" }], { duration: 380, easing: "cubic-bezier(.16,1,.3,1)", fill: "forwards" }),
+      out.animate([{ transform: "none", opacity: 1 }, { transform: "translateY(-105%)", opacity: 0 }], { duration: 200, easing: "cubic-bezier(.55,0,1,.45)", fill: "forwards" }),
+      inn.animate([{ transform: "translateY(105%)" }, { transform: "none" }], { duration: 420, delay: 60, easing: "cubic-bezier(.3,1.35,.55,1)", fill: "backwards" }),
+    ];
+    var done = false;
+    el._roll = function () {
+      if (done) return; done = true;
+      anims.forEach(function (x) { x.cancel(); });
+      if (slot.parentNode === el) el.textContent = text;
+      el._roll = null; el._rollTo = null;
+    };
+    anims[2].finished.then(el._roll, function () {});
   }
   // A counter on a scroll wheel: each digit that changes rolls to the next, blurred in motion.
   function wheel(el, text) {
@@ -362,7 +384,7 @@
       b.className = "copy-code"; b.type = "button"; b.textContent = "Copy";
       b.addEventListener("click", function () {
         var code = pre.querySelector("code");
-        navigator.clipboard.writeText(code ? code.textContent : pre.textContent).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1400); });
+        navigator.clipboard.writeText(code ? code.textContent : pre.textContent).then(function () { rollText(b, "Copied"); setTimeout(function () { rollText(b, "Copy"); }, 1400); });
       });
       pre.appendChild(b);
     });
@@ -1330,7 +1352,12 @@
       var rc = $("threadIn").querySelector(".receipt");
       if (rc && !/Read/.test(rc.textContent)) rc.innerHTML = "<b>Read</b>";
     }
-    old.querySelector(".now-t span").textContent = resuming.label + "...";
+    var tb = old.querySelector(".now-t"), cur = tb.querySelector("span:not(.out)"), txt = resuming.label + "...";
+    if (!cur || cur.textContent !== txt) {
+      tb.querySelectorAll("span.out").forEach(function (x) { x.remove(); });
+      if (cur && cur.textContent) { cur.classList.add("out"); setTimeout(function () { cur.remove(); }, 220); } else if (cur) cur.remove();
+      var ns = document.createElement("span"); ns.textContent = txt; tb.appendChild(ns);
+    }
     scrollEnd(true);
   }
 
@@ -1748,7 +1775,7 @@
     vt.finished.catch(function () {}).then(function () { html.classList.remove("vt-theme"); ["--vt-t", "--vt-r", "--vt-b", "--vt-l"].forEach(function (p) { s.removeProperty(p); }); });
   }
   function toggleDark(e) {
-    swapTheme(function () { Kit.toggleMode(); $("modeLabel").textContent = Kit.mode(); }, e.currentTarget);
+    swapTheme(function () { Kit.toggleMode(); rollText($("modeLabel"), Kit.mode()); }, e.currentTarget);
   }
   // The Blink you are with: its own files (SOUL.md is yours to edit), what it
   // remembers, and what it has scheduled.
@@ -1933,7 +1960,7 @@
     $("cpCopy").addEventListener("click", function () {
       var f = codeSt.files[cv.file]; if (!f) return;
       var b = this, v = cv.v || f.versions.length;
-      navigator.clipboard.writeText(f.versions[v - 1].code).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1400); }).catch(function () {});
+      navigator.clipboard.writeText(f.versions[v - 1].code).then(function () { rollText(b, "Copied"); setTimeout(function () { rollText(b, "Copy"); }, 1400); }).catch(function () {});
     });
     $("cpDl").addEventListener("click", function () {
       var f = codeSt.files[cv.file]; if (!f) return;
@@ -1948,8 +1975,8 @@
     document.querySelectorAll("[data-side-toggle]").forEach(function (b) { b.addEventListener("click", toggleSide); });
     document.querySelectorAll("[data-dark-toggle]").forEach(function (b) { b.addEventListener("click", toggleDark); });
     document.querySelectorAll(".snav-btn").forEach(function (b) { b.addEventListener("click", function () { settingsTab(b.getAttribute("data-tab")); }); });
-    $("saveName").addEventListener("click", function () { state.user.name = $("setName").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); whoLabel(); prepSettings(); this.textContent = "Saved"; var b = this; setTimeout(function () { b.textContent = "Save"; }, 1400); });
-    $("saveAbout").addEventListener("click", function () { state.user.about = $("setAbout").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); this.textContent = "Saved"; var b = this; setTimeout(function () { b.textContent = "Save"; }, 1400); });
+    $("saveName").addEventListener("click", function () { state.user.name = $("setName").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); whoLabel(); prepSettings(); var b = this; rollText(b, "Saved"); setTimeout(function () { rollText(b, "Save"); }, 1400); });
+    $("saveAbout").addEventListener("click", function () { state.user.about = $("setAbout").value.trim(); Kit.set("pv_user", JSON.stringify(state.user)); var b = this; rollText(b, "Saved"); setTimeout(function () { rollText(b, "Save"); }, 1400); });
     $("signOut").addEventListener("click", function () { if (window.Sync && Sync.signOut) Sync.signOut(); });
     $("resetAll").addEventListener("click", function () { $("resetConfirm").hidden = false; this.hidden = true; $("resetNo").focus({ preventScroll: true }); });
     $("resetNo").addEventListener("click", function () { $("resetConfirm").hidden = true; $("resetAll").hidden = false; });
@@ -1996,7 +2023,7 @@
       if (!b) return;
       state.mode = b.getAttribute("data-mode");
       modeMenu.querySelectorAll("[data-mode]").forEach(function (x) { x.setAttribute("aria-checked", x === b ? "true" : "false"); });
-      $("modeName").textContent = b.querySelector("b").textContent;
+      rollText($("modeName"), b.querySelector("b").textContent);
       modeBtn.classList.toggle("on", state.mode !== "auto");
       modeOpen(false);
       modeBtn.focus();
