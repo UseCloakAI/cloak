@@ -964,7 +964,18 @@
           ch.messages.push({ role: "user", content: q.text, at: Date.now(), read: Date.now() });
         });
         save();
-        thinking = true; thinkAt = Date.now(); nowSay("Reading what you added");
+        thinking = true; thinkAt = Date.now();
+        // The Blink hops below what you added: its line rolls out here,
+        // the turn moves under your message, and the new line rolls in.
+        var cur = nowEl && nowEl.querySelector(".now-t span:not(.out)");
+        if (cur) cur.classList.add("out");
+        setTimeout(function () {
+          if (finished || !el) return;
+          $("threadIn").appendChild(el);
+          if (nowEl) { nowEl.classList.remove("hop"); void nowEl.offsetWidth; nowEl.classList.add("hop"); }
+          nowSay("Reading what you added");
+          scrollEnd(true);
+        }, 200);
       }
       if (ev.blink && window.Maker) {
         // A Blink made a Blink: it joins the sidebar at once.
