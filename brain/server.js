@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -452,13 +452,13 @@ const server = http.createServer(async (req, res) => {
   try {
     if (p === "/health") {
       if (!fromWorker(req)) return send(res, 401, { error: "Unauthorized" });
-      return send(res, 200, { ok: true, paused: !!config.paused, version: VERSION, uptime: Date.now() - started });
+      return send(res, 200, { ok: true, paused: !!config.paused, version: VERSION, uptime: Date.now() - started, computer: computer.available ? "ready" : fs.existsSync("/etc/cloak-brain/computer.json") ? "old-setup" : "not-installed" });
     }
     if (p === "/admin" || p.startsWith("/admin/")) return await handleAdmin(req, res, p);
     if (!fromWorker(req)) return send(res, 401, { error: "Unauthorized" });
     if (config.paused && p !== "/health") return send(res, 503, { error: "paused" });
     if (p === "/v1/turn" && req.method === "POST") return await handleTurn(req, res);
-    if (p === "/v1/me" || p.startsWith("/v1/memory") || p.startsWith("/v1/tasks") || p.startsWith("/v1/inbox") || p.startsWith("/v1/blink/")) return await handleMe(req, res, p);
+    if (p === "/v1/me" || p.startsWith("/v1/memory") || p.startsWith("/v1/tasks") || p.startsWith("/v1/inbox") || p.startsWith("/v1/blink/") || p.startsWith("/v1/computer")) return await handleMe(req, res, p);
     if (p === "/v1/files" || p.startsWith("/v1/files/")) return await handleFiles(req, res, p);
     send(res, 404, { error: "Not found" });
   } catch (e) {
