@@ -172,7 +172,7 @@ async function vision(b64, mime, question, w, h) {
   return out || "The screen could not be read just now.";
 }
 const isAdmin = (email) => !!email && config.admins.map((a) => String(a).toLowerCase()).includes(String(email).toLowerCase());
-const computer = makeComputer({ log, isAdmin, vision });
+const computer = makeComputer({ log, isAdmin, vision, stateDir: path.join(DATA, "computer") });
 
 // ── Files ────────────────────────────────────────────────────────────────────
 const FILE_MAX = 100 * 1024 * 1024; // Cloudflare's request limit on the free plan
@@ -301,6 +301,7 @@ async function handleMe(req, res, p) {
   if (p === "/v1/blink/all" && method === "DELETE") {
     blinks.wipe(key);
     minds.delete(key);
+    if (computer.available) await computer.wipe(key).catch((e) => log("error", `computer wipe failed: ${e.message}`));
     for (const f of [path.join(DATA, "users", userDir(key) + ".sqlite"), path.join(DATA, "files", userDir(key)), path.join(DATA, "chats", userDir(key))]) await fsp.rm(f, { recursive: true, force: true }).catch(() => {});
     log("info", "a person reset everything");
     return send(res, 200, { ok: true });
@@ -428,7 +429,7 @@ async function handleAdmin(req, res, p) {
     const patch = {};
     if (typeof body.paused === "boolean") patch.paused = body.paused;
     if (body.computerAccess === "everyone" || body.computerAccess === "admins") computer.setAccess(body.computerAccess);
-    if (body.computerSleep === true) { computer.sleep("desktop").catch(() => {}); computer.sleep("server").catch(() => {}); }
+    if (body.computerSleep === true) computer.sleepAll().catch(() => {});
     if (Array.isArray(body.admins)) patch.admins = body.admins.map((a) => String(a).trim().toLowerCase()).filter((a) => /@/.test(a)).slice(0, 10);
     if (patch.admins && !patch.admins.includes(who)) patch.admins.push(who); // never lock yourself out
     await saveConfig(patch);

@@ -363,7 +363,7 @@ ${list.length ? `CODE FILES in this chat (latest versions; use grep_files and re
 
 // When the person can use the Cloak Computer (two VMs on the home PC).
 export const COMPUTER_GUIDE = `# YOUR COMPUTERS
-You have two real Linux machines (Debian 13), each with this person's own account and home folder, kept between chats:
-- The server (server_run): no screen. Use it for code, packages, data, scripts and small servers. It is the fast choice.
-- The computer (computer_look, computer_click, computer_type, computer_key, computer_scroll, computer_drag, computer_run): a desktop with Firefox and a terminal at 1280x800. Use it only when something needs a browser or a window. Look before you click, read coordinates off the grid, and look again after each step to check.
-They sleep when unused, so the first command can take a minute while one wakes up. Only one person can drive the desktop at a time: if it is busy, tell them and offer the server or a later try. Install Debian packages with: sudo cloak-apt install NAME. Never try to reach the local network, other people's files or anything outside the task. Say what you did in a sentence or two; the person can watch the screen in the Computer panel.`;
+This person has two real Linux machines (Debian 13) of their own, nobody else's, kept between chats. You have sudo on both.
+- Their server (server_run): no screen. Use it for code, packages, data, scripts and small servers. It is the fast choice.
+- Their computer (computer_look, computer_click, computer_type, computer_key, computer_scroll, computer_drag, computer_run): a desktop with Firefox and a terminal at 1280x800. Use it only when something needs a browser or a window. Look before you click, read coordinates off the grid, and look again after each step to check.
+They sleep when unused, so the first command can take a minute while one wakes up. This PC runs one desktop at a time: if it is busy with someone else, say so and offer the server or a later try. Their machines reach the internet only, never a local network; never try. Say what you did in a sentence or two; they can watch the screen in the Computer panel.`;

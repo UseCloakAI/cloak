@@ -34,21 +34,22 @@ The agent itself is not copied here: the installer fetches `blinks-api/src` and 
 - **Files.** Chat files upload through the Worker to `/v1/files` and live in `/var/lib/cloak-brain/files/<person>/` (100 MB each). In Low Light they are unavailable.
 - **Security.** Every brain route needs the shared `BRAIN_TOKEN` (only the Worker has it), except `/admin`, which needs a Cloak account on the admin list. The service runs as an unprivileged user with a read-only system.
 
-## Cloak Computer (optional): two VMs for the agent
+## Cloak Computer (optional): everyone gets their own machines
 
-`curl -fsSL https://usecloak.org/brain/install.sh | sudo bash -s -- --with-computer` adds, through `vm/setup.sh` (KVM/libvirt):
+`curl -fsSL https://usecloak.org/brain/install.sh | sudo bash -s -- --with-computer` runs `vm/setup.sh` (KVM/libvirt), which builds two sealed golden images once:
 
-| VM | OS | Size | For |
-|---|---|---|---|
-| `cloak-computer` | Debian 13 + minimal XFCE, 1280x800 | 6 GB RAM, 4 vCPU, 40 GB disk | The agent sees the screen (screenshots with a coordinate grid, read by the vision models), clicks, types, presses keys, runs commands |
-| `cloak-server` | Debian 13 cloud image, no desktop | 1.5 GB RAM, 2 vCPU, 20 GB disk | Packages, scripts, small servers |
+| Image | OS | Slot on this PC |
+|---|---|---|
+| desktop | Debian 13 + minimal XFCE (1280x800), Firefox, terminal | 1 slot: 6 GB RAM, 4 vCPU |
+| server | Debian 13 cloud image, no desktop | 2 slots: 1.5 GB RAM, 2 vCPU each |
 
-- **Asleep until needed.** The first tool call (or Wake in the app's Computer panel) boots one (about a minute on a hard drive). After 10 unused minutes it shuts down again.
-- **Everyone gets their own account** (`cl-<hash>`, home folder kept between chats) on both machines. One person drives the desktop at a time (a lease renewed by each action, 4 minutes); others see "In use by someone else". The server serves everyone at once.
-- **Kept off your network.** The VMs sit on `cloak-vm` (10.77.0.0/24, NAT). An nftables table (`cloak_vm`, applied by `cloak-vm-firewall.service`) lets them reach the internet only: no LAN, no router, nothing on this PC but DNS/DHCP. Commands run unprivileged with memory, CPU, process and time limits; packages install through `sudo cloak-apt install NAME` (Debian repositories, by name).
-- **The agent inside each VM** (`vm/agent.py`) answers only the brain, with a token, and updates itself when the brain does.
+- **One machine per person, per kind.** The brain (`computer.js`) gives each person their own disks on top of the images (`/var/lib/cloak-vm/users/<id>/`, copy-on-write, capped at the image size: 16 GB desktop, 12 GB server), their own cloud-init seed and their own agent key (kept in `/var/lib/cloak-brain/computer/`, mode 600). Nothing is shared between people: disk, browser profile, processes, ports, `/tmp`, packages. Inside their own machine the person (and their Blink) has sudo.
+- **Sealed.** Every machine sits on an isolated port of `cloak-vm` (10.77.0.0/24) with libvirt's `clean-traffic` filter (no MAC/IP spoofing), so machines cannot reach each other. The `cloak_vm` nftables table lets them reach the internet only: no LAN, router, link-local, multicast or this PC (except DNS/DHCP). The agent inside (`vm/agent.py`) answers only 10.77.0.1, with that machine's key. Golden images ship with SSH off and unattended security upgrades on.
+- **Asleep until needed.** A machine boots into a slot when its person needs it (about a minute on a hard drive) and shuts down after 10 minutes unused. The desktop slot is held by its driver for 4 minutes after their last action; anyone else's desktop waits ("in use"). A server slot quiet for a minute is handed to whoever needs it. Running machines are re-adopted after a brain restart.
+- **Deleting.** Settings > Reset everything also destroys the person's machines, disks and keys.
 - **Who can use it:** admins only by default; switch to everyone on /admin.
 - Tools: `computer_look`, `computer_click`, `computer_type`, `computer_key`, `computer_scroll`, `computer_drag`, `computer_run`, `server_run`.
+- Not covered: the brain PC's own disk is not encrypted. Full-disk encryption (LUKS) needs a reinstall; a good moment is when an SSD goes in.
 
 ## Install
 
