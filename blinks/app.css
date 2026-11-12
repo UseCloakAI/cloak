@@ -660,10 +660,13 @@ figure.drawn .note{font-size:1.05rem;rotate:-2deg}
 .now-n{flex:none;font:500 .74rem/1 var(--fm);color:var(--ink-3);padding:3px 6px;border:1.5px solid var(--line);animation:pop .4s var(--sp-snap) both}
 
 /* Messages between Blinks, shown in the Blink's chat */
-.relay{display:flex;gap:10px;align-items:flex-start;max-width:min(560px,92%);margin:6px auto 14px;padding:10px 12px;border:1.5px dashed var(--line-2);background:var(--surface);font-size:.88rem;color:var(--ink-2);animation:pop .5s var(--sp-snap) both}
-.relay .relay-av{width:28px;height:28px;flex:none}
-.relay b{display:block;font:700 .66rem/1.2 var(--fb);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
-.relay p{margin:0;white-space:pre-wrap;word-break:break-word}
+.relay{max-width:min(560px,92%);margin:2px auto 8px;font-size:.76rem;color:var(--ink-3);text-align:center}
+.relay summary{display:inline-flex;align-items:center;gap:5px;cursor:pointer;list-style:none;padding:2px 8px;border-radius:999px;transition:color .15s,background .15s}
+.relay summary::-webkit-details-marker{display:none}
+.relay summary:hover{color:var(--ink-2);background:var(--sunk)}
+.relay summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.relay summary .ic{width:12px;height:12px;flex:none}
+.relay p{margin:4px auto 0;max-width:460px;padding:6px 10px;border-left:2px solid var(--line-2);text-align:left;white-space:pre-wrap;word-break:break-word;color:var(--ink-3);animation:pop .3s var(--sp-snap) both}
 .task-tag{display:inline-flex;align-items:center;gap:6px;margin:0 0 6px;font:700 .66rem/1 var(--fb);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
 
 /* Settings: a Blink's own files */

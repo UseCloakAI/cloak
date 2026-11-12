@@ -214,6 +214,8 @@
     if (!ch || !ch.messages.length) return null;
     var m = ch.messages[ch.messages.length - 1];
     var t = String(m.onRead ? "Read" : m.content || "").replace(/```[\s\S]*?```/g, "[code]").replace(/\[react:[^\]]*\]|\[read\]/gi, "").replace(/[*_#>`]/g, "").replace(/\s+/g, " ").trim();
+    if (m.sent) return "Sent message to " + m.sent;
+    if (m.to) return "Replied to " + m.to;
     return (m.from ? m.from + ": " : m.role === "user" ? "You: " : "") + t;
   }
   function when(id) {
@@ -515,13 +517,15 @@
     return el;
   }
   // A message another Blink sent this one, shown as a quiet note.
+  // Blinks talking to each other: one small gray line, collapsed until you open it.
+  function isRelay(m) { return !!(m.from || m.to || m.sent); }
   function relayTurn(m) {
-    var el = document.createElement("div");
+    var el = document.createElement("details");
     el.className = "relay";
-    var from = C.find(function (c) { return c.name === m.from; });
-    el.innerHTML = '<div><b>' + Kit.esc(m.from) + " to " + Kit.esc(who(state.companion).name) + "</b><p>" + Kit.esc(m.content) + "</p></div>";
+    var peer = m.from || m.to || m.sent;
+    el.innerHTML = "<summary>" + Kit.icon(m.from ? "arrow-down-left" : "arrow-up-right") + "<span>" + (m.from ? "Received message from " : "Sent message to ") + Kit.esc(peer) + "</span></summary><p></p>";
+    el.querySelector("p").textContent = m.content || "";
     $("threadIn").appendChild(el);
-
     return el;
   }
   function botTurn(m) {
@@ -674,7 +678,7 @@
     ch.messages.forEach(function (m, i) {
       if (m.at && m.at - last > 20 * 60000) divider(m.at);
       if (m.at) last = m.at;
-      if (m.from) relayTurn(m);
+      if (isRelay(m)) relayTurn(m);
       else if (m.role === "user") { var nx = ch.messages[i + 1]; userTurn(m, nx && nx.role === "assistant" ? nx.react : null); }
       else if (!m.onRead) botTurn(m);
     });
@@ -1078,10 +1082,10 @@
 
   // What the model sees: its own tags kept, your tapbacks noted on your next text.
   function history(ch) {
-    return ch.messages.map(function (m, i) {
+    return ch.messages.filter(function (m) { return !m.sent; }).map(function (m, i, all) {
       if (m.from) return { role: "user", content: "[A message from " + m.from + ", another of this person's Blinks]\n" + m.content };
       if (m.role === "user") {
-        var prev = ch.messages[i - 1], note = "";
+        var prev = all[i - 1], note = "";
         if (prev && prev.role === "assistant" && prev.taps) {
           var t = Object.keys(prev.taps).map(function (k) { return prev.taps[k]; });
           if (t.length) note = "(I tapped " + t.join(" ") + " on your last texts.)\n";
@@ -1389,6 +1393,7 @@
     if (e.from) return { role: "user", from: e.from, content: e.content, at: e.at };
     // Yours, as the brain kept it (the tapback note the app adds is not part of what you wrote).
     if (e.role === "user") return { role: "user", content: String(e.content || "").replace(/^\(I tapped [^)]*\)\n/, ""), at: e.at, read: e.at, mine: true };
+    if (e.sent || e.to) return { role: "assistant", content: e.content, companion: id, at: e.at, sent: e.sent, to: e.to };
     var p = parseReply(e.content);
     var m = { role: "assistant", content: p.text, companion: id, at: e.at, meta: { lane: "brain", lane_label: e.task ? "Scheduled task" : "Finished on the brain" } };
     if (p.react) m.react = p.react;
@@ -1399,7 +1404,7 @@
   function seen(ch, m) {
     var k = norm(m.content);
     return ch.messages.slice(-240).some(function (x) {
-      if (!!x.from !== !!m.from || (x.role === "assistant") !== (m.role === "assistant")) return false;
+      if (!!x.from !== !!m.from || (x.sent || "") !== (m.sent || "") || (x.to || "") !== (m.to || "") || (x.role === "assistant") !== (m.role === "assistant")) return false;
       if (m.onRead) return !!x.onRead && Math.abs((x.at || 0) - m.at) < 120000;
       return norm(x.content) === k;
     });
@@ -1417,7 +1422,7 @@
           var m = fromLog(e, id);
           if (!ch) ch = newChatFor(id);
           if (seen(ch, m)) return;
-          if (!m.mine) theirs++;
+          if (!m.mine && !m.sent) theirs++;
           delete m.mine;
           ch.messages.push(m);
           if (id === state.companion) fresh.push(m);
@@ -1444,7 +1449,7 @@
         else {
           codeState();
           fresh.forEach(function (m) {
-            if (m.from) relayTurn(m);
+            if (isRelay(m)) relayTurn(m);
             else if (m.role === "user") userTurn(m, null).classList.add("sent");
             else if (!m.onRead) { var t = botTurn(m); t.querySelectorAll(".bub").forEach(function (b) { b.classList.add("pop"); }); }
           });
