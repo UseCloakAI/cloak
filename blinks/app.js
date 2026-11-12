@@ -824,7 +824,7 @@
       box.querySelectorAll("span.out").forEach(function (x) { x.remove(); }); // never more than one on its way out
       if (old) { old.classList.add("out"); setTimeout(function () { old.remove(); }, 300); }
       var n = document.createElement("span");
-      n.textContent = label + "...";
+      n.textContent = n.dataset.t = label + "...";
       box.appendChild(n);
       typing(false);
       scrollEnd();
@@ -1370,7 +1370,7 @@
     if (!cur || cur.textContent !== txt) {
       tb.querySelectorAll("span.out").forEach(function (x) { x.remove(); });
       if (cur && cur.textContent) { cur.classList.add("out"); setTimeout(function () { cur.remove(); }, 220); } else if (cur) cur.remove();
-      var ns = document.createElement("span"); ns.textContent = txt; tb.appendChild(ns);
+      var ns = document.createElement("span"); ns.textContent = ns.dataset.t = txt; tb.appendChild(ns);
     }
     scrollEnd(true);
   }
