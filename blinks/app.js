@@ -807,7 +807,7 @@
         // The Blink itself sits beside what it is doing, and works with it.
         var c = who(bm.companion);
         track(c.id, Creatures.mount(nowEl.querySelector(".now-av"), look(c), { label: c.name, mood: nowMood }));
-        var t0 = Date.now(), n = nowEl.querySelector(".now-n"), box0 = nowEl;
+        var t0 = Date.now(), secEl = nowEl.querySelector(".now-n"), box0 = nowEl;
         var tick = setInterval(function () {
           if (!box0.isConnected) return clearInterval(tick);
           var sec = Math.round((Date.now() - t0) / 1000);
@@ -815,7 +815,7 @@
             var k = Math.min(THINK.length - 1, Math.floor((Date.now() - thinkAt) / 4500));
             if (k > 0) nowSay(THINK[k]);
           }
-          if (sec >= 3) { n.hidden = false; wheel(n, sec < 60 ? sec + "s" : Math.floor(sec / 60) + "m " + (sec % 60) + "s"); }
+          if (sec >= 3) { secEl.hidden = false; wheel(secEl, sec < 60 ? sec + "s" : Math.floor(sec / 60) + "m " + (sec % 60) + "s"); }
         }, 1000);
       }
       var box = nowEl.querySelector(".now-t");
