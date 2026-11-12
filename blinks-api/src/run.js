@@ -99,6 +99,9 @@ export class AgentRun extends DurableObject {
     this.req = body;
     body.pending = () => this.notes.splice(0); // used when the Worker runs the turn (Low Light)
     let final = null;
+    // Long quiet steps (the computer, deep research) send nothing for a while:
+    // keep every watcher's connection warm so nothing in between drops it.
+    const beat = setInterval(() => { for (const w of this.subs) w.write(enc.encode(": ping\n\n")).catch(() => this.subs.delete(w)); }, 15_000);
     try {
       for await (const e of turn(this.env, { waitUntil: (p) => this.ctx.waitUntil(p) }, body, this.ctrl.signal)) {
         if (this.status === "cancelled") break;
@@ -113,6 +116,7 @@ export class AgentRun extends DurableObject {
         this.push({ error: friendly(err) });
       }
     }
+    clearInterval(beat);
     const watched = this.subs.size > 0;
     for (const w of this.subs) w.close().catch(() => {});
     this.subs.clear();
