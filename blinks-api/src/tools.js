@@ -238,13 +238,13 @@ export const TOOLS = {
     async run(a, cx) { await cx.computer.input({ action: "drag", x: a.x, y: a.y, to_x: a.to_x, to_y: a.to_y }); return { text: "Dragged.", summary: "dragged" }; },
   },
   computer_run: {
-    spec: fn("computer_run", "Run a bash command on the computer (the desktop machine), as this person's own Linux account, in their home folder. Programs you start can open windows on the screen (end the command with & to leave them running). For code and packages with no screen, prefer server_run.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
+    spec: fn("computer_run", "Run a bash command on this person's own desktop computer (only theirs; you have sudo). Programs you start open windows on its screen (end the command with & to leave them running). For code and packages with no screen, prefer server_run.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
     label: (a) => `Running ${String(a.command || "").slice(0, 40)}`,
     needs: "computer", top: true, outward: (a) => a.command,
     async run(a, cx) { return ranText(await cx.computer.run("desktop", String(a.command || ""), a.timeout)); },
   },
   server_run: {
-    spec: fn("server_run", "Run a bash command on your server (headless Debian with Python, Node, git, build tools), as this person's own Linux account, in their home folder, which they keep between chats. Install packages with: sudo cloak-apt install NAME (Debian packages), pip install --user, or npm in a project folder. Memory limit 2.5 GB, up to 600 seconds.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
+    spec: fn("server_run", "Run a bash command on this person's own server (headless Debian with Python, Node, git and build tools; only theirs; you have sudo, so sudo apt-get install works). Their files stay between chats. Up to 600 seconds per command.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
     label: (a) => `Running ${String(a.command || "").slice(0, 40)}`,
     needs: "computer", top: true, outward: (a) => a.command,
     async run(a, cx) { return ranText(await cx.computer.run("server", String(a.command || ""), a.timeout)); },

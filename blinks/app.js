@@ -1458,7 +1458,7 @@
     asleep: ["The computer is asleep", "It wakes up when your Blink needs it, or now if you want to watch. Waking takes about a minute."],
     waking: ["Waking up", "Starting the desktop. This takes about a minute."],
     sleeping: ["Going to sleep", "Nobody used it for a while."],
-    someone: ["In use by someone else", "Someone else is using the desktop right now. Your Blink can still use the server, and the desktop frees up when they are done."],
+    someone: ["Someone else's desktop is running", "This PC runs one desktop at a time, and someone else is using theirs right now. Your Blink can still use your server, and your desktop can start when they are done."],
   };
   function compStatus() {
     return api("/v1/computer").then(function (st) {

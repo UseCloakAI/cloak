@@ -1,64 +1,48 @@
 #!/usr/bin/env python3
-"""Cloak Computer agent: runs inside each Cloak VM (as root) and does what
-the brain asks, on the VM's private network only (10.77.0.0/24).
+"""Cloak Computer agent: runs inside each person's own VM (as root) and does
+what the brain asks.
 
-    GET  /health                       {ok, kind, mem, load}
-    POST /run      {user, cmd, timeout} run a shell command as that person's own
-                                       Linux account, with memory/CPU/time limits
-    POST /screen                       PNG of the desktop with a labelled 100px grid,
-                                       plus a clean copy (desktop VM only)
-    POST /input    {action, ...}       click / double / right / move / drag / type /
-                                       key / scroll on the desktop (desktop VM only)
+Every VM belongs to exactly one person: their own disk, their own token,
+their own account ("cloak", who has sudo on this machine only). The VM's
+network port is isolated (it cannot see other VMs), and this agent only
+answers the brain (10.77.0.1) with this VM's own token.
 
-Every request needs the X-Agent-Token written at provisioning. Commands
-never run as root: each person gets an unprivileged account (cl-<id>) in the
-group cloakusers. The only root path is /usr/local/bin/cloak-apt, which
-installs packages from the configured Debian repositories by name.
+    GET  /health                      {ok, kind, mem, load, version}
+    POST /run    {cmd, timeout}       a bash command as the person, with limits
+    POST /screen                      the desktop as PNG + a JPEG with a labelled
+                                      100px grid (desktop VMs only)
+    POST /input  {action, ...}        click / double / right / move / drag / type /
+                                      key / scroll (desktop VMs only)
+    POST /update {code}               a newer copy of this file from the brain
+
 No dependencies beyond Python 3, xdotool and ImageMagick."""
 
-import base64, hashlib, json, os, re, subprocess, pwd, grp, sys, time
+import base64, hashlib, json, os, re, subprocess, pwd, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 CONF = json.load(open("/etc/cloak/agent.json"))
 TOKEN = CONF["token"]
 KIND = CONF.get("kind", "server")          # "desktop" or "server"
-DESK_USER = CONF.get("desktop_user", "cloak")
+USER = CONF.get("user", "cloak")           # the person's account on their own VM
 PORT = int(CONF.get("port", 8765))
+BRAIN = CONF.get("brain", "10.77.0.1")     # the only address this agent answers
 OUT_MAX = 64 * 1024
-USER_RE = re.compile(r"^cl-[a-z0-9]{6,24}$")
 VERSION = hashlib.sha256(open(__file__, "rb").read()).hexdigest()[:16]
 
 def x_env():
-    home = pwd.getpwnam(DESK_USER).pw_dir
+    home = pwd.getpwnam(USER).pw_dir
     return {"DISPLAY": ":0", "XAUTHORITY": os.path.join(home, ".Xauthority"), "PATH": "/usr/local/bin:/usr/bin:/bin"}
 
-def ensure_user(name):
-    if not USER_RE.match(name or ""):
-        raise ValueError("bad user")
-    try:
-        pwd.getpwnam(name)
-        return
-    except KeyError:
-        pass
-    try:
-        grp.getgrnam("cloakusers")
-    except KeyError:
-        subprocess.run(["groupadd", "cloakusers"], check=True)
-    subprocess.run(["useradd", "-m", "-s", "/bin/bash", "-G", "cloakusers", name], check=True)
-    subprocess.run(["chmod", "700", f"/home/{name}"], check=True)
-    if KIND == "desktop":
-        # Let this person's commands open windows on the shared desktop.
-        subprocess.run(["runuser", "-u", DESK_USER, "--", "xhost", f"+SI:localuser:{name}"], env=x_env(), capture_output=True)
-
-def run(user, cmd, timeout):
-    ensure_user(user)
+def run(cmd, timeout):
     timeout = max(1, min(int(timeout or 60), 600))
-    env = ["-E", f"HOME=/home/{user}", "-E", f"USER={user}", "-E", "LANG=C.UTF-8", "-E", "TERM=dumb"]
+    home = pwd.getpwnam(USER).pw_dir
+    env = ["-E", f"HOME={home}", "-E", f"USER={USER}", "-E", "LANG=C.UTF-8", "-E", "TERM=dumb"]
     if KIND == "desktop":
-        env += ["-E", "DISPLAY=:0"]
-    argv = ["systemd-run", "--quiet", "--wait", "--pipe", "--collect", f"--uid={user}", f"--gid={user}",
-            f"--working-directory=/home/{user}",
-            "-p", "MemoryMax=2500M", "-p", "CPUQuota=200%", "-p", "TasksMax=512", "-p", f"RuntimeMaxSec={timeout}",
+        env += ["-E", "DISPLAY=:0", "-E", f"XAUTHORITY={home}/.Xauthority"]
+    # Limits keep one runaway command from freezing the person's own machine.
+    argv = ["systemd-run", "--quiet", "--wait", "--pipe", "--collect", f"--uid={USER}", f"--gid={USER}",
+            f"--working-directory={home}",
+            "-p", "MemoryMax=85%", "-p", "TasksMax=2048", "-p", f"RuntimeMaxSec={timeout}",
             *env, "/bin/bash", "-lc", cmd]
     t0 = time.time()
     try:
@@ -131,7 +115,7 @@ class H(BaseHTTPRequestHandler):
         b = json.dumps(obj).encode()
         self.send_response(code); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(b))); self.end_headers(); self.wfile.write(b)
     def ok(self):
-        if self.headers.get("X-Agent-Token") != TOKEN:
+        if self.client_address[0] != BRAIN or self.headers.get("X-Agent-Token") != TOKEN:
             self.send(401, {"error": "unauthorized"}); return False
         return True
     def body(self):
@@ -147,7 +131,7 @@ class H(BaseHTTPRequestHandler):
         if not self.ok(): return
         try:
             a = self.body()
-            if self.path == "/run": return self.send(200, run(a.get("user"), str(a.get("cmd") or ""), a.get("timeout")))
+            if self.path == "/run": return self.send(200, run(str(a.get("cmd") or ""), a.get("timeout")))
             if self.path == "/update":
                 # The brain sends a newer copy of this file; systemd restarts us on it.
                 code = base64.b64decode(a.get("code") or "")
