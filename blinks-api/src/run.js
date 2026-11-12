@@ -28,6 +28,8 @@ export class AgentRun extends DurableObject {
     this.status = "idle"; // idle | running | done | error | cancelled
     this.pending = null;
     this.ctrl = null;
+    this.notes = [];
+    this.req = null;
   }
 
   async fetch(request) {
@@ -42,6 +44,17 @@ export class AgentRun extends DurableObject {
         await this.ctx.storage.setAlarm(Date.now());
       }
       return this.attach(0);
+    }
+    // A message sent while the run works: the agent reads it before its next step.
+    if (request.method === "POST" && tail === "note") {
+      const { text } = await request.json().catch(() => ({}));
+      const t = String(text || "").trim().slice(0, 4000);
+      if (!t || this.status !== "running") return new Response('{"ok":false}', { headers: { "Content-Type": "application/json" } });
+      this.notes.push(t);
+      // When the brain runs this turn, it keeps its own copy of the notes.
+      const r = this.req;
+      if (r?.userKey) toBrain(this.env, "/v1/blink/inject", { method: "POST", headers: { "Content-Type": "application/json", "X-User-Key": r.userKey }, body: JSON.stringify({ run_id: r.run_id, text: t }) }).catch(() => {});
+      return new Response('{"ok":true}', { headers: { "Content-Type": "application/json" } });
     }
     if (request.method === "POST" && tail === "cancel") {
       if (this.status === "running") {
@@ -83,6 +96,8 @@ export class AgentRun extends DurableObject {
     }
     const body = this.pending;
     this.pending = null;
+    this.req = body;
+    body.pending = () => this.notes.splice(0); // used when the Worker runs the turn (Low Light)
     let final = null;
     try {
       for await (const e of turn(this.env, { waitUntil: (p) => this.ctx.waitUntil(p) }, body, this.ctrl.signal)) {

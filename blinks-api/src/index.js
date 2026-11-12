@@ -205,6 +205,7 @@ async function handleChat(request, env, ctx, cors) {
     country: request.cf?.country || null,
     max_tokens: body.max_tokens,
     chat_id: typeof body.chat_id === "string" ? body.chat_id.slice(0, 64) : null,
+    run_id: typeof body.run_id === "string" ? body.run_id.slice(0, 64) : null,
   };
 
   // Cloud run: the work continues if this connection drops.
@@ -220,7 +221,7 @@ async function handleChat(request, env, ctx, cors) {
 async function handleRun(request, env, cors, id, action) {
   const stub = env.AGENT_RUN.get(env.AGENT_RUN.idFromName(id));
   const u = new URL(request.url);
-  const res = await stub.fetch(`https://run/${action || "events"}${u.search}`, { method: request.method });
+  const res = await stub.fetch(`https://run/${action || "events"}${u.search}`, { method: request.method, body: action === "note" ? await request.text() : undefined });
   const headers = { ...cors, "Content-Type": res.headers.get("Content-Type") || "application/json" };
   if (res.headers.get("X-Run-Status")) Object.assign(headers, { "X-Run-Status": res.headers.get("X-Run-Status"), "Access-Control-Expose-Headers": "X-Run-Status", "Cache-Control": "no-cache, no-transform" });
   return new Response(res.body, { status: res.status, headers });
@@ -357,7 +358,7 @@ export default {
         return payload ? json(payload, cors, 200, { "Cache-Control": "no-store" }) : json({ error: "That code is wrong, used or expired. Make a new one." }, cors, 404);
       }
       let m;
-      if ((m = /^\/v1\/runs\/([\w-]{16,64})(?:\/(cancel))?$/.exec(path))) return await handleRun(request, env, cors, m[1], m[2]);
+      if ((m = /^\/v1\/runs\/([\w-]{16,64})(?:\/(cancel|note))?$/.exec(path))) return await handleRun(request, env, cors, m[1], m[2]);
       if (path === "/v1/me" || path.startsWith("/v1/memory") || path.startsWith("/v1/tasks") || path.startsWith("/v1/inbox") || path.startsWith("/v1/blink/") || path.startsWith("/v1/computer")) return await handleMe(request, env, cors, path);
       if (path === "/v1/tools" && request.method === "GET") return json({ tools: catalog(), modes: ["auto", "swift", "deep", "research", "team"] }, cors, 200, { "Cache-Control": "public, max-age=300" });
       if (path === "/v1/speech" || path === "/v1/speech/voices") {

@@ -348,6 +348,7 @@ ${voice.trim()}
     return {
       body: next,
       bindTalk(ctx, signal) { next.talk = talker(user, { id, name: st.name }, roster, chain, ctx, signal); },
+      note(text) { st.append({ role: "user", content: text }); },
       finish(text) { return text != null ? st.append({ role: "assistant", content: text }).at : null; },
     };
   }
