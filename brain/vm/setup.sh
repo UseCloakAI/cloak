@@ -16,15 +16,18 @@
 #
 # Safe to run again: only builds what is missing. Run by the installer with
 # --with-computer (and on every update after).
-set -euo pipefail
+set -Eeuo pipefail
 
 CONF=/etc/cloak-brain
 APP=/opt/cloak-brain/app
 VMROOT=/var/lib/cloak-vm
 NET=cloak-vm
 IMG_BASE=https://cloud.debian.org/images/cloud/trixie/latest
-say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
 fail() { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+STEP="starting"
+trap 'printf "\n\033[31mCloak Computer setup failed during: %s (line %s). Fix the problem above and run the same command again; it picks up where it stopped.\033[0m\n" "$STEP" "$LINENO" >&2' ERR
+# Every say() names the step, so a failure says where it happened.
+say()  { STEP="$*"; printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 [ "$(id -u)" = 0 ] || fail "Run this as root."
 grep -Eq 'vmx|svm' /proc/cpuinfo || fail "This processor has no virtualization turned on. Turn on Intel VT-x in the BIOS (HP: F10 > Advanced > System Options > Virtualization Technology), then run this again."
@@ -87,13 +90,13 @@ cat > "$CONF/vm-firewall.nft" <<'NFT'
 table inet cloak_vm
 delete table inet cloak_vm
 table inet cloak_vm {
-  chain fwd {
+  chain vm_forward {
     type filter hook forward priority -10; policy accept;
     # Never another VM, never your home network, the router or this PC.
     iifname "cloakvm0" ip daddr { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 100.64.0.0/10, 127.0.0.0/8, 224.0.0.0/4 } drop
     iifname "cloakvm0" ip6 daddr { fc00::/7, fe80::/10, ff00::/8 } drop
   }
-  chain in {
+  chain vm_input {
     type filter hook input priority -10; policy accept;
     iifname "cloakvm0" ct state established,related accept
     iifname "cloakvm0" udp dport { 53, 67 } accept
@@ -121,10 +124,31 @@ systemctl enable cloak-vm-firewall >/dev/null
 systemctl restart cloak-vm-firewall
 
 say "Computer 4/6  Debian 13 images"
+# latest/ can 404 while Debian is mid-publish: fall back to the newest dated
+# folder that has the file, and check it against that folder's SHA512SUMS.
+fetch_image() { # $1 file name
+  local img=$1 out="$VMROOT/build/$1" dirs d sum
+  rm -f "$out.part"
+  dirs="latest $(curl -fsSL "https://cloud.debian.org/images/cloud/trixie/" | grep -oE 'href="[0-9]{8}-[0-9]+/' | sed 's/href="//;s:/$::' | sort -ru | head -8)" || dirs="latest"
+  for d in $dirs; do
+    # Dated folders carry the date in the file name.
+    local name=$img
+    [ "$d" = latest ] || name="${img%.qcow2}-$d.qcow2"
+    sum=$(curl -fsSL "https://cloud.debian.org/images/cloud/trixie/$d/SHA512SUMS" 2>/dev/null | awk -v f="$name" '$2==f || $2=="*"f {print $1; exit}') || sum=""
+    [ -n "$sum" ] || continue
+    if curl -fsSL "https://cloud.debian.org/images/cloud/trixie/$d/$name" -o "$out.part"; then
+      if [ "$(sha512sum "$out.part" | awk '{print $1}')" = "$sum" ]; then
+        mv -f "$out.part" "$out"; echo "Got $img ($d)."; return 0
+      fi
+      echo "$img from $d did not match its checksum; trying an older folder."
+    fi
+    rm -f "$out.part"
+  done
+  fail "Could not download $img from cloud.debian.org (tried latest and the newest dated folders)."
+}
 for img in debian-13-generic-amd64.qcow2 debian-13-genericcloud-amd64.qcow2; do
   if [ ! -f "$VMROOT/build/$img" ] && [ ! -f "$VMROOT/base/desktop.qcow2" -o ! -f "$VMROOT/base/server.qcow2" ]; then
-    curl -fsSL "$IMG_BASE/$img" -o "$VMROOT/build/$img.part" || fail "Could not download $img."
-    mv -f "$VMROOT/build/$img.part" "$VMROOT/build/$img"
+    fetch_image "$img"
   fi
 done
 
@@ -207,7 +231,7 @@ build_base() { # $1 kind  $2 cloud image  $3 disk GB  $4 MB
   local gfx=(--graphics none)
   [ "$kind" = desktop ] && gfx=(--graphics vnc,listen=127.0.0.1 --video qxl)
   virt-install -q --name "$name" --memory "$mb" --vcpus 4 --cpu host-passthrough \
-    --osinfo detect=on,require=off --import --noautoconsole --autostart=no \
+    --osinfo detect=on,require=off --import --noautoconsole \
     --disk "path=$VMROOT/build/$kind-build.qcow2,bus=virtio" --disk "path=$VMROOT/build/$kind-seed.iso,device=cdrom" \
     --network "network=$NET,model=virtio" "${gfx[@]}"
   # It powers itself off when the install is done.
