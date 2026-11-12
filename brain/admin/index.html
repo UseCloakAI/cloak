@@ -113,7 +113,7 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
       <div class="card" style="display:grid;gap:14px;align-content:start">
         <h3>Settings</h3>
         <div><p class="lbl">Admins (one email per line)</p><textarea class="field" id="admins"></textarea></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="saveAdmins">Save admins</button><button class="btn ghost" id="restart">Restart brain</button></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" id="saveAdmins">Save admins</button><button class="btn ghost" id="update">Update now</button><button class="btn ghost" id="restart">Restart brain</button></div>
         <p class="muted mono" id="facts"></p>
         <div id="compBox" hidden style="display:grid;gap:8px;border-top:1px solid rgba(127,127,127,.3);padding-top:12px">
           <p class="lbl">Cloak Computer (the two VMs)</p>
@@ -233,6 +233,14 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
   };
   $("compAccess").onchange = async function () { await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ computerAccess: this.value }) }); loadSettings(); };
   $("compSleep").onclick = async function () { await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ computerSleep: true }) }); setTimeout(loadSettings, 1500); };
+  $("update").onclick = async function () {
+    var b = this, was = b.textContent;
+    b.disabled = true; b.textContent = "Checking for updates";
+    var r = await api("/admin/api/update", { method: "POST" }).catch(function (e) { return { error: e.message }; });
+    if (!r || r.error) { alert((r && r.error) || "Could not start the update."); b.disabled = false; b.textContent = was; return; }
+    b.textContent = "Updating. Back in a minute";
+    setTimeout(function () { location.reload(); }, 75000);
+  };
   $("restart").onclick = async function () {
     if (!confirm("Restart the brain? Replies in progress will move to Low Light.")) return;
     await api("/admin/api/restart", { method: "POST" });

@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -454,6 +454,14 @@ async function handleAdmin(req, res, p) {
     return send(res, 200, { ok: true, paused: config.paused, admins: config.admins });
   }
   if (p === "/admin/api/settings") return send(res, 200, { paused: config.paused, admins: config.admins, api: config.api, dataDir: DATA, port: config.port, computer: computer.status(null, who) });
+  // Update now: the updater (root, systemd) watches for this file.
+  if (p === "/admin/api/update" && req.method === "POST") {
+    const can = fs.existsSync("/etc/systemd/system/cloak-brain-update.path");
+    if (!can) return send(res, 409, { error: "This brain cannot update on request yet. It will be able to after its next automatic update (within 30 minutes)." });
+    fs.writeFileSync(path.join(DATA, "update-now"), String(Date.now()));
+    log("info", `${who} asked for an update`);
+    return send(res, 200, { ok: true, version: VERSION });
+  }
   if (p === "/admin/api/restart" && req.method === "POST") {
     log("info", `${who} restarted the brain`);
     send(res, 200, { ok: true });
