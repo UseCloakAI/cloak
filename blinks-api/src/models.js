@@ -87,6 +87,15 @@ export const LANES = {
     maxTokens: 2048,
     lineup: [at(SUPER_VL, { temperature: 0.4 }), at(OMNI, { temperature: 0.4 }), at(LLAMA_VISION, { temperature: 0.4 }), GEMINI],
   },
+  // The computer's eyes: reading a screenshot and naming exact coordinates.
+  // NVIDIA only (Cloak's keys). Nano Omni is built for GUI agent perception.
+  screen: {
+    label: "Screen",
+    blurb: "Reads the computer's screen for the agent.",
+    internal: true,
+    maxTokens: 1200,
+    lineup: [at(OMNI, { temperature: 0.2 }), at(SUPER_VL, { temperature: 0.2 }), at(LLAMA_VISION, { temperature: 0.2 })],
+  },
   // Background work (titles, summaries). Never a chat lane.
   utility: {
     label: "Utility",
