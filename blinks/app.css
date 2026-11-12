@@ -1139,3 +1139,8 @@ html.resizing iframe{pointer-events:none}
 /* Slot roll, as on chat.usecloak.org (rollText) */
 .m-roll{display:inline-grid;overflow:hidden;justify-items:start;vertical-align:top}
 .m-roll>span{grid-area:1/1;white-space:nowrap}
+
+/* The status hops below a message it just took in */
+.now.hop .now-av{animation:hopAv .5s var(--ease-back) both}
+@keyframes hopAv{0%{translate:0 -10px;scale:.9}60%{translate:0 2px;scale:1.04}100%{translate:0 0;scale:1}}
+@media (prefers-reduced-motion:reduce){.now.hop .now-av{animation:none}}
