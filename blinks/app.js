@@ -684,7 +684,17 @@
     });
     receipt();
     if (resuming) drawResume();
-    scrollEnd(true);
+    jumpEnd();
+  }
+  // A freshly drawn chat opens at the bottom, no scroll animation; held there
+  // while late layout (fonts, code, cards) settles.
+  function jumpEnd() {
+    var t = $("thread");
+    t.style.scrollBehavior = "auto";
+    t.scrollTop = t.scrollHeight;
+    var n = 0, hold = function () { t.scrollTop = t.scrollHeight; if (++n < 12) requestAnimationFrame(hold); else t.style.scrollBehavior = ""; };
+    requestAnimationFrame(hold);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (t.style.scrollBehavior === "auto" || t.scrollHeight - t.scrollTop - t.clientHeight < 400) { t.style.scrollBehavior = "auto"; t.scrollTop = t.scrollHeight; t.style.scrollBehavior = ""; } });
   }
   function scrollEnd(force) {
     var t = $("thread");
@@ -1489,7 +1499,7 @@
       }
     }
     try { next.focus({ preventScroll: true }); } catch (e) {}
-    if (p === "chat") scrollEnd(true);
+    if (p === "chat") jumpEnd();
   }
 
   /* ── The Blink's own panel (opens from the pill in the top bar) ─── */
