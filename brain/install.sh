@@ -47,8 +47,8 @@ fetch_all() {
 
 if [ "${1:-}" = "--uninstall" ]; then
   say "Removing Cloak Brain (your data in $DATA is kept)"
-  systemctl disable --now cloak-brain cloak-brain-update.timer 2>/dev/null || true
-  rm -f /etc/systemd/system/cloak-brain.service /etc/systemd/system/cloak-brain-update.service /etc/systemd/system/cloak-brain-update.timer
+  systemctl disable --now cloak-brain cloak-brain-update.timer cloak-brain-update.path 2>/dev/null || true
+  rm -f /etc/systemd/system/cloak-brain.service /etc/systemd/system/cloak-brain-update.service /etc/systemd/system/cloak-brain-update.timer /etc/systemd/system/cloak-brain-update.path
   cloudflared service uninstall 2>/dev/null || true
   systemctl daemon-reload
   rm -rf "$APP"
@@ -170,7 +170,20 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/rm -f $DATA/update-now
 ExecStart=/bin/bash $APP/app/brain/install.sh --auto
+UNIT
+# "Update now" on the brain page: the brain drops a flag file, this runs the update.
+cat > /etc/systemd/system/cloak-brain-update.path <<UNIT
+[Unit]
+Description=Cloak Brain update on request
+
+[Path]
+PathExists=$DATA/update-now
+Unit=cloak-brain-update.service
+
+[Install]
+WantedBy=multi-user.target
 UNIT
 cat > /etc/systemd/system/cloak-brain-update.timer <<UNIT
 [Unit]
@@ -187,6 +200,7 @@ UNIT
 systemctl daemon-reload
 systemctl enable cloak-brain >/dev/null 2>&1
 systemctl enable --now cloak-brain-update.timer >/dev/null 2>&1
+systemctl enable --now cloak-brain-update.path >/dev/null 2>&1
 systemctl restart cloak-brain
 
 say "6/6  Cloudflare tunnel"
