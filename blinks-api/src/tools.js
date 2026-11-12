@@ -195,10 +195,20 @@ export const TOOLS = {
       }
     },
   },
+  use_computer: {
+    spec: fn("use_computer", "Hand a job on this person's desktop computer (Linux, Firefox, a terminal, 1280x800) to your computer operator. It sees the screen and clicks, types and runs commands until the goal is met, then reports what it did and what is on screen. Use it for anything on the desktop: opening apps or sites, filling forms, reading a page. Give one clear goal with every detail it needs (exact URLs, text to type). Wakes the computer if it is asleep (about a minute).", { goal: str("What to get done on the desktop, specific and complete.") }, ["goal"]),
+    label: (a) => `Using the computer: ${String(a.goal || "").slice(0, 50)}`,
+    needs: "computer", top: true, outward: (a) => a.goal,
+    async run(a, cx) {
+      if (typeof cx.computer.operate !== "function") return { text: "The computer operator is not available on this brain yet. Use computer_run instead.", summary: "unavailable" };
+      const r = await cx.computer.operate(String(a.goal || ""), cx.signal, (label) => cx.progress?.(String(label).replace(/^./, (c) => c.toUpperCase())));
+      return { text: `${r.ok ? "Done" : "Not finished"}: ${clip(r.text, RESULT_CHARS)}${r.steps?.length ? `\n\nSteps:\n${r.steps.slice(-12).join("\n")}` : ""}`, summary: r.ok ? "done" : "not finished" };
+    },
+  },
   computer_look: {
     spec: fn("computer_look", "Look at the screen of your computer (a Linux desktop with Firefox and a terminal, 1280x800). Returns what is on screen with x,y coordinates read off a 100px grid. Wakes the computer if it is asleep (that takes about a minute). Always look before clicking, and look again after to check what happened.", { question: str("What you need to find or check, for example: where is the address bar, did the page load, what does the error say.") }, ["question"]),
     label: () => "Looking at the screen",
-    needs: "computer", top: true,
+    needs: "computer_raw", top: true,
     async run(a, cx) {
       const r = await cx.computer.look(String(a.question || "Describe the screen."));
       return { text: `Screen ${r.w}x${r.h}.\n${clip(r.text, RESULT_CHARS)}`, summary: "looked" };
@@ -207,7 +217,7 @@ export const TOOLS = {
   computer_click: {
     spec: fn("computer_click", "Click on the computer's screen at x,y (pixels, from computer_look).", { x: { type: "integer" }, y: { type: "integer" }, button: str("left (default), right, or double.", { enum: ["left", "right", "double"] }) }, ["x", "y"]),
     label: (a) => `Clicking at ${a.x}, ${a.y}`,
-    needs: "computer", top: true,
+    needs: "computer_raw", top: true,
     async run(a, cx) {
       await cx.computer.input({ action: a.button === "right" ? "right" : a.button === "double" ? "double" : "click", x: a.x, y: a.y });
       return { text: "Clicked. Look again to see what happened.", summary: "clicked" };
@@ -216,25 +226,25 @@ export const TOOLS = {
   computer_type: {
     spec: fn("computer_type", "Type text on the computer, into whatever has focus (click the field first).", { text: str("The text to type. Use computer_key for Enter, Tab and shortcuts.") }, ["text"]),
     label: () => "Typing",
-    needs: "computer", top: true, outward: (a) => a.text,
+    needs: "computer_raw", top: true, outward: (a) => a.text,
     async run(a, cx) { await cx.computer.input({ action: "type", text: String(a.text || "") }); return { text: "Typed.", summary: "typed" }; },
   },
   computer_key: {
     spec: fn("computer_key", "Press keys on the computer, xdotool style, separated by spaces: Return, Tab, Escape, BackSpace, ctrl+l, ctrl+c, alt+F4, super, Down.", { keys: str("For example: ctrl+l or Return or ctrl+shift+t") }, ["keys"]),
     label: (a) => `Pressing ${String(a.keys || "").slice(0, 30)}`,
-    needs: "computer", top: true,
+    needs: "computer_raw", top: true,
     async run(a, cx) { await cx.computer.input({ action: "key", keys: String(a.keys || "") }); return { text: "Pressed.", summary: "pressed" }; },
   },
   computer_scroll: {
     spec: fn("computer_scroll", "Scroll on the computer's screen, optionally at x,y.", { direction: str("up, down, left or right.", { enum: ["up", "down", "left", "right"] }), amount: { type: "integer", description: "Notches, 1 to 25 (default 3)." }, x: { type: "integer" }, y: { type: "integer" } }, ["direction"]),
     label: (a) => `Scrolling ${a.direction || "down"}`,
-    needs: "computer", top: true,
+    needs: "computer_raw", top: true,
     async run(a, cx) { await cx.computer.input({ action: "scroll", direction: a.direction, amount: a.amount, x: a.x, y: a.y }); return { text: "Scrolled.", summary: "scrolled" }; },
   },
   computer_drag: {
     spec: fn("computer_drag", "Drag with the mouse on the computer from x,y to to_x,to_y.", { x: { type: "integer" }, y: { type: "integer" }, to_x: { type: "integer" }, to_y: { type: "integer" } }, ["x", "y", "to_x", "to_y"]),
     label: () => "Dragging",
-    needs: "computer", top: true,
+    needs: "computer_raw", top: true,
     async run(a, cx) { await cx.computer.input({ action: "drag", x: a.x, y: a.y, to_x: a.to_x, to_y: a.to_y }); return { text: "Dragged.", summary: "dragged" }; },
   },
   computer_run: {
@@ -423,7 +433,7 @@ function ranText(r) {
 }
 export function toolbox({ depth = 0, hasMind = false, hasTalk = false, hasFiles = false, hasComputer = false }) {
   return Object.entries(TOOLS)
-    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind) && !(t.needs === "talk" && !hasTalk) && !(t.needs === "files" && !hasFiles) && !(t.needs === "computer" && !hasComputer))
+    .filter(([, t]) => !(t.top && depth > 0) && !(t.needs === "mind" && !hasMind) && !(t.needs === "talk" && !hasTalk) && !(t.needs === "files" && !hasFiles) && !(t.needs === "computer" && !hasComputer) && t.needs !== "computer_raw")
     .map(([name]) => name);
 }
 // Every tool also takes "status": the line the person sees while it runs,

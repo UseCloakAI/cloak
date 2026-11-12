@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.3.6";
+const VERSION = "0.4.0";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -171,8 +171,14 @@ async function vision(b64, mime, question, w, h) {
   for await (const ev of workerLane(env, "screen", { system, messages: [{ role: "user", content: [{ type: "text", text: question }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } }] }], maxTokens: 900 })) if (ev.done) out = ev.text;
   return out || "The screen could not be read just now.";
 }
+// The computer operator's brain: one look at the screen, one next action.
+async function operatorStep(b64, mime, system, prompt) {
+  let out = "";
+  for await (const ev of workerLane(env, "screen", { system, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } }] }], maxTokens: 2048 })) if (ev.done) out = ev.text;
+  return out;
+}
 const isAdmin = (email) => !!email && config.admins.map((a) => String(a).toLowerCase()).includes(String(email).toLowerCase());
-const computer = makeComputer({ log, isAdmin, vision, stateDir: path.join(DATA, "computer") });
+const computer = makeComputer({ log, isAdmin, vision, operatorStep, stateDir: path.join(DATA, "computer") });
 
 // ── Files ────────────────────────────────────────────────────────────────────
 const FILE_MAX = 100 * 1024 * 1024; // Cloudflare's request limit on the free plan

@@ -42,7 +42,7 @@ const virsh = (...args) => sh("virsh", ["-c", "qemu:///system", ...args]);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s).replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export function makeComputer({ file = "/etc/cloak-brain/computer.json", stateDir, log = () => {}, isAdmin = () => false, vision }) {
+export function makeComputer({ file = "/etc/cloak-brain/computer.json", stateDir, log = () => {}, isAdmin = () => false, vision, operatorStep }) {
   let conf = null;
   const load = () => { try { conf = JSON.parse(fs.readFileSync(file, "utf8")); if (conf.version !== 2) conf = null; } catch { conf = null; } return conf; };
   load();
@@ -349,6 +349,54 @@ runcmd:
           await wait(350);
           notify();
           return r;
+        },
+        // The operator: a small agent that sees the screen and acts, one model
+        // call per step, until the goal is met. The Blink hands it a goal.
+        async operate(goal, signal, onStep = () => {}) {
+          claim(key);
+          const s = await machine("desktop", key);
+          const done = [];
+          const system = `You operate a Linux desktop (XFCE, Firefox, a terminal) for an AI assistant. Goal: ${goal}
+Each turn you get a screenshot with a labelled 100px grid; the large white arrow is the mouse pointer. Choose the ONE next action and answer with only a JSON object, no prose:
+{"action":"click","x":0,"y":0,"why":"..."}  also "double", "right"
+{"action":"type","text":"...","why":"..."}  types into what has focus (click the field first)
+{"action":"key","keys":"ctrl+l","why":"..."}  xdotool keys: Return, Tab, Escape, ctrl+c, alt+F4
+{"action":"scroll","direction":"down","amount":3,"why":"..."}
+{"action":"run","cmd":"firefox https://example.com &","why":"..."}  bash on this desktop; fastest way to open apps, files and URLs; end with & to leave a program open
+{"action":"wait","why":"..."}  when something is still loading
+{"action":"done","result":"what you did and what is on screen now, with any text they asked for"}
+{"action":"fail","reason":"why it cannot be done"}
+Prefer run for opening programs and URLs over hunting for icons. Click the centre of things. Check the screenshot shows the last action worked before moving on. Never type passwords or pay for anything.`;
+          for (let i = 0; i < 18; i++) {
+            if (signal?.aborted) return { ok: false, text: "Stopped." };
+            const shot = await agent(s, s.occ.uid, "/screen", {}, 40_000);
+            touch(s);
+            frame = { key, png: shot.png, at: Date.now() };
+            notify();
+            const prompt = `Step ${i + 1}. Screen ${shot.w}x${shot.h}.${done.length ? `\nDone so far:\n${done.slice(-8).join("\n")}` : ""}\nWhat is the next action?`;
+            const raw = await operatorStep(shot.grid || shot.png, shot.grid ? "image/jpeg" : "image/png", system, prompt).catch((e) => { log("error", `operator: ${e.message}`); return ""; });
+            let a = null;
+            try { a = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch {}
+            if (!a || !a.action) { done.push(`(step ${i + 1}: no usable action)`); continue; }
+            const why = String(a.why || "").slice(0, 80);
+            if (a.action === "done") return { ok: true, text: String(a.result || "Done."), steps: done };
+            if (a.action === "fail") return { ok: false, text: String(a.reason || "It could not be done."), steps: done };
+            onStep(why || a.action);
+            try {
+              if (a.action === "run") {
+                const r = await agent(s, s.occ.uid, "/run", { cmd: String(a.cmd || ""), timeout: 60 }, 90_000);
+                done.push(`ran \`${String(a.cmd).slice(0, 120)}\` -> exit ${r.code}${r.stderr ? `, ${String(r.stderr).slice(-160)}` : ""}${r.stdout ? `, ${String(r.stdout).slice(-200)}` : ""}`);
+                await wait(1500);
+              } else if (a.action === "wait") { done.push("waited"); await wait(2000); }
+              else {
+                await agent(s, s.occ.uid, "/input", a, 30_000);
+                done.push(`${a.action}${a.x != null ? ` at ${a.x},${a.y}` : ""}${a.text ? ` "${String(a.text).slice(0, 60)}"` : ""}${a.keys ? ` ${a.keys}` : ""}${why ? ` (${why})` : ""}`);
+                await wait(600);
+              }
+            } catch (e) { done.push(`${a.action} failed: ${String(e.message).slice(0, 120)}`); }
+            touch(s);
+          }
+          return { ok: false, text: "Ran out of steps before finishing.", steps: done };
         },
         async run(kind, cmd, timeout) {
           if (kind === "desktop") claim(key);

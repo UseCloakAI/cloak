@@ -202,6 +202,8 @@ export async function* runAgent(env, ctx, req, signal) {
       const cx = {
         env, ctx, mind, userKey: req.userKey, companion: companionId, bot, brand, depth, signal, cite, talk: req.talk, computer: req.computer, files: Array.isArray(req.files) ? req.files : [],
         net: IO.net ? IO.net(env) : null,
+        // A long tool can update its own status line while it works.
+        progress: (label) => ch.emit({ step: { id, by, tool: c.name, label, state: "run" } }),
         delegate: async (who, task) => {
           const sub = runAgent(env, ctx, { brand, companion: who, userKey: req.userKey, user: req.user, country: req.country, depth: depth + 1, shared, messages: [{ role: "user", content: task }] }, signal);
           let out = "";
