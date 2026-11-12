@@ -114,6 +114,8 @@ ${voice.trim()}
       const e = { role: entry.role, content: String(entry.content || "").slice(0, 60_000), at: Math.max(entry.at || 0, (this.lastAt || 0) + 1, Date.now()) };
       if (entry.from) e.from = entry.from;
       if (entry.task) e.task = entry.task;
+      if (entry.to) e.to = String(entry.to).slice(0, 60);
+      if (entry.sent) e.sent = String(entry.sent).slice(0, 60);
       this.lastAt = e.at;
       fs.appendFileSync(this.file("log.jsonl"), JSON.stringify(e) + "\n");
       return e;
@@ -138,7 +140,8 @@ ${voice.trim()}
     }
     // What the model sees: everything after the compacted summary, as chat.
     recent() {
-      const msgs = this.log().slice(this.state.cut).map((e) => ({
+      // A note that this Blink messaged another is for the app, not the model.
+      const msgs = this.log().slice(this.state.cut).filter((e) => !e.sent).map((e) => ({
         role: e.role === "assistant" ? "assistant" : "user",
         content: e.from ? `[A message from ${e.from}, another of this person's Blinks]\n${e.content}` : e.task ? `[Scheduled task "${e.task}" finished]\n${e.content}` : e.content,
       }));
@@ -175,7 +178,7 @@ ${voice.trim()}
       const hist = this.readFile("HISTORY.md").replace(/^# HISTORY\.md[^\n]*\n+/, "").trim();
       if (hist) parts.push(`# EARLIER IN THIS CONVERSATION (compacted summary; the recent messages follow as chat)\n${hist.slice(0, 8000)}`);
       const list = others.filter((b) => b.id !== this.id);
-      if (list.length) parts.push(`# OTHER BLINKS\nThis person also has these Blinks. You can message one with message_blink when it helps:\n${list.map((b) => `- ${b.name}: ${b.purpose || (b.id === "cloak" ? "their main Blink" : "no stated purpose")}`).join("\n")}`);
+      if (list.length) parts.push(`# OTHER BLINKS\nThis person also has these Blinks. Each keeps its own memory and its own chat with them: you do not know what the others have talked about or are doing, and you never guess or claim to. If you need to know, ask that Blink with message_blink. You can also message one when it helps:\n${list.map((b) => `- ${b.name}: ${b.purpose || (b.id === "cloak" ? "their main Blink" : "no stated purpose")}`).join("\n")}`);
       return parts.join("\n\n");
     }
   }
@@ -308,7 +311,9 @@ ${voice.trim()}
         talk: talker(user, { id: target.id, name: target.name }, roster, chain, ctx, signal),
       }, signal));
       const reply = stripTags(out.text || "") || "(no reply)";
-      st.append({ role: "assistant", content: reply });
+      st.append({ role: "assistant", content: reply, to: from.name });
+      // The sender's chat shows a short "Sent message" line for it.
+      store(user, from.id, from.id === "cloak" ? null : roster.find((b) => b.id === from.id)).append({ role: "assistant", sent: target.name, content: message });
       chain.lines.push(`${target.name} to ${from.name}: ${reply.slice(0, 600)}`);
       return { ok: true, name: target.name, reply };
     };
