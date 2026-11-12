@@ -2072,6 +2072,8 @@
     pollPower();
     setInterval(pollPower, 60000);
     setInterval(function () { if (!document.hidden) catchUp(); }, 10000);
+    // Reset in another tab: this one starts clean too, instead of saving the old chats back.
+    window.addEventListener("storage", function (e) { if (e.key === "pv_reset_seen" && e.newValue) location.reload(); });
     document.addEventListener("visibilitychange", function () { if (!document.hidden) { badge(); pollPower(); catchUp(); } });
     // Blinks needs a Cloak account: sign in first, then everything syncs.
     function go() {

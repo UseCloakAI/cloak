@@ -36,8 +36,19 @@
   }
   function row(c) { return { id: c.id, user_id: user.id, companion: c.companion, title: c.title || "", messages: c.messages, updated_at: new Date(c.updated).toISOString() }; }
 
+  // "Reset everything" is stamped on the account, so every other tab and
+  // device drops its local copy instead of uploading it again.
+  function seenReset() { try { return +localStorage.getItem("pv_reset_seen") || 0; } catch (e) { return 0; } }
   async function pull() {
     if (!user || !hooks) return;
+    var me = await sb.auth.getUser().catch(function () { return null; });
+    var resetAt = +(((me && me.data && me.data.user) || user).user_metadata || {}).pv_reset_at || 0;
+    if (resetAt > seenReset()) {
+      ["pv_chats", "pv_unread", "pv_synced", "pv_live_run"].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
+      try { localStorage.setItem("pv_reset_seen", String(resetAt)); } catch (e) {}
+      location.reload();
+      return;
+    }
     var r = await sb.from("pv_chats").select("id, companion, title, messages, updated_at").order("updated_at", { ascending: false }).limit(60);
     if (!r.error) hooks.onChats(r.data.map(function (d) { return { id: d.id, companion: d.companion, title: d.title, messages: d.messages || [], updated: Date.parse(d.updated_at) }; }));
     // Anything made on this device before signing in goes up too.
@@ -133,8 +144,13 @@
       return sb.auth.getSession().then(function (r) { return r.data.session ? r.data.session.access_token : null; });
     },
     init: function (h) { hooks = h; if (user) pull().catch(function () {}); },
-    push: function (c) { if (user && sb) sb.from("pv_chats").upsert(row(c)).then(function () {}); },
-    removeAll: function () { return user && sb ? sb.from("pv_chats").delete().eq("user_id", user.id) : Promise.resolve(); },
+    push: function (c) { if (user && sb && !(c.updated < seenReset())) sb.from("pv_chats").upsert(row(c)).then(function () {}); },
+    removeAll: function () {
+      if (!user || !sb) return Promise.resolve();
+      var t = Date.now();
+      try { localStorage.setItem("pv_reset_seen", String(t)); } catch (e) {}
+      return Promise.all([sb.from("pv_chats").delete().eq("user_id", user.id), sb.auth.updateUser({ data: { pv_reset_at: t } }).catch(function () {})]);
+    },
     remove: function (id) { if (user && sb) sb.from("pv_chats").delete().eq("id", id).then(function () {}); },
     pushBots: function (list) { if (user && sb) sb.from("pv_bots").upsert({ user_id: user.id, bots: list.slice(0, 12), updated_at: new Date().toISOString() }).then(function () {}); },
     renderAccount: function (el) { host = el; render(); },
