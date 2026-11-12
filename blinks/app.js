@@ -1256,8 +1256,21 @@
     if (!ch) { Kit.set("pv_live_run", ""); return false; }
     resuming = { id: lr.id, companion: lr.companion, label: "Picking up where it left off", raw: "" };
     drawResume();
+    var count = 0, tries = 0;
     var finish = function (ok) {
       var r = resuming;
+      // Lost the stream before the reply: it is still being made. Keep the
+      // Blink working and fetch the reply when it lands, never just go quiet.
+      if (!(ok && r && r.raw.trim())) {
+        resuming = null;
+        Kit.set("pv_live_run", "");
+        var lu = null;
+        for (var j = ch.messages.length - 1; j >= 0; j--) if (ch.messages[j].role === "user" && !ch.messages[j].from) { lu = ch.messages[j]; break; }
+        if (lu && !lu.read) { lu.read = Date.now(); save(); }
+        if (state.companion === ch.companion) renderThread();
+        awaitReply(ch);
+        return;
+      }
       resuming = null;
       Kit.set("pv_live_run", "");
       if (ok && r && r.raw.trim()) {
@@ -1274,12 +1287,13 @@
       refreshRows();
       setTimeout(catchUp, 800);
     };
-    fetch(Kit.api + "/v1/runs/" + encodeURIComponent(lr.id) + "?from=0").then(function (res) {
+    var attach = function () { fetch(Kit.api + "/v1/runs/" + encodeURIComponent(lr.id) + "?from=" + count).then(function (res) {
       if (!res.ok || !res.body) return finish(false);
       var reader = res.body.getReader(), dec = new TextDecoder(), buf = "", ended = false;
       var pump = function () {
         return reader.read().then(function (x) {
-          if (x.done) return finish(ended || !!(resuming && resuming.raw));
+          // The connection closed mid-run: re-attach where it left off.
+          if (x.done) { if (!ended && resuming && ++tries <= 6) return setTimeout(attach, 1200); return finish(ended || !!(resuming && resuming.raw)); }
           buf += dec.decode(x.value, { stream: true });
           var i;
           while ((i = buf.indexOf("\n\n")) !== -1) {
@@ -1287,6 +1301,7 @@
             buf = buf.slice(i + 2);
             if (line.indexOf("data:") !== 0 || !resuming) continue;
             var ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
+            count++;
             if (ev.reset) resuming.raw = "";
             if (ev.delta) resuming.raw += ev.delta;
             if (ev.step && ev.step.state === "run" && ev.step.label) { resuming.label = ev.step.label; drawResume(); }
@@ -1296,7 +1311,8 @@
         });
       };
       return pump();
-    }).catch(function () { finish(false); });
+    }).catch(function () { if (resuming && ++tries <= 6) setTimeout(attach, 2000); else finish(false); }); };
+    attach();
     return true;
   }
   // The Blink, working, under your last message (kept across re-renders).
