@@ -307,6 +307,14 @@ runcmd:
       const mineD = d.occ && d.occ.key === key;
       const other = d.occ && !mineD && (d.occ.state !== "ready" || (d.lease && d.lease.until > now));
       const sv = slots.servers.find((x) => x.occ && x.occ.key === key);
+      // The brain page asks with no person: show every machine as it really is.
+      if (key == null) return {
+        available: true, allowed: true, access: conf.access || "admins",
+        desktop: { state: d.occ ? d.occ.state : "asleep", holder: d.occ ? "someone" : null },
+        server: { state: slots.servers.some((x) => x.occ?.state === "ready") ? "ready" : (slots.servers.find((x) => x.occ)?.occ.state || "asleep") },
+        servers: slots.servers.map((x) => (x.occ ? x.occ.state : "asleep")),
+        slots: { desktop: 1, servers: slots.servers.length, serversFree: slots.servers.filter((x) => !x.occ).length },
+      };
       return {
         available: true, allowed: api.allowed(email), access: conf.access || "admins",
         desktop: { state: mineD ? d.occ.state : "asleep", holder: mineD ? "you" : other ? "someone" : null, error: failed.get(`desktop:${key}`)?.error || null },

@@ -181,7 +181,8 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
     var c = s.computer || {};
     $("compBox").hidden = !c.available;
     if (c.available) {
-      $("compState").textContent = "Desktop: " + c.desktop.state + (c.desktop.holder ? " (in use)" : "") + ". Server: " + c.server.state + ".";
+      var W = { ready: "on", waking: "waking up", stopping: "going to sleep", lost: "reconnecting", asleep: "asleep" };
+      $("compState").textContent = "Desktop: " + (W[c.desktop.state] || c.desktop.state) + (c.desktop.holder && c.desktop.state !== "asleep" ? " (in use)" : "") + ". Servers: " + (c.servers || [c.server.state]).map(function (x) { return W[x] || x; }).join(", ") + ".";
       $("compAccess").value = c.access || "admins";
     }
   }
