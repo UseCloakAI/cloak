@@ -186,11 +186,11 @@
   // Every animation, its variants, and the one in use. The first is the default.
   // Round two, from the lab's grades: bigger, more physical, each one distinct.
   var VARIANTS = {
-    idle: ["breathe", "float"],
+    idle: ["float", "breathe"],
     listen: ["lean", "nudge"],
-    think: ["arc", "pendulum", "orbit"],
+    think: ["cycle", "arc", "pendulum", "orbit"],
     search: ["arc", "peek"],
-    work: ["hop", "bounce"],
+    work: ["bounce", "hop"],
     talk: ["bob", "pulse"],
     happy: ["beam", "wiggle"],
     care: ["hug", "soft"],
@@ -200,7 +200,6 @@
     nod: ["dip", "double"],
     blink: ["snappy", "classic"],
     change: ["kick", "none"],
-    boil: ["boil", "steady"],
   };
   var STYLE = {};
   Object.keys(VARIANTS).forEach(function (k) { STYLE[k] = VARIANTS[k][0]; });
@@ -219,6 +218,22 @@
     if (ph < 0.8) { var l = (ph - 0.6) / 0.2; return { y: 0, sq: Q * 1.9 * Math.sin(Math.PI * Math.min(1, l * 1.25)) * (1 - l * 0.45) }; }
     return { y: 0, sq: 0 };
   }
+  // One thinking pose at time t: where the eyes go and how the body moves.
+  function thinkPose(kind, t) {
+    if (kind === "orbit") {
+      // Eyes roll up and around while the body tips after them and rises.
+      var ox = Math.cos(t * 2.4) * 0.95, oy = -0.45 + Math.sin(t * 2.4) * 0.5;
+      return { lx: ox, ly: oy, open: 1, reach: 1.4, tilt: ox * 11, lean: ox * 6, hop: -7 - Math.sin(t * 4.8) * 5, sq: Math.sin(t * 4.8) * 0.03 };
+    }
+    if (kind === "pendulum") {
+      // Eyes closed, swinging side to side, mulling it over.
+      var sw = Math.sin(t * 1.8);
+      return { lx: 0, ly: 0.2, open: 0.07, reach: 1, tilt: -Math.sin(t * 1.8 - 0.5) * 9, lean: sw * 16, hop: -Math.abs(Math.cos(t * 1.8)) * 7, sq: Math.abs(sw) * 0.035 };
+    }
+    // The eyes travel an arc around the bottom of the face, side to side.
+    var th = Math.PI * (0.5 - 0.5 * Math.cos(t * 1.9)), ax = -Math.cos(th);
+    return { lx: ax, ly: 0.1 + 0.9 * Math.sin(th), open: 1, reach: 1.5, tilt: ax * 9, lean: ax * 5, hop: -Math.abs(Math.sin(t * 3.8)) * 7, sq: Math.abs(Math.sin(t * 3.8)) * -0.03 };
+  }
   // A drawn "z" for sleeping (the one thing that floats off a Blink).
   function zee(x, y) { return '<path d="M' + x + " " + y + ' h13 l-13 15 h13" fill="none" stroke="' + INK + '" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>'; }
 
@@ -226,25 +241,13 @@
     opts = opts || {};
     var spec = resolve(id);
     var n = ++uid;
-    var fid = "cr-ink-" + n;
     el.innerHTML =
       '<svg viewBox="0 0 240 240" role="img" aria-label="' + esc(opts.label || (typeof id === "string" ? id : "A Blink")) + '" style="display:block;width:100%;height:100%;overflow:visible">' +
-      "<defs>" +
-      '<filter id="' + fid + '" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">' +
-      '<feTurbulence type="fractalNoise" baseFrequency="0.024" numOctaves="2" seed="2" result="n"/>' +
-      '<feDisplacementMap in="SourceGraphic" in2="n" scale="4.2" xChannelSelector="R" yChannelSelector="G" result="d"/>' +
-      '<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="9" result="g"/>' +
-      '<feColorMatrix in="g" type="matrix" values="0 0 0 0 0.04  0 0 0 0 0.04  0 0 0 0 0.04  0 0 0 -1.1 0.6" result="ga"/>' +
-      '<feComposite in="ga" in2="d" operator="in" result="spk"/>' +
-      '<feMerge><feMergeNode in="d"/><feMergeNode in="spk"/></feMerge>' +
-      "</filter>" +
-      "</defs>" +
-      '<g class="cr-root" filter="url(#' + fid + ')"><g class="cr-hop">' + draw(spec) + "</g>" +
+      '<g class="cr-root"><g class="cr-hop">' + draw(spec) + "</g>" +
       '<g class="cr-z" opacity="0">' + zee(170, 70) + zee(170, 70) + zee(170, 70) + "</g></g>" +
       "</svg>";
 
     var svg = el.firstChild;
-    var turb = svg.querySelector("feTurbulence");
     var hop = svg.querySelector(".cr-hop");
     var zz = svg.querySelector(".cr-z");
     var parts = {};
@@ -266,7 +269,7 @@
     var glanceAt = 0, glance = { x: 0, y: 0 };
     var talk = 0, level = -1, voice = 0;
     var cheerT = -1, waveT = -1, nodT = -1;
-    var boilAt = 0, seed = 2, lastTilt = 0;
+    var lastTilt = 0;
 
     function X(part, tx, ty, rot, sx, sy) {
       var a = "";
@@ -293,13 +296,6 @@
       var mood = self.mood, m = MOODS[mood], v = st(mood);
       if (blinkAt < 0) { blinkAt = t + 1 + Math.random() * 3; glanceAt = t + 2 + Math.random() * 4; } // first blink comes after a beat, never on mount
 
-      // Line boil: the hand-drawn ink is redrawn a few times a second (or held still).
-      var bs = st("boil");
-      if (bs !== "steady" && now > boilAt) {
-        boilAt = now + (bs === "slow" ? 340 : 140);
-        seed = seed >= 4 ? 2 : seed + 1;
-        turb.setAttribute("seed", seed);
-      }
 
       var lx = m.lookX, ly = m.lookY, open0 = m.open;
       var hopY = 0, squash = 0, leanX = 0, tiltX = 0, liftX = 0, spin = 0, breathK = 1, rateK = 1, glanceK = 1;
@@ -337,28 +333,21 @@
           leanX = Math.sin(t * 2.6 * Math.PI) * 4;
         }
       } else if (mood === "think") {
-        if (v === "arc") {
-          // The eyes travel an arc around the bottom of the face, side to side
-          // (unhurried: it is thinking, not reading).
-          var tha = Math.PI * (0.5 - 0.5 * Math.cos(t * 1.5));
-          lx = -Math.cos(tha); ly = 0.1 + 0.9 * Math.sin(tha);
-          reach = 1.5;
-          tiltX = lx * 5; leanX = lx * 2.5;
-          hopY -= Math.abs(Math.sin(t * 3)) * 2;
-        } else if (v === "orbit") {
-          // Eyes roll up and around while the body tips after them.
-          lx = Math.cos(t * 2.2) * 0.9; ly = -0.45 + Math.sin(t * 2.2) * 0.45;
-          reach = 1.35;
-          tiltX = lx * 7; leanX = lx * 3;
-          hopY -= 3 + Math.sin(t * 4.4) * 2;
-        } else {
-          // Eyes closed, swaying side to side, mulling it over.
-          open0 = 0.07;
-          leanX = Math.sin(t * 1.5) * 11;
-          tiltX = -Math.sin(t * 1.5 - 0.5) * 5;
-          lx = 0; ly = 0.2;
-          hopY -= Math.abs(Math.cos(t * 1.5)) * 2.5;
-        }
+        // Three ways of thinking. "cycle" moves through all three while it
+        // thinks, each blending into the next so it never snaps.
+        var TH = ["arc", "orbit", "pendulum"];
+        var poses = v === "cycle" ? null : [thinkPose(v, t)];
+        if (!poses) {
+          var P = 3.4, BL = 0.9, k0 = mt / P, i0 = Math.floor(k0) % 3, f = (k0 % 1) * P;
+          var w = f > P - BL ? ease.inOut((f - (P - BL)) / BL) : 0;
+          poses = [thinkPose(TH[i0], t), thinkPose(TH[(i0 + 1) % 3], t)];
+          poses[0].w = 1 - w; poses[1].w = w;
+        } else poses[0].w = 1;
+        lx = 0; ly = 0; open0 = 0; reach = 0;
+        poses.forEach(function (q) {
+          lx += q.lx * q.w; ly += q.ly * q.w; open0 += q.open * q.w; reach += q.reach * q.w;
+          tiltX += q.tilt * q.w; leanX += q.lean * q.w; hopY += q.hop * q.w; squash += q.sq * q.w;
+        });
       } else if (mood === "idle" || mood === "listen" || mood === "talk") {
         if (now - pointer.t < 2600) {
           var r = el.getBoundingClientRect();
@@ -376,11 +365,13 @@
         }
         if (mood === "idle") {
           if (v === "float") {
-            // Floating: a slow, weightless drift with a lazy sway.
-            hopY += -7 - 8 * Math.sin(t * 1.05);
-            tiltX += Math.sin(t * 0.55) * 4;
-            leanX = Math.sin(t * 0.55 + 1) * 2.5;
-            squash += Math.max(0, Math.sin(t * 1.05)) * 0.025;
+            // Floating: a big, slow rise and fall. It stretches as it lifts,
+            // squashes a little at the bottom, and sways as it drifts.
+            var fp = t * 1.15, fy = Math.sin(fp);
+            hopY += -12 - 16 * fy;
+            squash += -Math.cos(fp) * 0.035 + Math.pow(Math.max(0, -fy), 3) * 0.05;
+            tiltX += Math.sin(t * 0.6) * 6;
+            leanX = Math.sin(t * 0.6 + 1) * 4;
           } else {
             // A real breath: in (slower, the body swells and rises), out (it settles).
             var bp = (t / 4.2) % 1, inh = bp < 0.45 ? ease.inOut(bp / 0.45) : 1 - ease.inOut((bp - 0.45) / 0.55);
