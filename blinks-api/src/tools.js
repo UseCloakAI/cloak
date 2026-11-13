@@ -251,13 +251,13 @@ export const TOOLS = {
     spec: fn("computer_run", "Run a bash command on this person's own desktop computer (only theirs; you have sudo). Programs you start open windows on its screen (end the command with & to leave them running). For code and packages with no screen, prefer server_run.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
     label: (a) => `Running ${String(a.command || "").slice(0, 40)}`,
     needs: "computer", top: true, outward: (a) => a.command,
-    async run(a, cx) { return ranText(await cx.computer.run("desktop", String(a.command || ""), a.timeout)); },
+    async run(a, cx) { return ranText(await cx.computer.run("desktop", String(a.command || ""), a.timeout, (l) => cx.progress?.(l))); },
   },
   server_run: {
     spec: fn("server_run", "Run a bash command on this person's own server (headless Debian with Python, Node, git and build tools; only theirs; you have sudo, so sudo apt-get install works). Their files stay between chats. Up to 600 seconds per command.", { command: str("The bash command."), timeout: { type: "integer", description: "Seconds, up to 600 (default 60)." } }, ["command"]),
     label: (a) => `Running ${String(a.command || "").slice(0, 40)}`,
     needs: "computer", top: true, outward: (a) => a.command,
-    async run(a, cx) { return ranText(await cx.computer.run("server", String(a.command || ""), a.timeout)); },
+    async run(a, cx) { return ranText(await cx.computer.run("server", String(a.command || ""), a.timeout, (l) => cx.progress?.(l))); },
   },
   create_blink: {
     spec: fn("create_blink", "Make a new Blink for this person: a companion with its own look, name, purpose and personality. It appears in their sidebar right away with its own chat. Use when they ask you to make, build or design a Blink (or a bot or assistant inside Blinks). Design it thoughtfully to fit the purpose; fill in what they did not say.", {
