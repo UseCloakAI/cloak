@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.4.6";
+const VERSION = "0.5.0";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -166,19 +166,25 @@ const blinks = makeBlinks({ DATA, userDir, env, utility, runAgent, collect, log,
 
 // ── Cloak Computer: the VMs (brain/vm/setup.sh), when installed ─────────────
 async function vision(b64, mime, question, w, h) {
-  const system = `You are the eyes of an AI agent controlling a Linux desktop (${w}x${h}). The screenshot has a labelled grid every 100 pixels; read coordinates off it. The large white arrow with a black outline is the mouse pointer: say where it is when it matters. Describe what is on screen that matters for the question: the open windows, what has focus, any text (exactly), and the clickable things with the x,y centre of each, for example: "Firefox address bar at (640, 64)". Be precise and brief.`;
+  const system = `You are the eyes of an AI agent controlling a Linux desktop (${w}x${h}). The large white arrow with a black outline is the mouse pointer. Describe what matters for the question: the open windows, what has focus, any text (exactly), dialogs and errors. Give positions as normalized 0-1000 coordinates (x from the left, y from the top) when asked where something is. Be precise and brief.`;
   let out = "";
   for await (const ev of workerLane(env, "screen", { system, messages: [{ role: "user", content: [{ type: "text", text: question }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } }] }], maxTokens: 900 })) if (ev.done) out = ev.text;
   return out || "The screen could not be read just now.";
 }
-// The computer operator's brain: one look at the screen, one next action.
-async function operatorStep(b64, mime, system, prompt) {
+// The computer operator's two models (NVIDIA, through the Worker's keys):
+// think decides from the page as text, see reads a screenshot.
+async function think(system, user) {
+  let out = "";
+  for await (const ev of workerLane(env, "operator", { system, messages: [{ role: "user", content: user }], maxTokens: 900 })) if (ev.done) out = ev.text;
+  return out;
+}
+async function see(b64, mime, system, prompt) {
   let out = "";
   for await (const ev of workerLane(env, "screen", { system, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } }] }], maxTokens: 700 })) if (ev.done) out = ev.text;
   return out;
 }
 const isAdmin = (email) => !!email && config.admins.map((a) => String(a).toLowerCase()).includes(String(email).toLowerCase());
-const computer = makeComputer({ log, isAdmin, vision, operatorStep, stateDir: path.join(DATA, "computer") });
+const computer = makeComputer({ log, isAdmin, vision, think, see, stateDir: path.join(DATA, "computer") });
 
 // ── Files ────────────────────────────────────────────────────────────────────
 const FILE_MAX = 100 * 1024 * 1024; // Cloudflare's request limit on the free plan

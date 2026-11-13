@@ -42,7 +42,88 @@ const virsh = (...args) => sh("virsh", ["-c", "qemu:///system", ...args]);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s).replace(/[<>&'"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export function makeComputer({ file = "/etc/cloak-brain/computer.json", stateDir, log = () => {}, isAdmin = () => false, vision, operatorStep }) {
+// ── The operator's instructions and helpers ───────────────────────────────
+const OPERATOR = `You are Cloak's computer operator. You control a Linux desktop (XFCE) with a Firefox browser on behalf of an AI assistant that gave you a goal. Be fast and precise.
+
+Each turn you get the goal, what you did so far, and what is on the screen now: the open windows, and the browser page as text (URL, numbered elements [i], visible text).
+
+Answer with ONLY one JSON object, no prose:
+{"actions":[...]}   1 to 6 actions, run in order
+{"done":"what you did, and the answer or result with the exact text they asked for"}
+{"fail":"why it cannot be done, and what the person has to do"}
+
+Browser actions (use these for anything on a website):
+{"goto":"https://..."}  open a URL; go straight to a URL when you can (e.g. https://www.google.com/search?q=...)
+{"click":3}  click element [3]
+{"type":[5,"text"]}  replace the text in field [5]
+{"enter":[5,"text"]}  type into field [5] and press Enter
+{"select":[7,"option text"]}  choose from a dropdown
+{"scroll":"down"} or {"scroll":"up"}
+{"back":true}
+{"read":true}  the whole page's text (articles, long results)
+
+Desktop actions (anything outside the browser):
+{"run":"bash command"}  the fastest way to open programs, files and folders; end with & to leave a program open
+{"click_on":"what to click, described plainly, e.g. the Terminal icon in the bottom panel"}
+{"double_click_on":"..."}
+{"type_text":"text"}  types into whatever has focus
+{"key":"ctrl+l"}  xdotool key names: Return Tab Escape ctrl+c alt+F4
+{"look":"a question about the screen"}  a careful look, for things not in the browser text
+
+Rules:
+- Element numbers belong to the page shown now. If an action loads a new page, the rest of your list is skipped and you get the new page.
+- Fill every field of a form in one turn, then click the button last.
+- After each turn, check the new page: if something did not work, try another way instead of repeating it.
+- Never type passwords, card numbers or one-time codes, and never buy anything. If the goal needs a password, a phone number, a verification code or a CAPTCHA, stop with "fail" and say exactly what the person has to do.
+- As soon as the goal is met or the question answered, stop with "done" and put the answer in it.`;
+
+// The two models the operator uses, set by makeComputer (think: text, see: vision).
+const models = { think: async () => "", see: async () => "" };
+const LOOK = `You look at a screenshot of a Linux desktop for an AI agent. Answer the question about it briefly and exactly: what is open, what has focus, the exact text that matters, and any dialog, error or popup.`;
+const FIND = `You find things on a screenshot of a computer screen. Give the centre of the thing asked for as normalized coordinates from 0 to 1000 (x from the left edge, y from the top edge). Answer with only JSON: {"x":0,"y":0}. If it is not on the screen, answer {"x":-1,"y":-1}.`;
+
+const clip = (t, n) => { t = String(t || "").trim(); return t.length > n ? t.slice(0, n) + "…" : t; };
+function firstJson(raw) {
+  raw = String(raw || "").replace(/```(?:json)?/g, "");
+  for (let i = raw.indexOf("{"); i >= 0; i = raw.indexOf("{", i + 1)) {
+    for (let j = raw.lastIndexOf("}"); j > i; j = raw.lastIndexOf("}", j - 1)) {
+      try { return JSON.parse(raw.slice(i, j + 1)); } catch {}
+    }
+  }
+  return null;
+}
+function pageText(p) {
+  const els = (p.els || []).map((e) => {
+    const name = e.name || (e.href ? `→ ${e.href}` : "(no label)");
+    let t = `[${e.i}] ${e.role}${e.type && !["text", "submit", "button"].includes(e.type) ? `:${e.type}` : ""} "${name}"`;
+    if (e.value != null && e.value !== "") t += ` = "${e.value}"`;
+    else if (e.value === "" && /input|textarea|textbox|searchbox|combobox/.test(e.role)) t += " (empty)";
+    if (e.checked != null) t += e.checked ? " (checked)" : " (unchecked)";
+    if (e.options) t += ` options: ${e.options.join(" / ")}`;
+    if (e.disabled) t += " (disabled)";
+    if (e.expanded != null) t += e.expanded ? " (open)" : " (closed)";
+    return t;
+  });
+  const sc = p.scroll || {};
+  const more = sc.h && sc.y + sc.vh < sc.h - 20 ? "more below" : "end of page";
+  return [`URL: ${p.url}`, `Title: ${p.title}`, sc.h ? `Scroll: ${sc.y}px of ${sc.h}px (${sc.y > 10 ? "scrolled, " : ""}${more})` : "", p.alerts?.length ? `Alerts: ${p.alerts.join(" | ")}` : "",
+    `Elements:\n${els.join("\n") || "(none visible)"}`, `Visible text: ${clip(p.text, 2400)}`].filter(Boolean).join("\n");
+}
+const SECRET_RE = /pass ?(word|code|phrase)|\bpin\b|card ?(number|no)|\bcvv\b|\bcvc\b|security code|one[- ]?time|\botp\b|verification code|2fa|two[- ]factor|authenticator/i;
+const secret = (p, i) => { const e = p?.els?.find((x) => x.i === +i); return !!e && (e.type === "password" || SECRET_RE.test(e.name || "")); };
+const brief = (p) => (p ? { url: p.url, title: p.title } : null);
+// Where on the screen is it? The vision model answers on a 0-1000 grid.
+async function locate(vm, target) {
+  const shot = await vm("/screen", { grid: false }, 40_000);
+  const raw = await models.see(shot.png, "image/png", FIND, `Where is ${target}?`).catch(() => "");
+  const j = firstJson(raw);
+  if (!j || !(j.x >= 0 && j.y >= 0)) return null;
+  return { x: Math.round((Math.min(1000, j.x) / 1000) * shot.w), y: Math.round((Math.min(1000, j.y) / 1000) * shot.h) };
+}
+
+export function makeComputer({ file = "/etc/cloak-brain/computer.json", stateDir, log = () => {}, isAdmin = () => false, vision, think, see }) {
+  if (think) models.think = think;
+  if (see) models.see = see;
   let conf = null;
   const load = () => { try { conf = JSON.parse(fs.readFileSync(file, "utf8")); if (conf.version !== 2) conf = null; } catch { conf = null; } return conf; };
   load();
@@ -328,7 +409,7 @@ runcmd:
       const d = slots.desktop;
       if (!d.occ || d.occ.key !== key || d.occ.state !== "ready") return null;
       if (!frame || frame.key !== key || Date.now() - frame.at > 1500) {
-        const s = await agent(d, d.occ.uid, "/screen", {}, 30_000).catch(() => null);
+        const s = await agent(d, d.occ.uid, "/screen", { grid: false }, 30_000).catch(() => null);
         if (s) frame = { key, png: s.png, at: Date.now() };
       }
       return frame && frame.key === key ? Buffer.from(frame.png, "base64") : null;
@@ -362,11 +443,11 @@ runcmd:
       return {
         async look(question) {
           claim(key);
-          const { s, r: shot } = await call("desktop", key, "/screen", {}, 40_000);
+          const { s, r: shot } = await call("desktop", key, "/screen", { grid: false }, 40_000);
           touch(s);
           frame = { key, png: shot.png, at: Date.now() };
           notify();
-          const desc = await vision(shot.grid || shot.png, shot.grid ? "image/jpeg" : "image/png", question, shot.w, shot.h);
+          const desc = await vision(shot.png, "image/png", question, shot.w, shot.h);
           return { w: shot.w, h: shot.h, text: desc };
         },
         async input(action) {
@@ -377,68 +458,102 @@ runcmd:
           notify();
           return r;
         },
-        // The operator: a small agent that sees the screen and acts, one model
-        // call per step, until the goal is met. The Blink hands it a goal.
-        async operate(goal, signal, onStep = () => {}) {
+        // The operator: the agent that does the work on the desktop. It reads the
+        // browser page as numbered elements (exact clicks and typing, no pixel
+        // guessing), uses a fast text model to decide, and only looks at the
+        // screen for things outside the browser, where a vision model finds the
+        // exact point to click. Several actions per model call.
+        async operate(goal, signal, onStep = () => {}, opts = {}) {
           claim(key);
           if (!awake("desktop", key)) onStep("Waking the computer (about a minute)");
           await machine("desktop", key);
           const wake = () => onStep("Reconnecting to the computer");
-          const done = [];
-          let lastHash = "", waits = 0, still = 0;
-          const system = `You operate a Linux desktop (XFCE, Firefox, a terminal) for an AI assistant. Goal: ${goal}
-Each turn you get a screenshot with a labelled 100px grid; the large white arrow is the mouse pointer. Choose the ONE next action and answer with only a JSON object, no prose:
-{"action":"click","x":0,"y":0,"why":"..."}  also "double", "right"
-{"action":"type","text":"...","why":"..."}  types into what has focus (click the field first)
-{"action":"key","keys":"ctrl+l","why":"..."}  xdotool keys: Return, Tab, Escape, ctrl+c, alt+F4
-{"action":"scroll","direction":"down","amount":3,"why":"..."}
-{"action":"run","cmd":"firefox https://example.com &","why":"..."}  bash on this desktop; fastest way to open apps, files and URLs; end with & to leave a program open
-{"action":"wait","why":"..."}  when something is still loading
-{"action":"done","result":"what you did and what is on screen now, with any text they asked for"}
-{"action":"fail","reason":"why it cannot be done"}
-Prefer run for opening programs and URLs over hunting for icons. Click the centre of things. Check the screenshot shows the last action worked before moving on. If you see a form, buttons or text, the page has loaded: act on it, do not wait. Only wait when the screen is blank or shows a spinner. Never type passwords or pay for anything. If the goal needs a password, a phone number, a verification code or a CAPTCHA, stop with "fail" and say exactly what the person has to do themselves.`;
-          for (let i = 0; i < 18; i++) {
-            if (signal?.aborted) return { ok: false, text: "Stopped." };
-            const { s, r: shot } = await call("desktop", key, "/screen", {}, 40_000, wake);
-            touch(s);
-            frame = { key, png: shot.png, at: Date.now() };
-            notify();
-            const hash = crypto.createHash("sha1").update(shot.png || "").digest("hex");
-            const same = hash === lastHash;
-            lastHash = hash;
-            still = same ? still + 1 : 0;
-            if (still >= 4) return { ok: false, text: "The screen stopped changing, so I stopped. It is still on the computer as it was.", steps: done };
-            const hint = same && i > 0 ? "\nThe screen has NOT changed since your last action. Do something different." : "";
-            const nag = waits >= 1 ? "\nYou already waited. The page has loaded: act on what you see now, do not wait again." : "";
-            const prompt = `Step ${i + 1}. Screen ${shot.w}x${shot.h}.${hint}${nag}${done.length ? `\nDone so far:\n${done.slice(-8).join("\n")}` : ""}\nWhat is the next action?`;
-            const raw = await operatorStep(shot.grid || shot.png, shot.grid ? "image/jpeg" : "image/png", system, prompt).catch((e) => { log("error", `operator: ${e.message}`); return ""; });
-            let a = null;
-            try { a = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch {}
-            if (!a || !a.action) { done.push(`(step ${i + 1}: no usable action)`); continue; }
-            const why = String(a.why || "").slice(0, 80);
-            if (a.action !== "wait") waits = 0;
-            if (a.action === "done") return { ok: true, text: String(a.result || "Done."), steps: done };
-            if (a.action === "fail") return { ok: false, text: String(a.reason || "It could not be done."), steps: done };
-            onStep(why || a.action);
-            try {
-              if (a.action === "run") {
-                const { r } = await call("desktop", key, "/run", { cmd: String(a.cmd || ""), timeout: 60 }, 90_000, wake);
-                done.push(`ran \`${String(a.cmd).slice(0, 120)}\` -> exit ${r.code}${r.stderr ? `, ${String(r.stderr).slice(-160)}` : ""}${r.stdout ? `, ${String(r.stdout).slice(-200)}` : ""}`);
-                await wait(900);
-              } else if (a.action === "wait") {
-                waits++;
-                if (waits >= 3) return { ok: false, text: "It kept waiting on a screen that was not changing, so I stopped. What is on screen now is in the preview.", steps: done };
-                done.push("waited"); await wait(waits > 1 ? 400 : 1500);
+          const vm = async (p, body, ms = 60_000) => { const { s, r } = await call("desktop", key, p, body, ms, wake); touch(s); return r; };
+          const history = [], said = [];
+          let page = null, windows = [], note = "", lastSeen = "", same = 0;
+          const t0 = Date.now();
+          const peek = await vm("/browser", { op: "peek" }, 20_000).catch(() => null);
+          if (peek?.open) page = peek.page;
+          for (let step = 0; step < 30; step++) {
+            if (signal?.aborted) return { ok: false, text: "Stopped.", steps: history };
+            if (Date.now() - t0 > 9 * 60_000) return { ok: false, text: "This was taking too long, so I stopped. Here is where it got to.", steps: history, page: brief(page) };
+            // What the person sent meanwhile reaches the operator too.
+            const heard = (await opts.notes?.().catch?.(() => [])) || [];
+            if (heard.length) {
+              said.push(...heard);
+              if (heard.some((t) => /^\s*(stop|cancel|never ?mind|halt|quit|abort)\b/i.test(t))) return { ok: false, text: `Stopped because they said: "${heard.join(" ")}".`, steps: history, page: brief(page) };
+            }
+            windows = ((await vm("/browser", { op: "windows" }, 15_000).catch(() => null))?.windows) || windows;
+            const seenNow = JSON.stringify([page?.url, page?.text?.slice(0, 600), page?.els?.length, windows]);
+            same = seenNow === lastSeen ? same + 1 : 0;
+            lastSeen = seenNow;
+            if (same >= 4) return { ok: false, text: "Nothing on screen changed for several tries, so I stopped.", steps: history, page: brief(page) };
+            const user = [
+              `Goal: ${goal}`,
+              said.length ? `The person said while you worked: ${said.map((t) => `"${t}"`).join(" ")}` : "",
+              history.length ? `Done so far:\n${history.slice(-14).map((h, i) => `${Math.max(0, history.length - 14) + i + 1}. ${h}`).join("\n")}` : "Done so far: nothing yet.",
+              `\nNow on the screen:\nWindows: ${windows.join(" | ") || "(none)"}`,
+              page ? `Browser:\n${pageText(page)}` : "Browser: not open yet (goto opens it).",
+              note ? `\nNote: ${note}` : "",
+              same ? "\nNothing changed since your last turn. Do something different." : "",
+              "\nYour JSON:",
+            ].filter(Boolean).join("\n");
+            note = "";
+            const raw = await models.think(OPERATOR, user).catch((e) => { log("error", `operator: ${e.message}`); return ""; });
+            const j = firstJson(raw);
+            if (!j) { note = "Your last answer was not valid JSON. Answer with one JSON object only."; continue; }
+            if (j.done != null) return { ok: true, text: String(j.done).slice(0, 4000), steps: history, page: brief(page) };
+            if (j.fail != null) return { ok: false, text: String(j.fail).slice(0, 2000), steps: history, page: brief(page) };
+            const acts = (Array.isArray(j.actions) ? j.actions : [j]).slice(0, 6);
+            for (let n = 0; n < acts.length; n++) {
+              if (signal?.aborted) break;
+              const a = acts[n] || {};
+              const before = page ? `${page.url}|${page.title}` : "";
+              const label = (i) => { const e = page?.els?.find((x) => x.i === +i); return e ? `“${(e.name || e.href || e.role).slice(0, 40)}”` : `[${i}]`; };
+              try {
+                let what = "", r = null;
+                if (a.goto) { onStep(`Opening ${String(a.goto).replace(/^https?:\/\/(www\.)?/, "").slice(0, 40)}`); r = await vm("/browser", { op: "goto", url: String(a.goto) }, 45_000); what = `goto ${a.goto}`; }
+                else if (a.click != null) { onStep(`Clicking ${label(a.click)}`); what = `click [${a.click}] ${label(a.click)}`; r = await vm("/browser", { op: "click", i: a.click }, 45_000); }
+                else if ((a.type || a.enter) && secret(page, (a.type || a.enter)[0])) {
+                  // Enforced here, not just asked for: passwords, cards and codes are the person's to type.
+                  history.push(`refused to type into ${label((a.type || a.enter)[0])}: passwords, card numbers and codes are for the person to enter`);
+                  note = "You may not fill in passwords, card numbers or verification codes. Stop now with \"fail\" and tell the person exactly what they need to enter themselves, and where.";
+                  break;
+                }
+                else if (a.type || a.enter) { const [i, t] = a.type || a.enter; onStep(`Typing into ${label(i)}`); what = `${a.enter ? "enter" : "type"} [${i}] ${label(i)}: "${String(t).slice(0, 60)}"`; r = await vm("/browser", { op: "type", i, text: String(t ?? ""), enter: !!a.enter }, 45_000); }
+                else if (a.select) { const [i, o] = a.select; onStep(`Choosing ${String(o).slice(0, 30)}`); what = `select [${i}] "${o}"`; r = await vm("/browser", { op: "select", i, option: String(o) }, 30_000); }
+                else if (a.scroll) { onStep(`Scrolling ${a.scroll === "up" ? "up" : "down"}`); what = `scroll ${a.scroll}`; r = await vm("/browser", { op: "scroll", dir: a.scroll === "up" ? "up" : "down" }, 30_000); }
+                else if (a.back) { onStep("Going back"); what = "back"; r = await vm("/browser", { op: "back" }, 45_000); }
+                else if (a.read) { onStep("Reading the page"); what = "read the page"; r = await vm("/browser", { op: "read" }, 45_000); }
+                else if (a.run) { onStep(`Running ${String(a.run).slice(0, 40)}`); const o = await vm("/run", { cmd: String(a.run), timeout: 60 }, 95_000); what = `run \`${String(a.run).slice(0, 120)}\` → exit ${o.code}${o.stdout ? `, out: ${String(o.stdout).trim().slice(-300)}` : ""}${o.stderr ? `, err: ${String(o.stderr).trim().slice(-200)}` : ""}`; await wait(700); }
+                else if (a.click_on || a.double_click_on) {
+                  const target = String(a.click_on || a.double_click_on);
+                  onStep(`Clicking ${target.slice(0, 40)}`);
+                  const pt = await locate(vm, target);
+                  if (!pt) { what = `could not find "${target}" on the screen`; note = what; break; }
+                  await vm("/input", { action: a.double_click_on ? "double" : "click", x: pt.x, y: pt.y }, 30_000);
+                  what = `${a.double_click_on ? "double-clicked" : "clicked"} ${target} at ${pt.x},${pt.y}`; await wait(500);
+                }
+                else if (a.type_text != null) { onStep("Typing"); await vm("/input", { action: "type", text: String(a.type_text) }, 30_000); what = `typed "${String(a.type_text).slice(0, 60)}"`; }
+                else if (a.key) { onStep(`Pressing ${String(a.key).slice(0, 20)}`); await vm("/input", { action: "key", keys: String(a.key) }, 30_000); what = `pressed ${a.key}`; await wait(300); }
+                else if (a.look) { onStep("Looking at the screen"); const shot = await vm("/screen", { grid: false }, 40_000); frame = { key, png: shot.png, at: Date.now() }; const seen = await models.see(shot.png, "image/png", LOOK, String(a.look)).catch(() => ""); what = `looked (${a.look}): ${clip(seen, 900)}`; }
+                else { note = `Unknown action ${JSON.stringify(a).slice(0, 80)}.`; break; }
+                if (r?.page) { page = r.page; if (r.page.note) what += ` (${r.page.note})`; }
+                if (a.read && r?.page?.text) what += `\n${clip(r.page.text, 6000)}`;
+                history.push(what);
+                notify();
+                // The page changed: element numbers are stale, so stop this batch.
+                const after = page ? `${page.url}|${page.title}` : "";
+                if (n < acts.length - 1 && (after !== before || a.goto || a.back || (a.enter && r?.page))) { if (acts.slice(n + 1).some((x) => x && (x.click != null || x.type || x.enter || x.select))) note = "The page changed, so the rest of your actions were skipped. Here is the new page."; break; }
+              } catch (e) {
+                const msg = String(e.message || e).slice(0, 200);
+                history.push(`${Object.keys(a)[0] || "action"} failed: ${msg}`);
+                note = `That failed: ${msg}`;
+                break;
               }
-              else {
-                await call("desktop", key, "/input", a, 30_000, wake);
-                done.push(`${a.action}${a.x != null ? ` at ${a.x},${a.y}` : ""}${a.text ? ` "${String(a.text).slice(0, 60)}"` : ""}${a.keys ? ` ${a.keys}` : ""}${why ? ` (${why})` : ""}`);
-                await wait(350);
-              }
-            } catch (e) { done.push(`${a.action} failed: ${String(e.message).slice(0, 120)}`); }
-            touch(s);
+            }
           }
-          return { ok: false, text: "Ran out of steps before finishing.", steps: done };
+          return { ok: false, text: "Ran out of steps before finishing. Here is where it got to.", steps: history, page: brief(page) };
         },
         async run(kind, cmd, timeout, onStep) {
           if (kind === "desktop") claim(key);
