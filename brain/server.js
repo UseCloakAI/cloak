@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.4.2";
+const VERSION = "0.4.3";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -246,7 +246,7 @@ async function handleTurn(req, res) {
   const out = (ev) => { if (!res.writableEnded && !res.destroyed) res.write(`data: ${JSON.stringify(ev)}\n\n`); };
   const ping = setInterval(() => out({ ping: 1 }), 10_000);
   const ask = String(body.messages?.[body.messages.length - 1]?.content || "").slice(0, 80);
-  stats.active.set(id, { started: Date.now(), user: userDir(body.userKey || ""), ask, step: "" });
+  stats.active.set(id, { started: Date.now(), user: userDir(body.userKey || ""), ask, step: "", key: body.userKey || "", companion: body.companion || "cloak", run: typeof body.run_id === "string" ? body.run_id : null });
   const today = new Date().toDateString();
   if (stats.day !== today) { stats.day = today; stats.turnsToday = 0; }
   stats.turns++; stats.turnsToday++;
@@ -323,6 +323,9 @@ async function handleMe(req, res, p) {
     setTimeout(() => injects.delete(id), 15 * 60_000).unref?.();
     return send(res, 200, { ok: true });
   }
+  // Replies in progress for this person, so every open page (phone, laptop,
+  // any number of tabs) can show the same live status.
+  if (p === "/v1/blink/live" && method === "GET") return send(res, 200, { live: [...stats.active.values()].filter((a) => a.key === key && a.run).map((a) => ({ companion: a.companion, run_id: a.run, step: a.step, started: a.started })) });
   if (p === "/v1/blink/since" && method === "GET") return send(res, 200, { now: Date.now(), chats: blinks.since(key, Number(q.get("t")) || 0, q.get("blink") ? blink : null) });
   if (p === "/v1/blink/files" && method === "GET") return send(res, 200, blinks.files(key, blink));
   if (p === "/v1/blink/soul" && method === "POST") return send(res, 200, { ok: blinks.setSoul(key, blink, body.text) });
@@ -415,7 +418,7 @@ async function handleAdmin(req, res, p) {
       version: VERSION, node: process.version, uptime: Date.now() - started, paused: !!config.paused, admin: who,
       tunnel: tunnel || "unknown", cloudflare: cf,
       turns: stats.turns, turnsToday: stats.turnsToday, errors: stats.errors,
-      active: [...stats.active.values()],
+      active: [...stats.active.values()].map(({ key, run, ...a }) => a),
       storage: { used: await dirSize(DATA), diskFree: d[3] ? Number(d[3]) * 1024 : null, diskSize: d[1] ? Number(d[1]) * 1024 : null },
       people: (await fsp.readdir(path.join(DATA, "users")).catch(() => [])).filter((n) => n.endsWith(".sqlite")).length,
       memory: process.memoryUsage().rss,
