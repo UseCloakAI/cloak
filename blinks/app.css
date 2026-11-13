@@ -1170,3 +1170,22 @@ body.taking{overflow:hidden}
 @media (max-width:640px){.to-words span{display:none}.to-btn#toFull{display:none}}
 @media (prefers-reduced-motion:reduce){.takeover,.to-dot{animation:none}}
 .to-stage:focus{outline:none}
+
+/* ════ Rounded corners: one family for all of Blinks ═════════════════════
+   --r-1 large (the composer, cards, dialogs), --r-2 medium (bubbles, menus,
+   panels), --r-3 small (buttons, fields, chips). Hard shadows follow the
+   curve. Installed on an iPhone, the composer sits as far from the bottom
+   as from the sides and its corners run parallel to the screen's own. */
+.box,dialog,.gate-card,.made-card,.care,.info-box,.settings-layout,.feature,.sb-feature{border-radius:var(--r-1)}
+.bub,.msg.user .bubble,.mode-menu,.picker,.k-screen,.sources a,.mk-tile,.mk-fig,.prose pre,.relay p,.banner.card,.files-tabs,.md-file,.bub.doc .doc-more,.stage-fig,.foot-print,.sponsor{border-radius:var(--r-2)}
+.cta,.cp-act,.danger,.inp-field,.icon-btn,.sponsor-pill,.mode-btn,.mode-menu button,.picker button,.sb-btn,.sidebar .comp,.user-row,.comp,.new,.snav-btn,.thumb,.code-chip,.cp-mark,.cp-ver,.cp-view,.to-btn,.mood,.side-foot .who,.files-tabs button,.mk-form .lbl i,.sb-ink,.notice{border-radius:var(--r-3)}
+.now-n{border-radius:8px}
+.k-screen img{border-radius:calc(var(--r-2) - 3px)}
+/* The composer's buttons sit concentric inside it (box padding 8 + border 2). */
+.box .plus,.box .send{border-radius:max(var(--r-3),calc(var(--r-1) - 10px))}
+html.ios-app{--edge:10px;--r-1:calc(var(--dev-r) - var(--edge))}
+@media (max-width:780px){
+  html.ios-app .composer{padding:0 var(--edge) var(--edge)}
+  html.ios-app .box{max-width:none;box-shadow:none}
+  html.ios-app .box:focus-within{transform:none;box-shadow:none}
+}

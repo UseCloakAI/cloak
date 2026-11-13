@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#F2EEE5">
 <title>Cloak Blinks</title>
 <link rel="icon" id="favicon" type="image/svg+xml" href="favicon.svg">
+<script>/* Installed on an iPhone: match the screen's own corner radius (iOS does not expose it, so look it up by screen size) */(function(){try{var n=navigator,d=document.documentElement;if(!(n.standalone||matchMedia("(display-mode: standalone)").matches))return;if(!/iPhone|iPod/.test(n.userAgent))return;var w=Math.min(screen.width,screen.height),h=Math.max(screen.width,screen.height),R={"375x812":39,"360x780":44,"414x896":41.5,"390x844":47.33,"428x926":53.33,"393x852":55,"430x932":55,"402x874":62,"440x956":62,"420x912":62},r=R[w+"x"+h];if(r===undefined)r=h>=870?62:h>=840?55:h>=800?44:0;if(!r)return;d.style.setProperty("--dev-r",r+"px");d.classList.add("ios-app")}catch(e){}})();</script>
 <script>try{var m=localStorage.getItem("pv_mode");if(m!=="dark"&&m!=="light")m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-mode",m)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
