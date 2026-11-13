@@ -230,9 +230,11 @@ runcmd:
 
   // The slot running this person's machine, booting it if needed.
   const waking = new Map();
+  const failed = new Map(); // `${kind}:${key}` -> { error, at }: why the last wake failed, for the app
   function machine(kind, key) {
     const id = `${kind}:${key}`;
     if (waking.has(id)) return waking.get(id);
+    failed.delete(id);
     const p = serial(async () => {
       const now = Date.now();
       if (kind === "desktop") {
@@ -258,6 +260,7 @@ runcmd:
       return bootInto(s, "server", key);
     });
     waking.set(id, p);
+    p.catch((e) => { if (!(e instanceof Busy)) { failed.set(id, { error: String(e.message).slice(0, 200), at: Date.now() }); log("error", `${kind} wake failed: ${e.message}`); } });
     p.finally(() => waking.delete(id)).catch(() => {});
     return p;
   }
@@ -306,8 +309,8 @@ runcmd:
       const sv = slots.servers.find((x) => x.occ && x.occ.key === key);
       return {
         available: true, allowed: api.allowed(email), access: conf.access || "admins",
-        desktop: { state: mineD ? d.occ.state : "asleep", holder: mineD ? "you" : other ? "someone" : null },
-        server: { state: sv ? sv.occ.state : "asleep" },
+        desktop: { state: mineD ? d.occ.state : "asleep", holder: mineD ? "you" : other ? "someone" : null, error: failed.get(`desktop:${key}`)?.error || null },
+        server: { state: sv ? sv.occ.state : "asleep", error: failed.get(`server:${key}`)?.error || null },
         slots: { desktop: 1, servers: slots.servers.length, serversFree: slots.servers.filter((x) => !x.occ).length },
       };
     },
@@ -416,10 +419,11 @@ Prefer run for opening programs and URLs over hunting for icons. Click the centr
           }
           return { ok: false, text: "Ran out of steps before finishing.", steps: done };
         },
-        async run(kind, cmd, timeout) {
+        async run(kind, cmd, timeout, onStep) {
           if (kind === "desktop") claim(key);
+          if (!awake(kind, key)) onStep?.(`Waking the ${kind === "server" ? "server" : "computer"} (about a minute)`);
           if (kind === "desktop") notify();
-          const { s, r } = await call(kind, key, "/run", { cmd, timeout }, (Math.min(Number(timeout) || 60, 600) + 30) * 1000);
+          const { s, r } = await call(kind, key, "/run", { cmd, timeout }, (Math.min(Number(timeout) || 60, 600) + 30) * 1000, () => onStep?.(`Reconnecting to the ${kind === "server" ? "server" : "computer"}`));
           touch(s);
           return r;
         },

@@ -1638,7 +1638,8 @@
     var words = { asleep: "Asleep", waking: "Waking up", sleeping: "Going to sleep", stopping: "Going to sleep", lost: "Reconnecting", ready: mine ? "Yours right now" : "Awake" };
     rollText($("kState"), other ? "In use by someone else" : words[d.state] || "Asleep");
     $("kDesk").textContent = other ? "in use by someone else" : (words[d.state] || "asleep").toLowerCase();
-    $("kServ").textContent = ({ asleep: "asleep", waking: "waking up", sleeping: "going to sleep", stopping: "going to sleep", lost: "reconnecting", ready: "awake" })[sv.state] || "asleep";
+    $("kServ").textContent = sv.error && sv.state !== "ready" ? "could not wake: " + sv.error : ({ asleep: "asleep", waking: "waking up", sleeping: "going to sleep", stopping: "going to sleep", lost: "reconnecting", ready: "awake" })[sv.state] || "asleep";
+    if (d.error && d.state !== "ready" && !other) $("kDesk").textContent = "could not wake: " + d.error;
     $("kLedD").className = "k-led " + (other ? "busy" : d.state);
     $("kLedS").className = "k-led " + sv.state;
     $("kScreen").setAttribute("data-state", view);

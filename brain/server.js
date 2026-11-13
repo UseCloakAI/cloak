@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.4.3";
+const VERSION = "0.4.4";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
