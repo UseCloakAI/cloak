@@ -1105,6 +1105,25 @@
     }
   }
 
+  // A reply started on another device or tab: show it here too, live.
+  var liveBusy = false, liveSeen = {};
+  function watchLive() {
+    if (liveBusy || document.hidden || state.busy || resuming || !window.Sync || !Sync.user() || state.power === "lowlight") return;
+    liveBusy = true;
+    api("/v1/blink/live").then(function (d) {
+      var run = ((d && d.live) || []).filter(function (r) { return r.run_id && r.run_id !== state.runId && !liveSeen[r.run_id] && byId[r.companion]; })
+        .sort(function (a, b) { return (b.companion === state.companion) - (a.companion === state.companion); })[0];
+      if (!run || state.busy || resuming) return;
+      var ch = chatFor(run.companion) || newChatFor(run.companion);
+      catchUp(); // their message first, then the live status under it
+      setTimeout(function () {
+        if (state.busy || resuming) return;
+        liveSeen[run.run_id] = 1;
+        Kit.set("pv_live_run", JSON.stringify({ id: run.run_id, companion: run.companion, chat: ch.id, at: Date.now() }));
+        resumeRun();
+      }, 900);
+    }).catch(function () {}).then(function () { liveBusy = false; });
+  }
   // Messages that waited for a reply to finish go out now, as the next turn.
   function flushQueue() {
     if (state.busy || resuming || !state.queue.length) return;
@@ -1133,6 +1152,7 @@
   async function stream(ch, images, onEvent, signal) {
     var runId = "r-" + uid().replace(/[^\w-]/g, "");
     state.runId = runId;
+    liveSeen[runId] = 1;
     // Remembered until the reply is in, so a reload can pick the run back up.
     Kit.set("pv_live_run", JSON.stringify({ id: runId, companion: state.companion, chat: ch.id, at: Date.now() }));
     var seen = 0, finished = false;
@@ -2116,6 +2136,8 @@
     setInterval(pollPower, 60000);
     setInterval(function () { if (!document.hidden) catchUp(); }, 10000);
     // Reset in another tab: this one starts clean too, instead of saving the old chats back.
+    setInterval(watchLive, 3000);
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) setTimeout(watchLive, 300); });
     window.addEventListener("storage", function (e) { if (e.key === "pv_reset_seen" && e.newValue) location.reload(); });
     document.addEventListener("visibilitychange", function () { if (!document.hidden) { badge(); pollPower(); catchUp(); } });
     // Blinks needs a Cloak account: sign in first, then everything syncs.
