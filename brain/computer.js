@@ -385,6 +385,7 @@ runcmd:
           await machine("desktop", key);
           const wake = () => onStep("Reconnecting to the computer");
           const done = [];
+          let lastHash = "", waits = 0, still = 0;
           const system = `You operate a Linux desktop (XFCE, Firefox, a terminal) for an AI assistant. Goal: ${goal}
 Each turn you get a screenshot with a labelled 100px grid; the large white arrow is the mouse pointer. Choose the ONE next action and answer with only a JSON object, no prose:
 {"action":"click","x":0,"y":0,"why":"..."}  also "double", "right"
@@ -395,19 +396,27 @@ Each turn you get a screenshot with a labelled 100px grid; the large white arrow
 {"action":"wait","why":"..."}  when something is still loading
 {"action":"done","result":"what you did and what is on screen now, with any text they asked for"}
 {"action":"fail","reason":"why it cannot be done"}
-Prefer run for opening programs and URLs over hunting for icons. Click the centre of things. Check the screenshot shows the last action worked before moving on. Never type passwords or pay for anything.`;
+Prefer run for opening programs and URLs over hunting for icons. Click the centre of things. Check the screenshot shows the last action worked before moving on. If you see a form, buttons or text, the page has loaded: act on it, do not wait. Only wait when the screen is blank or shows a spinner. Never type passwords or pay for anything. If the goal needs a password, a phone number, a verification code or a CAPTCHA, stop with "fail" and say exactly what the person has to do themselves.`;
           for (let i = 0; i < 18; i++) {
             if (signal?.aborted) return { ok: false, text: "Stopped." };
             const { s, r: shot } = await call("desktop", key, "/screen", {}, 40_000, wake);
             touch(s);
             frame = { key, png: shot.png, at: Date.now() };
             notify();
-            const prompt = `Step ${i + 1}. Screen ${shot.w}x${shot.h}.${done.length ? `\nDone so far:\n${done.slice(-8).join("\n")}` : ""}\nWhat is the next action?`;
+            const hash = crypto.createHash("sha1").update(shot.png || "").digest("hex");
+            const same = hash === lastHash;
+            lastHash = hash;
+            still = same ? still + 1 : 0;
+            if (still >= 4) return { ok: false, text: "The screen stopped changing, so I stopped. It is still on the computer as it was.", steps: done };
+            const hint = same && i > 0 ? "\nThe screen has NOT changed since your last action. Do something different." : "";
+            const nag = waits >= 1 ? "\nYou already waited. The page has loaded: act on what you see now, do not wait again." : "";
+            const prompt = `Step ${i + 1}. Screen ${shot.w}x${shot.h}.${hint}${nag}${done.length ? `\nDone so far:\n${done.slice(-8).join("\n")}` : ""}\nWhat is the next action?`;
             const raw = await operatorStep(shot.grid || shot.png, shot.grid ? "image/jpeg" : "image/png", system, prompt).catch((e) => { log("error", `operator: ${e.message}`); return ""; });
             let a = null;
             try { a = JSON.parse((raw.match(/\{[\s\S]*\}/) || [""])[0]); } catch {}
             if (!a || !a.action) { done.push(`(step ${i + 1}: no usable action)`); continue; }
             const why = String(a.why || "").slice(0, 80);
+            if (a.action !== "wait") waits = 0;
             if (a.action === "done") return { ok: true, text: String(a.result || "Done."), steps: done };
             if (a.action === "fail") return { ok: false, text: String(a.reason || "It could not be done."), steps: done };
             onStep(why || a.action);
@@ -416,7 +425,11 @@ Prefer run for opening programs and URLs over hunting for icons. Click the centr
                 const { r } = await call("desktop", key, "/run", { cmd: String(a.cmd || ""), timeout: 60 }, 90_000, wake);
                 done.push(`ran \`${String(a.cmd).slice(0, 120)}\` -> exit ${r.code}${r.stderr ? `, ${String(r.stderr).slice(-160)}` : ""}${r.stdout ? `, ${String(r.stdout).slice(-200)}` : ""}`);
                 await wait(900);
-              } else if (a.action === "wait") { done.push("waited"); await wait(1500); }
+              } else if (a.action === "wait") {
+                waits++;
+                if (waits >= 3) return { ok: false, text: "It kept waiting on a screen that was not changing, so I stopped. What is on screen now is in the preview.", steps: done };
+                done.push("waited"); await wait(waits > 1 ? 400 : 1500);
+              }
               else {
                 await call("desktop", key, "/input", a, 30_000, wake);
                 done.push(`${a.action}${a.x != null ? ` at ${a.x},${a.y}` : ""}${a.text ? ` "${String(a.text).slice(0, 60)}"` : ""}${a.keys ? ` ${a.keys}` : ""}${why ? ` (${why})` : ""}`);
