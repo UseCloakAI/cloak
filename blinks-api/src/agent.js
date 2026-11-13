@@ -210,6 +210,8 @@ export async function* runAgent(env, ctx, req, signal) {
         net: IO.net ? IO.net(env) : null,
         // A long tool can update its own status line while it works.
         progress: (label) => ch.emit({ step: { id, by, tool: c.name, label, state: "run" } }),
+        // What the person themselves wrote this turn (for checks that need their own words).
+        said: msgs.filter((x) => x.role === "user").slice(-6).map((x) => textOf(x)).join("\n"),
         // Messages they sent while a long tool runs: taken in now, and the app told.
         absorb: async () => {
           if (depth || typeof req.pending !== "function") return [];

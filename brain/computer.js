@@ -74,7 +74,8 @@ Rules:
 - Element numbers belong to the page shown now. If an action loads a new page, the rest of your list is skipped and you get the new page.
 - Fill every field of a form in one turn, then click the button last.
 - After each turn, check the new page: if something did not work, try another way instead of repeating it.
-- Never type passwords, card numbers or one-time codes, and never buy anything. If the goal needs a password, a phone number, a verification code or a CAPTCHA, stop with "fail" and say exactly what the person has to do.
+- Never make up a password, card number or one-time code. Type one only if it is written out in the goal, exactly as given. Never buy anything. If the goal needs a secret it did not give, a phone number, a code sent to their phone, or a CAPTCHA, stop with "fail" and say exactly what the person has to do (they can use Take over in the Computer panel).
+- If a form asks for details the goal did not give (a name, a birthday), use sensible ones for whoever the account is for, and say which you used.
 - As soon as the goal is met or the question answered, stop with "done" and put the answer in it.`;
 
 // The two models the operator uses, set by makeComputer (think: text, see: vision).
@@ -110,6 +111,8 @@ function pageText(p) {
     `Elements:\n${els.join("\n") || "(none visible)"}`, `Visible text: ${clip(p.text, 2400)}`].filter(Boolean).join("\n");
 }
 const SECRET_RE = /pass ?(word|code|phrase)|\bpin\b|card ?(number|no)|\bcvv\b|\bcvc\b|security code|one[- ]?time|\botp\b|verification code|2fa|two[- ]factor|authenticator/i;
+// A secret may be typed only if the person wrote exactly that text themselves.
+const theirs = (text, said) => text.length >= 4 && String(said || "").includes(text);
 const secret = (p, i) => { const e = p?.els?.find((x) => x.i === +i); return !!e && (e.type === "password" || SECRET_RE.test(e.name || "")); };
 const brief = (p) => (p ? { url: p.url, title: p.title } : null);
 // Where on the screen is it? The vision model answers on a 0-1000 grid.
@@ -560,10 +563,11 @@ runcmd:
                 let what = "", r = null;
                 if (a.goto) { onStep(`Opening ${String(a.goto).replace(/^https?:\/\/(www\.)?/, "").slice(0, 40)}`); r = await vm("/browser", { op: "goto", url: String(a.goto) }, 45_000); what = `goto ${a.goto}`; }
                 else if (a.click != null) { onStep(`Clicking ${label(a.click)}`); what = `click [${a.click}] ${label(a.click)}`; r = await vm("/browser", { op: "click", i: a.click }, 45_000); }
-                else if ((a.type || a.enter) && secret(page, (a.type || a.enter)[0])) {
-                  // Enforced here, not just asked for: passwords, cards and codes are the person's to type.
+                else if ((a.type || a.enter) && secret(page, (a.type || a.enter)[0]) && !theirs(String((a.type || a.enter)[1] ?? ""), [opts.said, ...said].join("\n"))) {
+                  // Enforced here, not just asked for: a password, card number or code goes in
+                  // only if the person wrote it out themselves; never one the model made up.
                   history.push(`refused to type into ${label((a.type || a.enter)[0])}: passwords, card numbers and codes are for the person to enter`);
-                  note = "You may not fill in passwords, card numbers or verification codes. Stop now with \"fail\" and tell the person exactly what they need to enter themselves, and where.";
+                  note = "You may only type a password, card number or code that the person wrote out themselves, exactly as they wrote it. They did not give this one. Stop now with \"fail\" and say exactly what they need to enter (they can use Take over in the Computer panel).";
                   break;
                 }
                 else if (a.type || a.enter) { const [i, t] = a.type || a.enter; onStep(`Typing into ${label(i)}`); what = `${a.enter ? "enter" : "type"} [${i}] ${label(i)}: "${String(t).slice(0, 60)}"`; r = await vm("/browser", { op: "type", i, text: String(t ?? ""), enter: !!a.enter }, 45_000); }
