@@ -64,6 +64,15 @@ def run(cmd, timeout):
     return {"code": code, "stdout": cut(out), "stderr": cut(err), "seconds": round(time.time() - t0, 1),
             "truncated": len(out) > OUT_MAX or len(err) > OUT_MAX}
 
+def live():
+    # A quick frame for someone driving by hand: JPEG straight from X, no pointer, no grid.
+    env = x_env()
+    jpg = subprocess.run(["import", "-display", ":0", "-window", "root", "-quality", "62", "jpg:-"], capture_output=True, env=env, timeout=15).stdout
+    if not jpg: raise RuntimeError("could not capture the screen")
+    geo = subprocess.run(["xdotool", "getdisplaygeometry"], capture_output=True, env=env, timeout=5).stdout.decode().split()
+    w, h = (int(geo[0]), int(geo[1])) if len(geo) == 2 else (1280, 800)
+    return {"w": w, "h": h, "jpg": base64.b64encode(jpg).decode()}
+
 def screen(grid=True):
     env = x_env()
     raw = subprocess.run(["import", "-display", ":0", "-window", "root", "png:-"], capture_output=True, env=env, timeout=20).stdout
@@ -114,6 +123,11 @@ def act(a):
         if kind == "click": xdo("click", "1")
         elif kind == "double": xdo("click", "--repeat", "2", "--delay", "90", "1")
         elif kind == "right": xdo("click", "3")
+    elif kind in ("down", "up"):
+        # Pressed and released separately, so a person can drag (sliders, selections).
+        button = {"left": "1", "middle": "2", "right": "3"}.get(a.get("button"), "1")
+        if a.get("x") is not None: xdo("mousemove", "--sync", num("x"), num("y"))
+        xdo("mousedown" if kind == "down" else "mouseup", button)
     elif kind == "drag":
         xdo("mousemove", "--sync", num("x"), num("y")); xdo("mousedown", "1")
         xdo("mousemove", "--sync", num("to_x"), num("to_y")); xdo("mouseup", "1")
@@ -414,7 +428,7 @@ class H(BaseHTTPRequestHandler):
                 os.replace(__file__ + ".new", __file__)
                 self.send(200, {"ok": True}); sys.stdout.flush(); os._exit(0)
             if KIND != "desktop": return self.send(400, {"error": "this machine has no screen"})
-            if self.path == "/screen": return self.send(200, screen(a.get("grid", True) is not False))
+            if self.path == "/screen": return self.send(200, live() if a.get("fast") else screen(a.get("grid", True) is not False))
             if self.path == "/input": return self.send(200, act(a))
             if self.path == "/browser": return self.send(200, browser(a))
             self.send(404, {"error": "not found"})

@@ -142,7 +142,8 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
     opts.headers = Object.assign({ Authorization: "Bearer " + token }, opts.body ? { "Content-Type": "application/json" } : {});
     var r = await fetch(p, opts);
     if (r.status === 401) { show(false); throw new Error("signed out"); }
-    return r.json();
+    // A restart in progress answers with Cloudflare's HTML page, not JSON.
+    return r.json().catch(function () { return { error: "The brain did not answer (" + r.status + ").", down: r.status >= 500 }; });
   }
   function show(signed) { $("signin").hidden = signed; $("app").hidden = !signed; $("out").hidden = !signed; if (!signed) clearInterval(timer); }
 
@@ -237,10 +238,16 @@ dialog::backdrop{background:rgba(10,10,10,.55)}
   $("update").onclick = async function () {
     var b = this, was = b.textContent;
     b.disabled = true; b.textContent = "Checking for updates";
-    var r = await api("/admin/api/update", { method: "POST" }).catch(function (e) { return { error: e.message }; });
-    if (!r || r.error) { alert((r && r.error) || "Could not start the update."); b.disabled = false; b.textContent = was; return; }
+    var r = await api("/admin/api/update", { method: "POST" }).catch(function (e) { return { error: e.message, down: true }; });
+    // No answer usually means the update already started and the brain is restarting.
+    if (!r || (r.error && !r.down)) { alert((r && r.error) || "Could not start the update."); b.disabled = false; b.textContent = was; return; }
     b.textContent = "Updating. Back in a minute";
-    setTimeout(function () { location.reload(); }, 75000);
+    var t0 = Date.now(), gone = !!r.down;
+    var poll = setInterval(async function () {
+      var o = await api("/admin/api/overview").catch(function () { return { down: true }; });
+      if (o.down || o.error) { gone = true; return; }
+      if (gone || Date.now() - t0 > 120000) { clearInterval(poll); location.reload(); }
+    }, 3000);
   };
   $("restart").onclick = async function () {
     if (!confirm("Restart the brain? Replies in progress will move to Low Light.")) return;

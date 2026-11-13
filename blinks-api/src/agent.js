@@ -60,6 +60,11 @@ let IO = { lane: null, net: null };
 export function setIO(io) { IO = { ...IO, ...io }; }
 const callLane = (env, ctx, lane, opts) => (IO.lane ? IO.lane(env, lane, opts, ctx) : streamLane(env, ctx, lane, opts));
 
+// Low Light: the brain (memory, tools, the computer, Blinks talking to each
+// other) is away for now. Say so honestly; never claim it can never be done.
+const LOWLIGHT_NOTE = `# LOW LIGHT RIGHT NOW
+Your brain is resting for the moment, so this reply is plain chat: you cannot use your tools, memory, files or this person's computer right now. If they ask for something that needs those (using their computer or browser, remembering, files, scheduled tasks, other Blinks), say plainly that you can't do it this minute because your brain is away, and that it will work again when it is back, usually within a few minutes. Never say you are an AI without that ability in general.`;
+
 export async function* runAgent(env, ctx, req, signal) {
   const depth = req.depth || 0;
   // One of the five, or a Blink the person built (req.bot carries its spec).
@@ -130,7 +135,7 @@ export async function* runAgent(env, ctx, req, signal) {
     care: danger ? careProtocol(danger, help) : "",
     user: req.user && typeof req.user === "object" ? req.user : {},
     convictions: env.CONVICTIONS !== "off",
-    extra: [req.extra || "", depth ? "" : codeGuide(req.files), tools.includes("server_run") ? COMPUTER_GUIDE : ""].filter(Boolean).join("\n\n"),
+    extra: [req.extra || "", depth ? "" : codeGuide(req.files), tools.includes("server_run") ? COMPUTER_GUIDE : "", lowlight ? LOWLIGHT_NOTE : ""].filter(Boolean).join("\n\n"),
     soul: req.soul || "",
   });
 

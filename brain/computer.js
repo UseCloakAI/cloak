@@ -310,6 +310,9 @@ runcmd:
   }
 
   // The slot running this person's machine, booting it if needed.
+  // Someone driving their desktop by hand (a CAPTCHA, a sign-in): the operator waits.
+  const held = new Map(); // key -> until
+  const holding = (key) => (held.get(key) || 0) > Date.now();
   const waking = new Map();
   const failed = new Map(); // `${kind}:${key}` -> { error, at }: why the last wake failed, for the app
   function machine(kind, key) {
@@ -398,7 +401,7 @@ runcmd:
       };
       return {
         available: true, allowed: api.allowed(email), access: conf.access || "admins",
-        desktop: { state: mineD ? d.occ.state : "asleep", holder: mineD ? "you" : other ? "someone" : null, error: failed.get(`desktop:${key}`)?.error || null },
+        desktop: { state: mineD ? d.occ.state : "asleep", holder: mineD ? "you" : other ? "someone" : null, error: failed.get(`desktop:${key}`)?.error || null, takeover: holding(key) },
         server: { state: sv ? sv.occ.state : "asleep", error: failed.get(`server:${key}`)?.error || null },
         slots: { desktop: 1, servers: slots.servers.length, serversFree: slots.servers.filter((x) => !x.occ).length },
       };
@@ -450,13 +453,27 @@ runcmd:
           const desc = await vision(shot.png, "image/png", question, shot.w, shot.h);
           return { w: shot.w, h: shot.h, text: desc };
         },
-        async input(action) {
+        async input(action, quick = false) {
           claim(key);
           const { s, r } = await call("desktop", key, "/input", action, 30_000);
           touch(s);
-          await wait(350);
-          notify();
+          if (!quick) { await wait(350); notify(); }
           return r;
+        },
+        // Taking over by hand: the operator pauses until it is handed back.
+        takeover(on) {
+          claim(key);
+          if (on) held.set(key, Date.now() + 2 * 60_000); else held.delete(key); // kept alive by their live frames; a closed tab lets go within 2 minutes
+          notify();
+          return holding(key);
+        },
+        async live() {
+          const d = slots.desktop;
+          if (!d.occ || d.occ.key !== key || d.occ.state !== "ready") return null;
+          if (holding(key)) held.set(key, Date.now() + 2 * 60_000); // still watching: keep it theirs
+          touch(d);
+          const s = await agent(d, d.occ.uid, "/screen", { fast: true }, 15_000);
+          return { w: s.w, h: s.h, jpg: Buffer.from(s.jpg, "base64") };
         },
         // The operator: the agent that does the work on the desktop. It reads the
         // browser page as numbered elements (exact clicks and typing, no pixel
@@ -482,6 +499,15 @@ runcmd:
             if (heard.length) {
               said.push(...heard);
               if (heard.some((t) => /^\s*(stop|cancel|never ?mind|halt|quit|abort)\b/i.test(t))) return { ok: false, text: `Stopped because they said: "${heard.join(" ")}".`, steps: history, page: brief(page) };
+            }
+            if (holding(key)) {
+              onStep("Waiting while you use the computer");
+              while (holding(key) && !signal?.aborted) await wait(800);
+              const p2 = await vm("/browser", { op: "peek" }, 20_000).catch(() => null);
+              if (p2?.open) page = p2.page;
+              note = "The person just used the computer themselves (for example to solve a CAPTCHA or sign in). Look at the screen as it is now and carry on from there.";
+              history.push("the person took over and handed back");
+              onStep("Carrying on");
             }
             windows = ((await vm("/browser", { op: "windows" }, 15_000).catch(() => null))?.windows) || windows;
             const seenNow = JSON.stringify([page?.url, page?.text?.slice(0, 600), page?.els?.length, windows]);

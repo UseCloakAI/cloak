@@ -129,7 +129,10 @@ export async function* turn(env, ctx, req, signal) {
     } catch (e) {
       if (signal?.aborted) return;
       ctx.waitUntil?.(checkBrain(env));
-      if (got) yield { reset: true, notice: "Cloak lost its brain for a second, so this one is in Low Light." };
+      // The brain was already working on it: it keeps going and saves the reply,
+      // and the app fetches it when the connection is back. A Low Light answer
+      // here would only be a confused second reply.
+      if (got) { yield { notice: "Lost the connection to the brain for a moment. It is still working on this; the reply will show up here when it is back." }; return; }
     }
   }
   yield* runAgent(env, ctx, { ...req, lowlight: true }, signal);
