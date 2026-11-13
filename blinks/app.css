@@ -1197,7 +1197,8 @@ body.taking{overflow:hidden}
 html.ios-app{--edge:10px;--r-dev:calc(var(--dev-r) - var(--edge))}
 @media (max-width:780px){
   html.ios-app .composer{padding:0 var(--edge) var(--edge)}
-  html.ios-app .box{max-width:none;box-shadow:none;border-radius:var(--r-2) var(--r-2) var(--r-dev) var(--r-dev);padding-bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - var(--edge)));min-height:calc(var(--r-dev) + var(--r-2) + 4px)}
+  /* All four corners match the bottom ones; the box is at least two radii tall so none of them shrink. */
+  html.ios-app .box{max-width:none;box-shadow:none;border-radius:var(--r-dev);padding:8px 14px max(8px,calc(env(safe-area-inset-bottom,0px) - var(--edge)));min-height:calc(2 * var(--r-dev) + 4px)}
   html.ios-app .box:focus-within{transform:none;box-shadow:none}
   html.ios-app .box .plus,html.ios-app .box .send{border-radius:50%}
 }
