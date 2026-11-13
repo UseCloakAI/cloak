@@ -8,6 +8,8 @@
 @font-face{font-family:"Geist Mono";src:url(fonts/geist-mono.woff2) format("woff2-variations");font-weight:100 900;font-style:normal;font-display:swap}
 
 :root{
+  /* Corners: one family, large to small. On an installed iPhone the large one follows the screen. */
+  --r-1:26px; --r-2:18px; --r-3:12px;
   --ink:#0A0A0A; --bg:#F2EEE5; --surface:#FAFAF7; --sunk:#EAE5DB; --raise:#FFFFFF; --p3:#DDD8CC;
   --ink-2:#3B3A36; --ink-3:#6B6860;
   --line:rgba(10,10,10,.14); --line-2:#0A0A0A;
@@ -150,3 +152,7 @@ label.lbl,p.lbl{display:block;font:700 .7rem/1.2 var(--fb);letter-spacing:.12em;
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   .js [data-in]{opacity:1;translate:none}
 }
+
+/* Rounded corners, one family */
+.btn,.iconbtn,.chip,.field,.sticker,.nav-links a,.pick button,.chart-tip{border-radius:var(--r-3)}
+.card,.starter{border-radius:var(--r-2)}
