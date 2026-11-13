@@ -2240,11 +2240,16 @@
       document.querySelectorAll(".page .top").forEach(function (t) {
         var l = t.querySelector(".top-l"), r = t.querySelector(".top-r");
         t.style.setProperty("--side-w", Math.max(l ? l.offsetWidth : 0, r ? r.offsetWidth : 0) + "px");
+        // Where each side actually ends, from the bar's own edges (padding included).
+        var tb = t.getBoundingClientRect();
+        t.style.setProperty("--l-w", Math.round(l ? l.getBoundingClientRect().right - tb.left : 0) + "px");
+        t.style.setProperty("--r-w", Math.round(r ? tb.right - r.getBoundingClientRect().left : 0) + "px");
       });
     }
     fitTop();
     window.addEventListener("resize", fitTop);
-    if (window.ResizeObserver) new ResizeObserver(fitTop).observe($("main"));
+    // Re-measure whenever a side changes (a button appears, the mode label rolls).
+    if (window.ResizeObserver) { var topRO = new ResizeObserver(fitTop); topRO.observe($("main")); document.querySelectorAll(".page .top .top-l, .page .top .top-r").forEach(function (x) { topRO.observe(x); }); }
     // The bottom band is exactly the composer's height: one line across.
     if (window.ResizeObserver) new ResizeObserver(function (es) { $("app").style.setProperty("--input-h", Math.round(es[0].target.getBoundingClientRect().height) + "px"); }).observe(document.querySelector(".composer"));
     // Thinking mode: one quiet button, the choices in a menu.
