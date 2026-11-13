@@ -235,8 +235,10 @@ export async function* runAgent(env, ctx, req, signal) {
       // Ran out of room mid-reply (a long file, usually): carry on from the
       // exact spot, on the brain, until it is whole. The person never gets
       // half a program.
-      for (let round = 0; round < 4 && !signal?.aborted && (cut || partial); round++) {
-        if (!depth) yield { step: { id: `more-${step}-${round}`, tool: "write", label: "Writing the rest of it", state: "run" } };
+      // Code gets far more room: a big program can run to ten parts.
+      const rounds = lane === "code" ? 10 : 4;
+      for (let round = 0; round < rounds && !signal?.aborted && (cut || partial); round++) {
+        if (!depth) yield { step: { id: `more-${step}-${round}`, tool: "write", label: round ? `Writing the rest of it (part ${round + 2})` : "Writing the rest of it", state: "run" } };
         let more = "", ok = false;
         cut = false; partial = false;
         const cont = [...msgs, { role: "assistant", content: text }, { role: "user", content: `[Platform note: your reply was cut off by the length limit${openFence(text) ? ", in the middle of a code block" : ""}. Continue it from exactly where it stopped: the very next characters, with nothing repeated, no preamble, and no new code fence opener. Finish the code and the reply.]` }];
