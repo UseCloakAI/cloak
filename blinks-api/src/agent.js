@@ -60,6 +60,10 @@ let IO = { lane: null, net: null };
 export function setIO(io) { IO = { ...IO, ...io }; }
 const callLane = (env, ctx, lane, opts) => (IO.lane ? IO.lane(env, lane, opts, ctx) : streamLane(env, ctx, lane, opts));
 
+// When a turn runs without the computer tools, the Blink still has a computer.
+const HAS_COMPUTER_NOTE = `# YOU HAVE A COMPUTER
+This person gave you their own computer: a real desktop with a browser and a terminal, plus a server. You can browse, fill in forms, make accounts and run commands on it; you have done so in this chat if the history shows it. You are not using it in this reply, but never say you can't browse, can't use a computer or can't make accounts because you are an AI. If they ask how a job is going, answer from the conversation; if they want something done on it, say you're on it.`;
+
 // Low Light: the brain (memory, tools, the computer, Blinks talking to each
 // other) is away for now. Say so honestly; never claim it can never be done.
 const LOWLIGHT_NOTE = `# LOW LIGHT RIGHT NOW
@@ -112,13 +116,18 @@ export async function* runAgent(env, ctx, req, signal) {
   const research = req.mode === "research" && !crisis && !lowlight;
   const routed = research ? { lane: "deep", why: "research" } : routeLane({ text: textOf(last), mode: req.mode, home: companion.home, turns: messages.length, crisis });
   let lane = routed.lane;
+  // Mid-conversation, someone with a computer gets the Blink's usual brain even
+  // for "yo": the smallest models lose the thread of work in progress.
+  const hasComputer = !depth && !!req.computer && typeof req.computer.run === "function";
+  if (lane === "swift" && hasComputer && messages.length > 2) lane = LANES[companion.home] && companion.home !== "swift" ? companion.home : "smart";
   if (lowlight && !["swift", "smart", "vision"].includes(lane)) lane = "smart";
   const mind = lowlight ? null : mindFor(env, req.userKey);
   if (mind && !depth) await mind.hello(req.userKey).catch(() => {});
   const memories = mind && !depth ? await mind.context(textOf(last)).catch(() => []) : [];
 
   // No tools for a life at risk (the reply is the person, not a search) or for hellos.
-  let tools = crisis || lowlight || SMALLTALK.test(textOf(last).trim()) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind, hasTalk: typeof req.talk === "function" && !depth, hasFiles: !depth && Array.isArray(req.files) && req.files.length > 0, hasComputer: !depth && !!req.computer && typeof req.computer.run === "function" });
+  // (Only an opening hello: a "yo" in the middle of a job keeps its tools.)
+  let tools = crisis || lowlight || (SMALLTALK.test(textOf(last).trim()) && messages.length <= 2) || req.tools === false ? [] : toolbox({ depth, hasMind: !!mind, hasTalk: typeof req.talk === "function" && !depth, hasFiles: !depth && Array.isArray(req.files) && req.files.length > 0, hasComputer });
   // The smallest models get a short toolbelt: they plan poorly with a long one.
   if (lane === "swift") tools = tools.filter((t) => ["web_search", "calculate", "remember", "schedule_task", "create_blink"].includes(t));
   // A scheduled task must not schedule more work or rewrite the task list.
@@ -135,7 +144,7 @@ export async function* runAgent(env, ctx, req, signal) {
     care: danger ? careProtocol(danger, help) : "",
     user: req.user && typeof req.user === "object" ? req.user : {},
     convictions: env.CONVICTIONS !== "off",
-    extra: [req.extra || "", depth ? "" : codeGuide(req.files), tools.includes("server_run") ? COMPUTER_GUIDE : "", lowlight ? LOWLIGHT_NOTE : ""].filter(Boolean).join("\n\n"),
+    extra: [req.extra || "", depth ? "" : codeGuide(req.files), tools.includes("server_run") ? COMPUTER_GUIDE : "", lowlight ? LOWLIGHT_NOTE : "", hasComputer && !lowlight && !tools.includes("use_computer") ? HAS_COMPUTER_NOTE : ""].filter(Boolean).join("\n\n"),
     soul: req.soul || "",
   });
 
