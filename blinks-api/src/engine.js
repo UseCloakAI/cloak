@@ -186,6 +186,7 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
     }
     const calls = [];
     let leak = null;
+    let finish = null; // "length" when the model ran out of room, not out of things to say
 
     const ctrl = new AbortController();
     const onAbort = () => ctrl.abort();
@@ -211,6 +212,8 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
         }
         if (evt.error) throw new UpstreamError(`${c.model} stream error: ${JSON.stringify(evt.error).slice(0, 160)}`);
         if (evt.usage) usage = evt.usage;
+        const fr = evt.choices?.[0]?.finish_reason;
+        if (fr) finish = fr;
         const d = evt.choices?.[0]?.delta;
         if (!d) continue;
         if (Array.isArray(d.tool_calls)) {
@@ -276,6 +279,8 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
         size: c.size,
         tokensIn: usage?.prompt_tokens || gov.estimateMessages(fitted),
         tokensOut: usage?.completion_tokens || gov.estimateTokens(text) + gov.estimateTokens(calls.map((x) => x.arguments).join("")),
+        // Out of room: the model said so, or (when it says nothing) it used up the budget.
+        cut: finish === "length" || finish === "max_tokens" || (finish == null && !calls.length && gov.estimateTokens(text) >= want * 0.9),
         toolCalls: calls.filter((x) => x && x.name).map((x, i) => ({ id: x.id || `call_${Date.now().toString(36)}_${i}`, name: x.name, arguments: x.arguments || "{}" })),
         tried,
       };

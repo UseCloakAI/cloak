@@ -60,6 +60,39 @@ let IO = { lane: null, net: null };
 export function setIO(io) { IO = { ...IO, ...io }; }
 const callLane = (env, ctx, lane, opts) => (IO.lane ? IO.lane(env, lane, opts, ctx) : streamLane(env, ctx, lane, opts));
 
+// A reply that stops inside a code block (an odd number of fence lines).
+const openFence = (t) => ((String(t).match(/^\s*(```|~~~)/gm) || []).length % 2) === 1;
+// Join a continuation onto what came before: drop a re-opened fence and any
+// stretch the model repeated from the end of the previous part.
+function stitch(prev, more) {
+  let m = String(more || "");
+  if (openFence(prev)) m = m.replace(/^\s*```[\w.+-]*[^\n]*\n/, "");
+  m = m.replace(/^\[Platform note[^\]]*\]\s*/, "");
+  const tail = prev.slice(-600);
+  for (let n = Math.min(tail.length, m.length, 400); n >= 12; n--) {
+    if (tail.endsWith(m.slice(0, n))) return m.slice(n);
+  }
+  // It started over (or from somewhere earlier): find where the last part
+  // left off inside the new text and keep only what comes after it.
+  const flat = (x) => x.replace(/\s+/g, " ");
+  for (const n of [240, 160, 100, 60, 36]) {
+    const anchor = flat(prev.slice(-n)).trim();
+    if (anchor.length < 24) continue;
+    const fm = flat(m), at = fm.lastIndexOf(anchor);
+    if (at >= 0) {
+      // Map the flattened position back onto the original text.
+      let i = 0, j = 0;
+      const stop = at + anchor.length;
+      while (i < m.length && j < stop) { if (/\s/.test(m[i])) { while (i < m.length && /\s/.test(m[i])) i++; j++; } else { i++; j++; } }
+      return m.slice(i);
+    }
+  }
+  // It restarted the unfinished last line: keep only the new part of it.
+  const lastLine = prev.slice(prev.lastIndexOf("\n") + 1);
+  if (lastLine.length >= 8 && m.startsWith(lastLine)) return m.slice(lastLine.length);
+  return m;
+}
+
 // When a turn runs without the computer tools, the Blink still has a computer.
 const HAS_COMPUTER_NOTE = `# YOU HAVE A COMPUTER
 This person gave you their own computer: a real desktop with a browser and a terminal, plus a server. You can browse, fill in forms, make accounts and run commands on it; you have done so in this chat if the history shows it. You are not using it in this reply, but never say you can't browse, can't use a computer or can't make accounts because you are an AI. If they ask how a job is going, answer from the conversation; if they want something done on it, say you're on it.`;
@@ -181,12 +214,12 @@ export async function* runAgent(env, ctx, req, signal) {
     const offer = tools.length && !final ? specs(tools) : undefined;
     if (final && tools.length && step > 0) msgs.push({ role: "user", content: "[Platform note: you have used all your tool calls for this turn. Answer now with what you have, and say what you could not check.]" });
 
-    let text = "", calls = [], got = false;
+    let text = "", calls = [], got = false, cut = false;
     shared.spent++;
     const attempt = async function* (withTools) {
       for await (const ev of callLane(env, ctx, lane, { system, messages: msgs, maxTokens: req.max_tokens, signal, tools: withTools })) {
         if (ev.delta) { text += ev.delta; if (!depth) yield { delta: ev.delta }; }
-        else if (ev.done) { got = true; calls = ev.toolCalls || []; partial = !!ev.partial; tally(shared, ev); }
+        else if (ev.done) { got = true; calls = ev.toolCalls || []; partial = !!ev.partial; cut = !!ev.cut; tally(shared, ev); }
       }
     };
     try {
@@ -198,7 +231,38 @@ export async function* runAgent(env, ctx, req, signal) {
     }
     if (!got) return; // aborted
 
-    if (!calls.length || partial) { answer = text; break; }
+    if (!calls.length || partial) {
+      // Ran out of room mid-reply (a long file, usually): carry on from the
+      // exact spot, on the brain, until it is whole. The person never gets
+      // half a program.
+      for (let round = 0; round < 4 && !signal?.aborted && (cut || partial); round++) {
+        if (!depth) yield { step: { id: `more-${step}-${round}`, tool: "write", label: "Writing the rest of it", state: "run" } };
+        let more = "", ok = false;
+        cut = false; partial = false;
+        const cont = [...msgs, { role: "assistant", content: text }, { role: "user", content: `[Platform note: your reply was cut off by the length limit${openFence(text) ? ", in the middle of a code block" : ""}. Continue it from exactly where it stopped: the very next characters, with nothing repeated, no preamble, and no new code fence opener. Finish the code and the reply.]` }];
+        try {
+          for await (const ev of callLane(env, ctx, lane, { system, messages: cont, maxTokens: req.max_tokens, signal })) {
+            if (ev.delta) more += ev.delta;
+            else if (ev.done) { ok = true; cut = !!ev.cut; partial = !!ev.partial; tally(shared, ev); }
+          }
+        } catch (e) { break; }
+        if (!depth) yield { step: { id: `more-${step}-${round}`, state: "done", summary: "" } };
+        const piece = stitch(text, more);
+        if (!ok || !piece.trim()) break;
+        text += piece;
+        if (!depth) yield { delta: piece };
+      }
+      // Finished but never closed its code block: close it (after the page, if it is one).
+      if (openFence(text) && !cut && !partial) {
+        const end = text.search(/<\/html>\s*(?![\s\S]*<\/html>)/i);
+        const fix = end >= 0 ? text.slice(0, end).replace(/\s*$/, "") + "\n</html>\n```\n" + text.slice(end).replace(/^<\/html>\s*/i, "") : text.replace(/\s*$/, "") + "\n```";
+        if (!depth) yield { reset: true };
+        text = fix;
+        if (!depth) yield { delta: text };
+      }
+      answer = text;
+      break;
+    }
 
     // The model spoke before reaching for tools: that was a working note.
     if (text.trim() && !depth) yield { reset: true, note: text.trim().slice(0, 300) };
