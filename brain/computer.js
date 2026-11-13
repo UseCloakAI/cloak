@@ -301,12 +301,32 @@ runcmd:
         if (kind === "desktop") await wait(1500);
         slot.occ.state = "ready";
         slot.occ.lastUse = Date.now();
+        slot.occ.agent = agentVersion;
         return slot;
       }
       await wait(2000);
     }
     await stopMachine(slot).catch(() => {});
     throw new Error(`the ${kind} did not wake up in time`);
+  }
+
+  // A machine that was already running keeps its old agent until it reboots;
+  // bring it up to date in place (a few seconds), once per version.
+  async function fresh(slot) {
+    if (!agentVersion || !slot.occ || slot.occ.agent === agentVersion) return slot;
+    const uid = slot.occ.uid;
+    const h = await healthy(slot, uid);
+    if (h && h.version !== agentVersion) {
+      log("info", `updating the ${slot.kind}'s agent in place`);
+      await agent(slot, uid, "/update", { code: agentCode.toString("base64") }, 15_000).catch(() => {});
+      for (let i = 0; i < 20; i++) {
+        await wait(750);
+        const n = await healthy(slot, uid);
+        if (n && n.version === agentVersion) break;
+      }
+    }
+    if (slot.occ) slot.occ.agent = agentVersion;
+    return slot;
   }
 
   // The slot running this person's machine, booting it if needed.
@@ -324,7 +344,7 @@ runcmd:
       if (kind === "desktop") {
         const s = slots.desktop;
         // Answered moments ago: no need to ask again (that check cost every action time).
-        if (s.occ && s.occ.key === key && s.occ.state === "ready" && (Date.now() - (s.occ.seen || 0) < 20_000 || (await healthy(s, s.occ.uid)))) return s;
+        if (s.occ && s.occ.key === key && s.occ.state === "ready" && (Date.now() - (s.occ.seen || 0) < 20_000 || (await healthy(s, s.occ.uid)))) return fresh(s);
         if (s.occ && s.occ.key !== key) {
           if (s.lease && s.lease.until > now) throw new Busy("The computer is being used by someone else right now.");
           await stopMachine(s);
@@ -333,7 +353,7 @@ runcmd:
         return bootInto(s, "desktop", key);
       }
       let s = slots.servers.find((x) => x.occ && x.occ.key === key);
-      if (s && s.occ.state === "ready" && (Date.now() - (s.occ.seen || 0) < 20_000 || (await healthy(s, s.occ.uid)))) return s;
+      if (s && s.occ.state === "ready" && (Date.now() - (s.occ.seen || 0) < 20_000 || (await healthy(s, s.occ.uid)))) return fresh(s);
       if (!s) s = slots.servers.find((x) => !x.occ);
       if (!s) {
         const quiet = slots.servers.filter((x) => x.occ && x.occ.state === "ready" && now - x.occ.lastUse > HANDOVER_MS).sort((a, b) => a.occ.lastUse - b.occ.lastUse)[0];
