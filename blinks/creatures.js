@@ -1,5 +1,5 @@
 /* Cloak Blinks: hand-drawn shapes with dot eyes. No mouths, no arms, no
-   shadows, no thought bubbles. Wobbly ink outlines and flat Cloak colours.
+   shadows, no thought bubbles. Clean ink outlines and flat Cloak colours.
    Drawn as paths, rigged and animated in code: no image files, no generated
    art.
 
@@ -93,7 +93,7 @@
     return d + " Z";
   }
 
-  /* Shapes. d: the outline. o: where it stands. shine: the highlight stroke.
+  /* Shapes. d: the outline. o: where it stands. shine: unused (Blinks are flat).
      face: [cx, cy, gap, eye rx, eye ry, pupil]. top/side: where toppers sit. */
   var SHAPES = {
     orb: { name: "Orb", d: "M120 42 C168 40 202 78 200 124 C198 172 164 204 118 202 C72 200 38 166 40 120 C42 76 74 44 120 42 Z", o: "120,206", shine: "M66 92 q10 -22 32 -30", face: [120, 112, 26, 17, 20, 7.5], top: [120, 44], side: [178, 66] },
@@ -153,8 +153,8 @@
     var f = sh.face;
     var cheeks = spec.cheeks ? '<ellipse cx="' + (f[0] - f[2] - 22) + '" cy="' + (f[1] + f[4] + 8) + '" rx="10" ry="6" fill="#E5603E" opacity=".45"/><ellipse cx="' + (f[0] + f[2] + 22) + '" cy="' + (f[1] + f[4] + 8) + '" rx="10" ry="6" fill="#E5603E" opacity=".45"/>' : "";
     var hat = tp.svg(acc) ? '<g data-p="hat" data-o="' + at[0] + "," + at[1] + '"><g transform="translate(' + at[0] + " " + at[1] + ')">' + tp.svg(acc) + "</g></g>" : "";
-    var shine = '<path d="' + sh.shine + '" fill="none" stroke="' + ink + '" stroke-width="3.2" stroke-linecap="round" opacity=".35"/>';
-    return '<g data-p="body" data-o="' + sh.o + '">' + '<path d="' + sh.d + '" fill="' + spec.color + '" ' + S + "/>" + shine + hat + cheeks + face(f, spec.eyes, spec.glasses, ink) + "</g>";
+    // Flat: one outline, no highlight stroke.
+    return '<g data-p="body" data-o="' + sh.o + '">' + '<path d="' + sh.d + '" fill="' + spec.color + '" ' + S + "/>" + hat + cheeks + face(f, spec.eyes, spec.glasses, ink) + "</g>";
   }
 
   /* ── The rig ─────────────────────────────────────────────────────── */
