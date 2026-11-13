@@ -985,7 +985,12 @@ textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
    between them (--side-w, measured in app.js), and on a narrow chat the
    sponsor and the mood text make way first. */
 .main{container-type:inline-size;container-name:main}
-.top .chip-who{max-width:max(150px,calc(100% - 2 * var(--side-w,200px) - 28px))}
+.top .chip-who{max-width:max(0px,calc(100% - 2 * var(--side-w,200px) - 28px))}
+/* Narrow: centre it in the gap between the two sides instead of on the
+   screen, so it can use all of that gap and never touches either side. */
+@container main (max-width:640px){
+  .top .chip-who{left:calc(var(--l-w,56px) + 8px);right:calc(var(--r-w,56px) + 8px);margin-inline:auto;width:fit-content;min-width:0;max-width:calc(100% - var(--l-w,56px) - var(--r-w,56px) - 16px);translate:0 -50%}
+}
 @container main (max-width:980px){.top .sponsor-pill{display:none}}
 @container main (max-width:640px){.top .chip-who .mood-tx{display:none}}
 @container main (max-width:520px){.top .modes{display:none}}
@@ -998,6 +1003,7 @@ textarea.inp-field{height:auto;padding:10px 13px;resize:vertical}
 @container main (max-width:760px){.top-r .icon-btn[data-dark-toggle]{display:none}}
 @container main (max-width:600px){.top .modes{display:none}}
 .top .chip-who{min-width:min(150px,60cqw)}
+@container main (max-width:640px){.top .chip-who{min-width:0}}
 
 /* ════ Code panel: drag to resize, or full screen ═════════════════════
    A pill on the panel's left edge, centred vertically, drags its width
@@ -1183,9 +1189,15 @@ body.taking{overflow:hidden}
 .k-screen img{border-radius:calc(var(--r-2) - 3px)}
 /* The composer's buttons sit concentric inside it (box padding 8 + border 2). */
 .box .plus,.box .send{border-radius:max(var(--r-3),calc(var(--r-1) - 10px))}
-html.ios-app{--edge:10px;--r-1:calc(var(--dev-r) - var(--edge))}
+/* Concentric with the screen: the box sits --edge from the bottom and both
+   sides, and its bottom corners are the screen's radius minus that, so the
+   gap is the same at every point around the curve. The box is tall enough
+   that the browser never shrinks those corners (top + bottom radius <=
+   height), and its contents sit above the home bar. */
+html.ios-app{--edge:10px;--r-dev:calc(var(--dev-r) - var(--edge))}
 @media (max-width:780px){
   html.ios-app .composer{padding:0 var(--edge) var(--edge)}
-  html.ios-app .box{max-width:none;box-shadow:none}
+  html.ios-app .box{max-width:none;box-shadow:none;border-radius:var(--r-2) var(--r-2) var(--r-dev) var(--r-dev);padding-bottom:max(8px,calc(env(safe-area-inset-bottom,0px) - var(--edge)));min-height:calc(var(--r-dev) + var(--r-2) + 4px)}
   html.ios-app .box:focus-within{transform:none;box-shadow:none}
+  html.ios-app .box .plus,html.ios-app .box .send{border-radius:50%}
 }
