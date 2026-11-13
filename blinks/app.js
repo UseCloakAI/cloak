@@ -1648,7 +1648,174 @@
     if (cover) { $("kCoverTitle").textContent = cover[0]; $("kCoverText").textContent = cover[1]; }
     $("kWake").hidden = view !== "asleep";
     $("kRelease").hidden = !mine;
+    $("kTake").hidden = !(mine && d.state === "ready");
     $("kImg").hidden = view !== "live";
+  }
+  /* ── Take over: the desktop full screen, with your mouse and keyboard ── */
+  // For CAPTCHAs, sign-ins and anything the Blink should not do itself. The
+  // Blink's operator waits until you hand it back, then carries on.
+  var to = { on: false, q: Promise.resolve(), down: null, lastClick: null, clickT: 0, moveAt: 0, moved: null, wheel: 0, wheelT: 0, typed: "", typeT: 0 };
+  var TO_KEYS = { Enter: "Return", Backspace: "BackSpace", Tab: "Tab", Escape: "Escape", ArrowLeft: "Left", ArrowRight: "Right", ArrowUp: "Up", ArrowDown: "Down", Delete: "Delete", Home: "Home", End: "End", PageUp: "Prior", PageDown: "Next", Insert: "Insert", " ": "space" };
+  for (var fk = 1; fk <= 12; fk++) TO_KEYS["F" + fk] = "F" + fk;
+  var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  function toSend(a) {
+    to.q = to.q.then(function () { return api("/v1/computer/input", { method: "POST", body: JSON.stringify(a) }).catch(function () {}); });
+    return to.q;
+  }
+  function toPoint(e) {
+    var img = $("toImg"), r = img.getBoundingClientRect(), nw = img.naturalWidth, nh = img.naturalHeight;
+    if (!nw || !nh) return null;
+    var k = Math.min(r.width / nw, r.height / nh), ox = r.left + (r.width - nw * k) / 2, oy = r.top + (r.height - nh * k) / 2;
+    var x = (e.clientX - ox) / k, y = (e.clientY - oy) / k;
+    if (x < 0 || y < 0 || x > nw || y > nh) return null;
+    return { x: Math.round(x), y: Math.round(y) };
+  }
+  function toFlushType() {
+    clearTimeout(to.typeT);
+    if (to.typed) { var t = to.typed; to.typed = ""; toSend({ action: "type", text: t }); }
+  }
+  function toType(t) { to.typed += t; clearTimeout(to.typeT); to.typeT = setTimeout(toFlushType, 45); }
+  async function toFrames() {
+    var img = $("toImg");
+    while (to.on) {
+      var t0 = Date.now();
+      try {
+        var h = await authHeaders();
+        var res = await fetch(Kit.api + "/v1/computer/live", { headers: h });
+        if (res.ok) {
+          var url = URL.createObjectURL(await res.blob()), next = new Image();
+          await new Promise(function (ok) { next.onload = next.onerror = ok; next.src = url; });
+          if (!to.on) { URL.revokeObjectURL(url); break; }
+          var old = img.src; img.src = url; $("toWait").hidden = true;
+          if (old && old.indexOf("blob:") === 0) setTimeout(function () { URL.revokeObjectURL(old); }, 500);
+        } else {
+          $("toWait").hidden = false; $("toWait").textContent = res.status === 409 ? "The desktop is not running. Wake it from the Computer panel." : "Reconnecting to your desktop";
+          await wait(1200);
+        }
+      } catch (e) { await wait(1200); }
+      var dt = Date.now() - t0;
+      if (dt < 140) await wait(140 - dt);
+    }
+  }
+  function wait(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+  function takeOver() {
+    if (to.on) return;
+    to.on = true;
+    $("takeover").hidden = false;
+    $("toWait").hidden = false; $("toWait").textContent = "Connecting to your desktop";
+    document.body.classList.add("taking");
+    api("/v1/computer/takeover", { method: "POST", body: JSON.stringify({ on: true }) }).then(function (st) { if (st && st.desktop) { comp.st = st; paintComp(); } }).catch(function () {});
+    goFull();
+    toFrames();
+    setTimeout(function () { $("toStage").focus({ preventScroll: true }); }, 60);
+  }
+  function handBack() {
+    if (!to.on) return;
+    toFlushType();
+    to.on = false;
+    $("takeover").hidden = true;
+    document.body.classList.remove("taking");
+    if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+    try { navigator.keyboard && navigator.keyboard.unlock && navigator.keyboard.unlock(); } catch (e) {}
+    to.q.then(function () { return api("/v1/computer/takeover", { method: "POST", body: JSON.stringify({ on: false }) }); }).then(function (st) { if (st && st.desktop) { comp.st = st; paintComp(); } }).catch(function () {});
+  }
+  function goFull() {
+    var el = $("takeover");
+    if (!el.requestFullscreen || document.fullscreenElement) return;
+    el.requestFullscreen({ navigationUI: "hide" }).then(function () {
+      // Lets Escape and shortcuts reach the desktop (hold Escape to leave full screen).
+      if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock().then(function () { $("toSub").textContent = "Hold Esc to leave full screen. Your Blink waits until you hand it back."; }).catch(function () {});
+    }).catch(function () {});
+  }
+  function bindTakeover() {
+    var stage = $("toStage");
+    $("kTake").addEventListener("click", takeOver);
+    $("toBack").addEventListener("click", handBack);
+    $("toFull").addEventListener("click", function () { if (document.fullscreenElement) document.exitFullscreen().catch(function () {}); else goFull(); });
+    $("toKeys").addEventListener("click", function () { var i = $("toInput"); i.style.pointerEvents = "auto"; i.focus(); });
+    stage.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    stage.addEventListener("pointerdown", function (e) {
+      var p = toPoint(e); if (!p) return;
+      e.preventDefault();
+      stage.focus({ preventScroll: true }); // keys go to the desktop, never to the buttons above
+      try { stage.setPointerCapture(e.pointerId); } catch (x) {}
+      toFlushType();
+      to.down = { x: p.x, y: p.y, button: e.button === 2 ? "right" : e.button === 1 ? "middle" : "left", dragging: false };
+    });
+    stage.addEventListener("pointermove", function (e) {
+      var p = toPoint(e); if (!p) return;
+      var now = Date.now();
+      if (to.down) {
+        if (!to.down.dragging && Math.hypot(p.x - to.down.x, p.y - to.down.y) > 6) {
+          to.down.dragging = true;
+          toSend({ action: "down", x: to.down.x, y: to.down.y, button: to.down.button });
+        }
+        if (to.down.dragging && now - to.moveAt > 50) { to.moveAt = now; toSend({ action: "move", x: p.x, y: p.y }); }
+      } else if (e.pointerType === "mouse" && now - to.moveAt > 220 && (!to.moved || Math.hypot(p.x - to.moved.x, p.y - to.moved.y) > 4)) {
+        to.moveAt = now; to.moved = p; toSend({ action: "move", x: p.x, y: p.y }); // hover menus and tooltips
+      }
+    });
+    stage.addEventListener("pointerup", function (e) {
+      var d = to.down; to.down = null;
+      if (!d) return;
+      var p = toPoint(e) || d;
+      if (d.dragging) { toSend({ action: "up", x: p.x, y: p.y, button: d.button }); return; }
+      if (d.button === "right") { toSend({ action: "right", x: p.x, y: p.y }); return; }
+      // Two clicks close together are one double click (sent as one, so the
+      // delay of the round trip cannot split it).
+      var now = Date.now(), last = to.lastClick;
+      if (last && now - last.t < 380 && Math.hypot(p.x - last.x, p.y - last.y) < 10) {
+        clearTimeout(to.clickT); to.lastClick = null;
+        toSend({ action: "double", x: p.x, y: p.y });
+        return;
+      }
+      to.lastClick = { x: p.x, y: p.y, t: now };
+      to.clickT = setTimeout(function () { to.lastClick = null; toSend({ action: "click", x: p.x, y: p.y }); }, 230);
+    });
+    stage.addEventListener("pointercancel", function () { if (to.down && to.down.dragging) toSend({ action: "up", x: to.down.x, y: to.down.y, button: to.down.button }); to.down = null; });
+    stage.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var p = toPoint(e); if (!p) return;
+      to.wheel += e.deltaY;
+      if (to.wheelT) return;
+      to.wheelT = setTimeout(function () {
+        var n = Math.max(1, Math.min(8, Math.round(Math.abs(to.wheel) / 60)));
+        if (Math.abs(to.wheel) >= 4) toSend({ action: "scroll", direction: to.wheel > 0 ? "down" : "up", amount: n, x: p.x, y: p.y });
+        to.wheel = 0; to.wheelT = 0;
+      }, 110);
+    }, { passive: false });
+    document.addEventListener("keydown", function (e) {
+      if (!to.on || e.isComposing || e.key === "Unidentified" || e.key === "Process") return;
+      if (e.target && e.target.closest && e.target.closest(".to-bar")) { if (e.key === "Tab" || e.key === "Enter" || e.key === " ") return; }
+      var mod = e.ctrlKey || e.altKey || e.metaKey;
+      if (e.key.length === 1 && !mod) { e.preventDefault(); toType(e.key); return; }
+      var name = TO_KEYS[e.key] || (mod && /^[a-z0-9]$/i.test(e.key) ? e.key.toLowerCase() : null);
+      if (!name) return;
+      // On a Mac, Cmd shortcuts (copy, paste, select all) are Ctrl on the desktop.
+      var combo = [];
+      if (e.ctrlKey || (isMac && e.metaKey)) combo.push("ctrl");
+      if (e.altKey) combo.push("alt");
+      if (e.metaKey && !isMac) combo.push("super");
+      if (e.shiftKey && (combo.length || TO_KEYS[e.key])) combo.push("shift");
+      combo.push(name);
+      if (isMac && e.metaKey && name === "v") return; // the paste event sends the text itself
+      e.preventDefault();
+      toFlushType();
+      toSend({ action: "key", keys: combo.join("+") });
+    });
+    document.addEventListener("paste", function (e) {
+      if (!to.on) return;
+      var t = (e.clipboardData && e.clipboardData.getData("text")) || "";
+      if (t) { e.preventDefault(); toFlushType(); toSend({ action: "type", text: t.slice(0, 2000) }); }
+    });
+    // Phones: the on-screen keyboard types through a hidden field.
+    $("toInput").addEventListener("beforeinput", function (e) {
+      if (!to.on) return;
+      if (e.inputType === "deleteContentBackward") { e.preventDefault(); toFlushType(); toSend({ action: "key", keys: "BackSpace" }); }
+      else if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") { e.preventDefault(); toFlushType(); toSend({ action: "key", keys: "Return" }); }
+      else if (e.data) { e.preventDefault(); toType(e.data); }
+    });
+    document.addEventListener("fullscreenchange", function () { $("toFull").textContent = document.fullscreenElement ? "Exit full screen" : "Full screen"; });
   }
   // The screen, refreshed about once a second while it is yours and open.
   function pullFrame() {
@@ -2016,6 +2183,7 @@
       var b = this; b.disabled = true;
       api("/v1/computer/wake", { method: "POST", body: JSON.stringify({ kind: "desktop" }) }).then(function (st) { if (st && st.desktop) { comp.st = st; comp.st.desktop.state = "waking"; paintComp(); } }).catch(function () {}).then(function () { b.disabled = false; });
     });
+    bindTakeover();
     $("kRelease").addEventListener("click", function () { api("/v1/computer/release", { method: "POST", body: "{}" }).then(function (st) { comp.st = st; paintComp(); }); });
     $("cpFull").addEventListener("click", function () { codeFull(!$("app").classList.contains("code-full")); });
     initGrip();

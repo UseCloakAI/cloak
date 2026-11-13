@@ -188,10 +188,28 @@
         <div class="k-line"><i class="k-led" id="kLedD"></i><span><b>Desktop</b> <span id="kDesk">asleep</span></span></div>
         <div class="k-line"><i class="k-led" id="kLedS"></i><span><b>Server</b> <span id="kServ">asleep</span></span></div>
         <p class="k-note">Both machines are yours alone: nobody else can see their files, screen or browser, and they reach the internet only. This PC runs one desktop at a time.</p>
-        <button class="cp-act" type="button" id="kRelease" hidden>I'm done with it</button>
+        <div class="k-acts">
+          <button class="cta k-take" type="button" id="kTake" hidden>Take over</button>
+          <button class="cp-act" type="button" id="kRelease" hidden>I'm done with it</button>
+        </div>
       </div>
     </div>
   </aside>
+  <!-- Taking over: the desktop full screen, with your mouse and keyboard. -->
+  <div class="takeover" id="takeover" role="dialog" aria-modal="true" aria-labelledby="toTitle" hidden>
+    <div class="to-bar">
+      <span class="to-dot" aria-hidden="true"></span>
+      <div class="to-words"><b id="toTitle">You have the mouse and keyboard</b><span id="toSub">Your Blink waits until you hand it back.</span></div>
+      <button class="to-btn" type="button" id="toKeys">Keyboard</button>
+      <button class="to-btn" type="button" id="toFull">Full screen</button>
+      <button class="cta to-back" type="button" id="toBack">Hand back</button>
+    </div>
+    <div class="to-stage" id="toStage" tabindex="-1">
+      <img id="toImg" alt="Your computer's screen" draggable="false">
+      <div class="to-wait" id="toWait">Connecting to your desktop</div>
+      <textarea id="toInput" class="to-input" aria-label="Type on the computer" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    </div>
+  </div>
   <aside class="dock cpanel" id="cpanel" role="dialog" aria-modal="true" aria-labelledby="cpTitle" hidden>
     <div class="dock-grip" id="cpGrip" role="separator" aria-orientation="vertical" aria-label="Resize the code panel" tabindex="0"><i aria-hidden="true"></i></div>
     <header class="cp-head">

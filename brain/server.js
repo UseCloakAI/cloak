@@ -25,7 +25,7 @@ import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -303,6 +303,27 @@ async function handleMe(req, res, p) {
     try {
       if (p === "/v1/computer/wake" && method === "POST") { computer.wakeFor(key, body.kind === "server" ? "server" : "desktop").catch((e) => log("error", `wake failed: ${e.message}`)); return send(res, 200, computer.status(key, email)); }
       if (p === "/v1/computer/release" && method === "POST") { computer.release(key); return send(res, 200, computer.status(key, email)); }
+      // Taking over by hand: live frames, the person's mouse and keyboard, and the hand-back.
+      if (p === "/v1/computer/takeover" && method === "POST") return send(res, 200, { takeover: computer.forUser(key).takeover(!!body.on), ...computer.status(key, email) });
+      if (p === "/v1/computer/live" && method === "GET") {
+        const f = await computer.forUser(key).live();
+        if (!f) return send(res, 409, { error: "The desktop is not running." });
+        res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "no-store", "Content-Length": f.jpg.length, "X-Screen": `${f.w}x${f.h}` });
+        return res.end(f.jpg);
+      }
+      if (p === "/v1/computer/input" && method === "POST") {
+        const A = ["click", "double", "right", "move", "down", "up", "type", "key", "scroll"];
+        if (!A.includes(body.action)) return send(res, 400, { error: "unknown action" });
+        const a = { action: body.action };
+        for (const k of ["x", "y"]) if (body[k] != null) a[k] = Math.max(0, Math.min(8000, Math.round(+body[k] || 0)));
+        if (body.button) a.button = ["left", "middle", "right"].includes(body.button) ? body.button : "left";
+        if (body.text != null) a.text = String(body.text).slice(0, 2000);
+        if (body.keys != null) a.keys = String(body.keys).slice(0, 120);
+        if (body.direction) a.direction = ["up", "down", "left", "right"].includes(body.direction) ? body.direction : "down";
+        if (body.amount != null) a.amount = Math.max(1, Math.min(10, +body.amount || 1));
+        await computer.forUser(key).input(a, true);
+        return send(res, 200, { ok: true });
+      }
       if (p === "/v1/computer/screen" && method === "GET") {
         const png = await computer.frameFor(key);
         if (!png) return send(res, 409, { error: "not driving" });

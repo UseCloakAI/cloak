@@ -202,7 +202,7 @@ export const TOOLS = {
     async run(a, cx) {
       if (typeof cx.computer.operate !== "function") return { text: "The computer operator is not available on this brain yet. Use computer_run instead.", summary: "unavailable" };
       const r = await cx.computer.operate(String(a.goal || ""), cx.signal, (label) => cx.progress?.(String(label).replace(/^./, (c) => c.toUpperCase())), { notes: () => cx.absorb?.() || Promise.resolve([]) });
-      const where = r.page?.url ? `\nThe browser is on: ${r.page.title || ""} (${r.page.url})` : "";
+      const where = (r.page?.url ? `\nThe browser is on: ${r.page.title || ""} (${r.page.url})` : "") + (r.ok ? "" : "\nIf it needs them (a password, a CAPTCHA, a code), they can do that part themselves: Computer panel, Take over. Then ask you to carry on.");
       return { text: `${r.ok ? "Done" : "Not finished"}: ${clip(r.text, RESULT_CHARS)}${where}${r.steps?.length ? `\n\nSteps (${r.steps.length}):\n${r.steps.slice(-10).map((x) => clip(x, 300)).join("\n")}` : ""}`, summary: r.ok ? `done in ${r.steps?.length || 0} steps` : "not finished" };
     },
   },
