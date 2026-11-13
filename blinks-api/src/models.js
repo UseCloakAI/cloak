@@ -94,7 +94,19 @@ export const LANES = {
     blurb: "Reads the computer's screen for the agent.",
     internal: true,
     maxTokens: 1200,
-    lineup: [at(OMNI, { temperature: 0.2, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(SUPER_VL, { temperature: 0.2, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(LLAMA_VISION, { temperature: 0.2 })],
+    // Benchmarked: with thinking off, Nano Omni finds a button within ~10px in
+    // under a second (answering on a 0-1000 grid); Super VL nearly as well.
+    lineup: [at(OMNI, { temperature: 0.1, firstTokenMs: 12_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(SUPER_VL, { temperature: 0.1, firstTokenMs: 15_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(LLAMA_VISION, { temperature: 0.1 })],
+  },
+  // The computer operator's decisions: the page as text in, JSON actions out.
+  // Benchmarked: Ultra with thinking off is right every time in about a
+  // second; MiniMax Flash the same; Lightning is right but slow when it thinks.
+  operator: {
+    label: "Operator",
+    blurb: "Decides the computer operator's next actions.",
+    maxTokens: 900,
+    internal: true,
+    lineup: [at(ULTRA, { temperature: 0.2, firstTokenMs: 12_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(MINIMAX_FLASH, { temperature: 0.2, firstTokenMs: 12_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(LIGHTNING, { temperature: 0.2, firstTokenMs: 30_000 })],
   },
   // Background work (titles, summaries). Never a chat lane.
   utility: {

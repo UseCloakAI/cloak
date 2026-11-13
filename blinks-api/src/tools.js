@@ -196,13 +196,14 @@ export const TOOLS = {
     },
   },
   use_computer: {
-    spec: fn("use_computer", "Hand a job on this person's desktop computer (Linux, Firefox, a terminal, 1280x800) to your computer operator. It sees the screen and clicks, types and runs commands until the goal is met, then reports what it did and what is on screen. Use it for anything on the desktop: opening apps or sites, filling forms, reading a page. Give one clear goal with every detail it needs (exact URLs, text to type). Wakes the computer if it is asleep (about a minute).", { goal: str("What to get done on the desktop, specific and complete.") }, ["goal"]),
+    spec: fn("use_computer", "Hand a job on this person's desktop computer (Linux with Firefox and a terminal) to your computer operator. It works the browser from the page itself (every button and field), runs commands, and clicks things on the desktop, until the goal is met; then it reports what it did, the answer, and the page it is on. Use it for anything on their computer or in a real browser: opening sites, searching, filling forms, reading pages, using web apps. Give one clear, complete goal with every detail it needs (exact URLs, names, text to type, what to report back). It cannot type passwords or pass CAPTCHAs; it will say so. Wakes the computer if it is asleep (about a minute).", { goal: str("What to get done, specific and complete, including what to report back.") }, ["goal"]),
     label: (a) => `Using the computer: ${String(a.goal || "").slice(0, 50)}`,
     needs: "computer", top: true, outward: (a) => a.goal,
     async run(a, cx) {
       if (typeof cx.computer.operate !== "function") return { text: "The computer operator is not available on this brain yet. Use computer_run instead.", summary: "unavailable" };
-      const r = await cx.computer.operate(String(a.goal || ""), cx.signal, (label) => cx.progress?.(String(label).replace(/^./, (c) => c.toUpperCase())));
-      return { text: `${r.ok ? "Done" : "Not finished"}: ${clip(r.text, RESULT_CHARS)}${r.steps?.length ? `\n\nSteps:\n${r.steps.slice(-12).join("\n")}` : ""}`, summary: r.ok ? "done" : "not finished" };
+      const r = await cx.computer.operate(String(a.goal || ""), cx.signal, (label) => cx.progress?.(String(label).replace(/^./, (c) => c.toUpperCase())), { notes: () => cx.absorb?.() || Promise.resolve([]) });
+      const where = r.page?.url ? `\nThe browser is on: ${r.page.title || ""} (${r.page.url})` : "";
+      return { text: `${r.ok ? "Done" : "Not finished"}: ${clip(r.text, RESULT_CHARS)}${where}${r.steps?.length ? `\n\nSteps (${r.steps.length}):\n${r.steps.slice(-10).map((x) => clip(x, 300)).join("\n")}` : ""}`, summary: r.ok ? `done in ${r.steps?.length || 0} steps` : "not finished" };
     },
   },
   computer_look: {

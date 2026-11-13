@@ -150,6 +150,7 @@ export async function* runAgent(env, ctx, req, signal) {
   let partial = false;
   let remembered = false;
 
+  const heardDuringTools = [];
   for (let step = 0; step < budget; step++) {
     if (signal?.aborted) return;
     // Messages they sent while this was running join the conversation now.
@@ -204,6 +205,13 @@ export async function* runAgent(env, ctx, req, signal) {
         net: IO.net ? IO.net(env) : null,
         // A long tool can update its own status line while it works.
         progress: (label) => ch.emit({ step: { id, by, tool: c.name, label, state: "run" } }),
+        // Messages they sent while a long tool runs: taken in now, and the app told.
+        absorb: async () => {
+          if (depth || typeof req.pending !== "function") return [];
+          const more = (await req.pending()) || [];
+          if (more.length) { ch.emit({ absorbed: more }); heardDuringTools.push(...more); }
+          return more;
+        },
         delegate: async (who, task) => {
           const sub = runAgent(env, ctx, { brand, companion: who, userKey: req.userKey, user: req.user, country: req.country, depth: depth + 1, shared, messages: [{ role: "user", content: task }] }, signal);
           let out = "";
@@ -225,6 +233,7 @@ export async function* runAgent(env, ctx, req, signal) {
     for await (const ev of ch.drain()) yield ev;
     if (shared.sources.length > before && !depth) yield { sources: shared.sources };
     calls.forEach((c, i) => msgs.push({ role: "tool", tool_call_id: c.id, content: results[i]?.text || "No result." }));
+    if (heardDuringTools.length) msgs.push({ role: "user", content: `[They sent this while that was running:]\n${heardDuringTools.splice(0).join("\n")}` });
   }
 
   if (!depth) {

@@ -120,6 +120,43 @@ async function open(c, body, signal, ctx) {
 // size, tried }. Throws only if every model failed before any text went out.
 // With `tools`, the done event also carries toolCalls: [{id, name, arguments}]
 // (arguments is the raw JSON string the model produced).
+// Tool calls written out as text. Formats seen: MiniMax (<minimax:tool_call>
+// <invoke name=..><parameter name=..>), Qwen/GLM (<tool_call><function=..>
+// <parameter=..>), and JSON inside <tool_call> tags.
+const LEAK_RE = /<\/?minimax|\]<\]minimax|<tool_call>|<function=|<invoke name=|\[TOOL_CALLS\]|<\|tool_call/;
+function parseLeakedCalls(raw, tools) {
+  const names = new Set((tools || []).map((t) => t.function?.name || t.name).filter(Boolean));
+  const out = [];
+  const add = (name, args) => {
+    name = String(name || "").trim();
+    if (!name) return;
+    if (!names.has(name)) {
+      // A made-up "bash"/"shell" tool: run it on their computer if that tool exists.
+      if (/^(bash|shell|sh|terminal|run|exec)$/i.test(name) && names.has("computer_run")) { name = "computer_run"; if (args.cmd && !args.command) args.command = args.cmd; }
+      else return;
+    }
+    out.push({ id: `leak_${Date.now().toString(36)}_${out.length}`, name, arguments: JSON.stringify(args) });
+  };
+  // <invoke name="x"><parameter name="k">v</parameter></invoke>
+  for (const m of raw.matchAll(/<invoke name="([^"]+)">([\s\S]*?)(?:<\/invoke>|$)/g)) {
+    const args = {};
+    for (const p of m[2].matchAll(/<parameter name="([^"]+)">([\s\S]*?)<\/parameter>/g)) args[p[1]] = p[2].trim();
+    add(m[1], args);
+  }
+  // <function=x><parameter=k>v</parameter></function>
+  if (!out.length) for (const m of raw.matchAll(/[<\[]function=([\w.-]+)>([\s\S]*?)(?=[<\[]function=|<\/function>|<\/tool_call>|$)/g)) {
+    const args = {};
+    for (const p of m[2].matchAll(/<parameter=([\w.-]+)>\s*([\s\S]*?)\s*(?=<\/parameter>|<parameter=|<\/function>|$)/g)) args[p[1]] = p[2].replace(/<\/parameter>\s*$/, "").trim();
+    add(m[1], args);
+  }
+  // <tool_call>{"name":..,"arguments":{..}}</tool_call>
+  if (!out.length) for (const m of raw.matchAll(/<tool_call>\s*(\{[\s\S]*?\})\s*<\/tool_call>/g)) {
+    try { const j = JSON.parse(m[1]); add(j.name, j.arguments || j.parameters || {}); } catch {}
+  }
+  return out;
+}
+export { parseLeakedCalls };
+
 export async function* streamLane(env, ctx, laneKey, { system, messages, maxTokens, signal, tools }) {
   const lane = LANES[laneKey] || LANES.smart;
   const ring = await gov.readKeyring(env);
@@ -148,6 +185,7 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
       body.tool_choice = "auto";
     }
     const calls = [];
+    let leak = null;
 
     const ctrl = new AbortController();
     const onAbort = () => ctrl.abort();
@@ -189,7 +227,16 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
           }
           bump(STALL_MS);
         }
-        const piece = typeof d.content === "string" && d.content ? strip(d.content) : "";
+        let piece = typeof d.content === "string" && d.content ? strip(d.content) : "";
+        // Some models (MiniMax, Qwen-style) write tool calls as text instead of
+        // using the API. Once that starts, hold it back and parse it at the end.
+        if (tools?.length && piece) {
+          if (leak != null) { leak += piece; piece = ""; }
+          else {
+            const at = (text + piece).search(LEAK_RE);
+            if (at >= 0) { const cut = Math.max(0, at - text.length); leak = (text + piece).slice(at); piece = piece.slice(0, cut); }
+          }
+        }
         if (!piece) {
           // Reasoning keeps the stream alive, but not forever.
           if (!started && Date.now() - t0 > THINK_LIMIT_MS) throw new UpstreamError(`${c.model} reasoned too long`);
@@ -209,6 +256,13 @@ export async function* streamLane(env, ctx, laneKey, { system, messages, maxToke
           yield { delta: piece };
         }
         bump(STALL_MS);
+      }
+      if (leak != null && !calls.some((x) => x && x.name)) {
+        const parsed = parseLeakedCalls(leak, tools);
+        if (parsed.length) {
+          calls.push(...parsed);
+          if (!started) { started = true; yield { start: true, model: c.model, provider: c.provider, size: c.size, firstTokenMs: Date.now() - t0 }; }
+        }
       }
       if (!started) throw new UpstreamError(`${c.model} returned no text`);
       clearTimeout(timer);
