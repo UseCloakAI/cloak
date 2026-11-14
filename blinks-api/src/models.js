@@ -42,71 +42,91 @@ const GEMINI = { provider: "gemini", model: "gemini-2.5-flash", size: "m", tempe
 
 const at = (m, o) => ({ ...m, ...o });
 
+// Thinking off: the same model answers in about a second instead of five.
+const NT = { chat_template_kwargs: { enable_thinking: false } };
+
+// Lineups follow measurements, not reputations (benchmarked 2026-11-14 through
+// this Worker, see blinks-api/README.md): NVIDIA first, Groq behind it, no
+// Gemini. Models that hung or 404'd on the free tier are out (DeepSeek, GLM,
+// Gemma, Kimi, Nemotron Super, Laguna, Mistral Large).
+//   Ultra, thinking off   first token ~0.7s, right on tools 2/3 (skips "remember")
+//   Ultra, thinking on    ~1.5s, tools 3/3
+//   MiniMax Flash, off    ~1s, tools 2/3
+//   Groq gpt-oss-120b     ~0.2s, tools 3/3, and the only free model whose code
+//                         passed the sandbox (3/3 apps in ~6s); 8k tokens/min
+//   Lightning / Bolt      ~0.2-0.4s, for small talk and background jobs
 export const LANES = {
   // Quick replies, small talk, lookups, rewrites. Small models, first token fast.
   swift: {
     label: "Swift",
     blurb: "Small, fast models for quick answers. Lowest energy.",
     maxTokens: 1024,
-    lineup: [at(LIGHTNING, { temperature: 0.6 }), at(BOLT, { temperature: 0.6 }), at(GEMMA4, { temperature: 0.6 }), GROQ_20, GEMINI, at(GLM_FLASH, { temperature: 0.6 })],
+    lineup: [at(LIGHTNING, { temperature: 0.6, extra: NT }), at(BOLT, { temperature: 0.6 }), GROQ_20],
   },
   // The default: strong general model that still answers at chat speed.
   smart: {
     label: "Balanced",
     blurb: "Strong general models at chat speed. The default.",
     maxTokens: 3072,
-    lineup: [at(MINIMAX_FLASH, { temperature: 0.6 }), GROQ_120, GEMINI, at(GEMMA4, { temperature: 0.6 }), at(DEEPSEEK_FLASH, { temperature: 0.6 })],
+    lineup: [at(ULTRA, { temperature: 0.6, firstTokenMs: 12_000, extra: NT }), at(MINIMAX_FLASH, { temperature: 0.6, firstTokenMs: 12_000, extra: NT }), GROQ_120],
   },
-  // Hard reasoning, research, long analysis. Biggest models, patient deadlines.
+  // Hard reasoning, research, long analysis. The biggest model, thinking on.
   deep: {
     label: "Deep",
-    blurb: "The largest models, for hard problems. Slower, more energy.",
+    blurb: "The largest models, thinking it through. Slower, more energy.",
     maxTokens: 6144,
-    lineup: [at(ULTRA, { temperature: 0.5 }), at(MISTRAL_L4, { temperature: 0.5 }), GROQ_120, GEMINI],
+    lineup: [at(ULTRA, { temperature: 0.5 }), GROQ_120, at(MINIMAX_FLASH, { temperature: 0.5 })],
   },
-  // Code. Order follows what production Cloak learned: only models that answer
-  // at chat speed on the free tier belong at the front.
+  // Code. Groq's gpt-oss-120b leads because it is the only free model whose
+  // programs passed the sandbox; Ultra covers for it when Groq's per-minute
+  // limit is spent. Either way nothing ships until the brain has run it.
   code: {
     label: "Build",
-    blurb: "Code-tuned models with a senior-engineer playbook.",
+    blurb: "Code that is run and checked before you see it.",
     maxTokens: 8192,
     playbook: "code",
-    lineup: [at(LAGUNA, { temperature: 0.3 }), GROQ_120, at(MINIMAX_FLASH, { temperature: 0.3 }), GEMINI, at(GLM_FLASH, { temperature: 0.4 }), at(DEEPSEEK_FLASH, { temperature: 0.3 })],
+    lineup: [at(GROQ_120, { temperature: 0.3, extra: { reasoning_effort: "medium" }, firstTokenMs: 15_000 }), at(ULTRA, { temperature: 0.3, firstTokenMs: 15_000, extra: NT }), at(MINIMAX_FLASH, { temperature: 0.3, extra: NT })],
   },
-  // Stories, voice, wordplay. A writing-tuned model first.
+  // Stories, voice, wordplay.
   creative: {
     label: "Create",
-    blurb: "Writing-tuned models with more range.",
+    blurb: "More range and voice for writing.",
     maxTokens: 4096,
-    lineup: [at(MISTRAL_L4, { temperature: 0.9 }), at(MINIMAX_FLASH, { temperature: 0.9 }), GROQ_120, GEMINI],
+    lineup: [at(ULTRA, { temperature: 0.9, firstTokenMs: 12_000, extra: NT }), at(MINIMAX_FLASH, { temperature: 0.9, extra: NT }), GROQ_120],
   },
   // Images in the turn.
   vision: {
     label: "See",
     blurb: "Multimodal models for images.",
     maxTokens: 2048,
-    lineup: [at(SUPER_VL, { temperature: 0.4 }), at(OMNI, { temperature: 0.4 }), at(LLAMA_VISION, { temperature: 0.4 }), GEMINI],
+    lineup: [at(SUPER_VL, { temperature: 0.4, extra: NT }), at(OMNI, { temperature: 0.4, extra: NT }), at(LLAMA_VISION, { temperature: 0.4 })],
   },
   // The computer's eyes: reading a screenshot and naming exact coordinates.
-  // NVIDIA only (Cloak's keys). Nano Omni is built for GUI agent perception.
   screen: {
     label: "Screen",
     blurb: "Reads the computer's screen for the agent.",
     internal: true,
     maxTokens: 1200,
-    // Benchmarked: with thinking off, Nano Omni finds a button within ~10px in
-    // under a second (answering on a 0-1000 grid); Super VL nearly as well.
-    lineup: [at(OMNI, { temperature: 0.1, firstTokenMs: 12_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(SUPER_VL, { temperature: 0.1, firstTokenMs: 15_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(LLAMA_VISION, { temperature: 0.1 })],
+    // With thinking off, Nano Omni finds a button within ~10px in under a
+    // second (answering on a 0-1000 grid); Super VL nearly as well.
+    lineup: [at(OMNI, { temperature: 0.1, firstTokenMs: 12_000, extra: NT }), at(SUPER_VL, { temperature: 0.1, firstTokenMs: 15_000, extra: NT }), at(LLAMA_VISION, { temperature: 0.1 })],
   },
   // The computer operator's decisions: the page as text in, JSON actions out.
-  // Benchmarked: Ultra with thinking off is right every time in about a
-  // second; MiniMax Flash the same; Lightning is right but slow when it thinks.
   operator: {
     label: "Operator",
     blurb: "Decides the computer operator's next actions.",
     maxTokens: 900,
     internal: true,
-    lineup: [at(ULTRA, { temperature: 0.2, firstTokenMs: 12_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(MINIMAX_FLASH, { temperature: 0.2, firstTokenMs: 12_000, extra: { chat_template_kwargs: { enable_thinking: false } } }), at(LIGHTNING, { temperature: 0.2, firstTokenMs: 30_000 })],
+    lineup: [at(ULTRA, { temperature: 0.2, firstTokenMs: 12_000, extra: NT }), at(MINIMAX_FLASH, { temperature: 0.2, firstTokenMs: 12_000, extra: NT }), at(LIGHTNING, { temperature: 0.2, firstTokenMs: 30_000 })],
+  },
+  // A second pair of eyes on code before it ships: reads the program and the
+  // sandbox's report, and says what is wrong. Not the model that wrote it.
+  review: {
+    label: "Review",
+    blurb: "Reviews code before it ships.",
+    maxTokens: 900,
+    internal: true,
+    lineup: [at(ULTRA, { temperature: 0.2, firstTokenMs: 15_000, extra: NT }), at(MINIMAX_FLASH, { temperature: 0.2, extra: NT }), GROQ_120],
   },
   // Background work (titles, summaries). Never a chat lane.
   utility: {
@@ -114,7 +134,7 @@ export const LANES = {
     blurb: "Background jobs.",
     maxTokens: 512,
     internal: true,
-    lineup: [at(BOLT, { temperature: 0.2 }), at(LIGHTNING, { temperature: 0.2 }), GROQ_20, GEMINI],
+    lineup: [at(BOLT, { temperature: 0.2 }), at(LIGHTNING, { temperature: 0.2, extra: NT }), GROQ_20],
   },
 };
 

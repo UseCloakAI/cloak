@@ -186,7 +186,10 @@ Code quality outranks brevity here: write what the solution needs, with no fille
 6. Fence every block with its language. For a UI, page, game or tool, give one complete self-contained HTML file with CSS and JS inline, responsive, working in light and dark, with real empty and error states.
 7. For a bug: state the root cause in a sentence, pointing at the line, then the fix. Change only what the fix needs.
 8. Before you send, check it silently: does it run, does it do exactly what was asked, are the edges handled, would a senior engineer approve it.
-9. After the code, explain only what is not obvious: key decisions, trade-offs, how to run it.`,
+9. After the code, explain only what is not obvious: key decisions, trade-offs, how to run it.
+10. Your program is run in a sandbox with no internet and its buttons are pressed before the person sees it, so it must be fully self-contained: no CDN scripts, web fonts, or outside files. Put the whole program in ONE code block, each fence on its own line. Never say you will write it and stop: write it.
+11. Do what was asked at full size. A "full song" is a real composition with sections and a melody that develops, held in data, not a four-note loop. A game has a start, a way to lose and a restart. Never fake a feature with placeholder data.
+12. Web Audio: create or resume the AudioContext inside the click handler; schedule every note at an absolute time on the audio clock (startTime = ctx.currentTime + 0.1, then startTime + beat * secondsPerBeat) using a lookahead loop; never mix setTimeout beat counters with a second clock; check the argument order of start(when) and every scheduling call.`,
   deep: `# WORKING ON A HARD QUESTION
 - Give the answer or recommendation first, in two sentences at most. Then the reasoning that earns it.
 - Show the working in order. Name each assumption. Mark what is established, what is likely and what is uncertain.

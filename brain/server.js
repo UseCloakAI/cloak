@@ -21,11 +21,12 @@ import { openSql } from "./sqlite.js";
 import { runAgent, setIO, collect } from "../blinks-api/src/agent.js";
 import { makeBlinks } from "./blinks.js";
 import { makeComputer, Busy } from "./computer.js";
+import { makeSandbox } from "./sandbox.js";
 import { MindCore } from "../blinks-api/src/mind-core.js";
 import { stripTags } from "../blinks-api/src/prompts.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.5.6";
+const VERSION = "0.6.0";
 const CONFIG_FILE = process.env.CLOAK_BRAIN_CONFIG || "/etc/cloak-brain/config.json";
 const started = Date.now();
 
@@ -101,7 +102,10 @@ async function workerNet(kind, payload) {
   if (!out.ok) throw new Error(out.error || "failed");
   return out.data;
 }
+// Where code a Blink wrote is run before anyone sees it (no network, no data).
+const sandbox = makeSandbox({ dir: path.join(DATA, "sandbox"), log: (...a) => log(...a) });
 setIO({
+  verify: (job) => sandbox.run(job),
   lane: (env, lane, opts) => workerLane(env, lane, opts),
   net: () => ({ search: (query, recent) => workerNet("search", { query, recent }), read: (url) => workerNet("read", { url }) }),
 });
@@ -507,7 +511,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (p === "/health") {
       if (!fromWorker(req)) return send(res, 401, { error: "Unauthorized" });
-      return send(res, 200, { ok: true, paused: !!config.paused, version: VERSION, uptime: Date.now() - started, computer: computer.available ? "ready" : fs.existsSync("/etc/cloak-brain/computer.json") ? "old-setup" : "not-installed" });
+      return send(res, 200, { ok: true, paused: !!config.paused, version: VERSION, uptime: Date.now() - started, computer: computer.available ? "ready" : fs.existsSync("/etc/cloak-brain/computer.json") ? "old-setup" : "not-installed", sandbox: sandbox.status() });
     }
     if (p === "/admin" || p.startsWith("/admin/")) return await handleAdmin(req, res, p);
     if (!fromWorker(req)) return send(res, 401, { error: "Unauthorized" });
