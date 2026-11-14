@@ -32,7 +32,7 @@ fail() { printf '\n\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || fail "Run this with sudo (or as root)."
 command -v apt-get >/dev/null || fail "This installer is for Debian or Ubuntu."
 
-FILES="brain/server.js brain/blinks.js brain/computer.js brain/vm/agent.py brain/vm/setup.sh brain/sqlite.js brain/package.json brain/admin/index.html brain/install.sh
+FILES="brain/server.js brain/blinks.js brain/computer.js brain/sandbox.js brain/sandbox/driver.mjs brain/vm/agent.py brain/vm/setup.sh brain/sqlite.js brain/package.json brain/admin/index.html brain/install.sh
 blinks-api/src/agent.js blinks-api/src/carbon.js blinks-api/src/engine.js blinks-api/src/mind-core.js
 blinks-api/src/models.js blinks-api/src/prompts.js blinks-api/src/safety.js blinks-api/src/tools.js
 api-worker/src/governor.js"
@@ -85,6 +85,11 @@ esac
 say "1/6  Basics"
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates xz-utils >/dev/null
+# The sandbox that runs code a Blink wrote before it is sent: bubblewrap for the
+# lockdown, Chromium to load web pages in, Python for scripts. Best effort: without
+# them the brain still works, it just cannot run those checks.
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bubblewrap python3 >/dev/null 2>&1 || echo "  (could not install bubblewrap: code checks will be off)"
+command -v chromium >/dev/null 2>&1 || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq chromium >/dev/null 2>&1 || echo "  (could not install Chromium: web page checks will be off)"
 
 say "2/6  Node.js $NODE_MAJOR"
 if [ -x "$APP/node/bin/node" ] && "$APP/node/bin/node" -e "process.exit(+process.versions.node.split('.')[0] >= $NODE_MAJOR && +process.versions.node.split('.')[1] >= 13 ? 0 : 1)" 2>/dev/null; then

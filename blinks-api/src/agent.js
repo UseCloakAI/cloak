@@ -93,6 +93,104 @@ function stitch(prev, more) {
   return m;
 }
 
+// Code fences the app can read: an opener always starts its own line, and a
+// reply never ends on a doubled closer.
+export function tidyFences(t) {
+  let x = String(t || "").replace(/([^\n`])(```[a-zA-Z][\w+.-]*[ \t]*\n)/g, "$1\n$2");
+  if (openFence(x)) { const y = x.replace(/\n```[ \t]*\n```[ \t]*(\n|$)(?![\s\S]*```)/, "\n```$1"); if (!openFence(y)) x = y; }
+  return x;
+}
+// "Let me write that for you." and nothing else: a promise, not an answer.
+const promiseOnly = (t) => { t = String(t || "").trim(); return t.length > 0 && t.length < 280 && !/```/.test(t) && /\b(let me|i['’]ll|i will|i['’]m going to|i am going to|allow me to)\b[^.!?\n]{0,90}\b(write|create|build|make|fix|rewrite|redo|try|put together|generate|code|produce|add|finish|complete)\b/i.test(t) && !/\?\s*$/.test(t); };
+
+// ── Checked code ───────────────────────────────────────────────────────────
+// In the Build lane on the brain, a program is not shown as it is written.
+// It is run in the sandbox, reviewed by a second model, fixed if either finds
+// a problem, and only then sent. If it still fails, no code is sent at all.
+const RUNNABLE = { html: "html", htm: "html", js: "js", javascript: "js", mjs: "js", node: "js", py: "python", python: "python", python3: "python" };
+function findProgram(text) {
+  let best = null;
+  for (const m of String(text).matchAll(/^```([\w+.-]*)[^\n]*\n([\s\S]*?)^```[ \t]*$/gm)) {
+    const code = m[2], lang = m[1].toLowerCase();
+    let kind = RUNNABLE[lang] || null;
+    if (!kind && /<!doctype html|<html[\s>]/i.test(code.slice(0, 400))) kind = "html";
+    if (!kind) continue;
+    const lines = code.split("\n").length;
+    if (lines < 12) continue;
+    // Browser JavaScript on its own cannot be run by Node: only whole pages and real scripts are checked.
+    if (kind === "js" && /\b(document|window)\.|addEventListener\(/.test(code) && !/require\(|process\.|^import /m.test(code)) continue;
+    if (!best || lines > best.lines) best = { kind, code, lines, at: m.index, len: m[0].length, lang: m[1] || kind };
+  }
+  return best;
+}
+const ENTRY = { html: "index.html", js: "main.js", python: "main.py" };
+const REVIEWER = `You review a program before it is sent to the person who asked for it. You get their request, the code, and a report from actually running it in a sandbox (no internet). Decide if it should ship.
+
+Find only real problems: bugs that break it, things the request asked for that are missing or faked (placeholder data, a "melody" that is one short loop when a full song was asked for, buttons wired to nothing), and anything the sandbox report shows failing. Do not list style opinions or nice-to-haves.
+
+Answer with only JSON: {"ship": true|false, "problems": ["specific problem and how to fix it", ...]} with at most 5 problems, most serious first. If it works and does what was asked, {"ship": true, "problems": []}.`;
+function reportText(rep) {
+  if (!rep || rep.unavailable) return "The sandbox could not run this kind of code, so there is no run report.";
+  const f = rep.facts || {};
+  return [
+    rep.errors?.length ? `ERRORS:\n${rep.errors.map((e) => `- ${e}`).join("\n")}` : "No errors when it ran.",
+    rep.warnings?.length ? `Warnings:\n${rep.warnings.map((e) => `- ${e}`).join("\n")}` : "",
+    f.presses?.length ? `Controls pressed: ${f.presses.map((x) => `"${x.button}" → ${x.did}`).join("; ")}` : "",
+    f.sound ? `Sound: audible in ${f.sound.audibleSamples} of ${f.sound.listenedSamples} checks over four seconds, ${f.sound.distinctPitches} distinct pitches used.` : "",
+    f.end ? `Canvas draws: ${f.end.canvasDraws || 0}. Text on the page: ${String(f.end.text || "").slice(0, 300)}` : "",
+    rep.stdout ? `Output:\n${String(rep.stdout).slice(0, 1200)}` : "", rep.stderr && rep.errors?.length ? `Stderr:\n${String(rep.stderr).slice(0, 800)}` : "",
+    rep.notes?.length ? rep.notes.join(" ") : "",
+  ].filter(Boolean).join("\n");
+}
+// One full reply from a lane, continued past the length limit until whole.
+async function writeWhole(env, ctx, lane, system, msgs, req, signal, shared) {
+  let text = "", cut = false, partial = false, ok = false;
+  const call = async (m) => { let t = ""; ok = false; for await (const ev of callLane(env, ctx, lane, { system, messages: m, maxTokens: req.max_tokens, signal })) { if (ev.delta) t += ev.delta; else if (ev.done) { ok = true; cut = !!ev.cut; partial = !!ev.partial; tally(shared, ev); } } return t; };
+  text = await call(msgs);
+  for (let i = 0; i < 10 && ok && (cut || partial) && !signal?.aborted; i++) {
+    const more = await call([...msgs, { role: "assistant", content: text }, { role: "user", content: `[Platform note: your reply was cut off by the length limit${openFence(text) ? ", in the middle of a code block" : ""}. Continue it from exactly where it stopped: the very next characters, with nothing repeated, no preamble, and no new code fence opener. Finish the code and the reply.]` }]).catch(() => "");
+    const piece = stitch(text, more);
+    if (!piece.trim()) break;
+    text += piece;
+  }
+  if (openFence(text)) text = text.replace(/\s*$/, "") + "\n```";
+  return tidyFences(text);
+}
+async function* checkedCode(env, ctx, { lane, system, msgs, req, signal, shared, ask, draft }) {
+  let text = draft, prog = findProgram(text);
+  if (!prog) return text; // nothing runnable in it: an explanation, a snippet, a config
+  const step = (id, label, state = "run", summary = "") => ({ step: { id: `build-${id}`, tool: "build", label, state, summary } });
+  let lastProblems = [], reviews = 0;
+  for (let round = 0; round < 4; round++) {
+    if (signal?.aborted) return text;
+    yield step(`run-${round}`, round ? "Running it again" : "Running it in the sandbox");
+    const rep = await IO.verify({ files: [{ name: ENTRY[prog.kind], content: prog.code }], entry: ENTRY[prog.kind], kind: prog.kind }).catch(() => ({ unavailable: true }));
+    yield step(`run-${round}`, "", "done", rep.unavailable ? "not run" : rep.ok ? "ran clean" : `${rep.errors.length} problem${rep.errors.length === 1 ? "" : "s"}`);
+    let problems = rep.unavailable ? [] : rep.errors.slice(0, 5);
+    // It runs. A second model reads it against what was asked (twice at most).
+    if (!problems.length && reviews < 2) {
+      reviews++;
+      yield step(`rev-${round}`, "Reviewing it against what you asked");
+      let raw = "";
+      try { for await (const ev of callLane(env, ctx, "review", { system: REVIEWER, messages: [{ role: "user", content: `THE REQUEST:\n${ask.slice(0, 3000)}\n\nTHE CODE (${prog.lang}):\n${prog.code.slice(0, 60_000)}\n\nSANDBOX REPORT:\n${reportText(rep)}\n\nYour JSON:` }], maxTokens: 700, signal })) { if (ev.delta) raw += ev.delta; else if (ev.done) tally(shared, ev); } } catch {}
+      let j = null; try { j = JSON.parse((raw.replace(/```(?:json)?/g, "").match(/\{[\s\S]*\}/) || [""])[0]); } catch {}
+      if (j && j.ship === false && Array.isArray(j.problems)) problems = j.problems.filter((x) => typeof x === "string" && x.trim()).slice(0, 5);
+      yield step(`rev-${round}`, "", "done", problems.length ? `${problems.length} to fix` : "looks right");
+      if (!problems.length) return text;
+    } else if (!problems.length) return text; // runs clean and has been reviewed twice: ship it
+    lastProblems = problems;
+    if (round === 3) break;
+    yield step(`fix-${round}`, `Fixing: ${problems[0].replace(/\s+/g, " ").slice(0, 70)}`);
+    const next = await writeWhole(env, ctx, lane, system, [...msgs, { role: "assistant", content: text }, { role: "user", content: `[Platform check: your code was run in a sandbox and reviewed before sending. It is not ready:\n${problems.map((x) => `- ${x}`).join("\n")}\n\nFix every one of these and send the complete corrected program again in one code block, with the same short note around it. Keep everything that already works. It must be self-contained: no outside files, fonts or libraries.]` }], req, signal, shared).catch(() => "");
+    yield step(`fix-${round}`, "", "done", "");
+    const np = next && findProgram(next);
+    if (!np) break;
+    text = next; prog = np;
+  }
+  // Still failing after every attempt: say so, and send no broken code.
+  return `I couldn't get this working properly, so I'm not sending you broken code.\n\nWhat was still wrong when I ran it:\n${lastProblems.map((x) => `- ${x.replace(/\s+/g, " ").slice(0, 300)}`).join("\n")}\n\nWant me to try again with a simpler version, or take a different approach?`;
+}
+
 // When a turn runs without the computer tools, the Blink still has a computer.
 const HAS_COMPUTER_NOTE = `# YOU HAVE A COMPUTER
 This person gave you their own computer: a real desktop with a browser and a terminal, plus a server. You can browse, fill in forms, make accounts and run commands on it; you have done so in this chat if the history shows it. You are not using it in this reply, but never say you can't browse, can't use a computer or can't make accounts because you are an AI. If they ask how a job is going, answer from the conversation; if they want something done on it, say you're on it.`;
@@ -153,6 +251,10 @@ export async function* runAgent(env, ctx, req, signal) {
   // for "yo": the smallest models lose the thread of work in progress.
   const hasComputer = !depth && !!req.computer && typeof req.computer.run === "function";
   if (lane === "swift" && hasComputer && messages.length > 2) lane = LANES[companion.home] && companion.home !== "swift" ? companion.home : "smart";
+  // A follow-up in a chat that is about code ("it doesn't play", "try again")
+  // stays with the Build lane instead of dropping to a small model.
+  const modeAuto = !req.mode || req.mode === "auto";
+  if (!depth && modeAuto && !crisis && !research && ["swift", "smart", "deep"].includes(lane) && messages.slice(-7, -1).some((m) => /```[\s\S]{200,}/.test(textOf(m)))) lane = "code";
   if (lowlight && !["swift", "smart", "vision"].includes(lane)) lane = "smart";
   const mind = lowlight ? null : mindFor(env, req.userKey);
   if (mind && !depth) await mind.hello(req.userKey).catch(() => {});
@@ -196,6 +298,9 @@ export async function* runAgent(env, ctx, req, signal) {
   let answer = "";
   let partial = false;
   let remembered = false;
+  // Build lane on the brain: code is held back until it has been run and reviewed.
+  const hold = !depth && lane === "code" && typeof IO.verify === "function" && !req.background;
+  let nudged = false;
 
   const heardDuringTools = [];
   for (let step = 0; step < budget; step++) {
@@ -218,10 +323,11 @@ export async function* runAgent(env, ctx, req, signal) {
     shared.spent++;
     const attempt = async function* (withTools) {
       for await (const ev of callLane(env, ctx, lane, { system, messages: msgs, maxTokens: req.max_tokens, signal, tools: withTools })) {
-        if (ev.delta) { text += ev.delta; if (!depth) yield { delta: ev.delta }; }
+        if (ev.delta) { text += ev.delta; if (!depth && !hold) yield { delta: ev.delta }; else if (hold && !wrote && text.length > 400) { wrote = true; yield { step: { id: `write-${step}`, tool: "build", label: "Writing the code", state: "run" } }; } }
         else if (ev.done) { got = true; calls = ev.toolCalls || []; partial = !!ev.partial; cut = !!ev.cut; tally(shared, ev); }
       }
     };
+    let wrote = false;
     try {
       yield* attempt(offer);
     } catch (e) {
@@ -252,16 +358,27 @@ export async function* runAgent(env, ctx, req, signal) {
         const piece = stitch(text, more);
         if (!ok || !piece.trim()) break;
         text += piece;
-        if (!depth) yield { delta: piece };
+        if (!depth && !hold) yield { delta: piece };
       }
       // Finished but never closed its code block: close it (after the page, if it is one).
       if (openFence(text) && !cut && !partial) {
         const end = text.search(/<\/html>\s*(?![\s\S]*<\/html>)/i);
         const fix = end >= 0 ? text.slice(0, end).replace(/\s*$/, "") + "\n</html>\n```\n" + text.slice(end).replace(/^<\/html>\s*/i, "") : text.replace(/\s*$/, "") + "\n```";
-        if (!depth) yield { reset: true };
+        if (!depth && !hold) yield { reset: true };
         text = fix;
-        if (!depth) yield { delta: text };
+        if (!depth && !hold) yield { delta: text };
       }
+      if (wrote) yield { step: { id: `write-${step}`, state: "done", summary: "" } };
+      // It said it would do it and stopped: have it actually do it (once).
+      if (!nudged && !final && promiseOnly(text) && !signal?.aborted) {
+        nudged = true;
+        msgs.push({ role: "assistant", content: text }, { role: "user", content: "[Platform note: you said you would do it, then stopped without doing it. Do it now, completely, in this reply.]" });
+        if (!depth && !hold) yield { reset: true };
+        continue;
+      }
+      // Fences the app can read, whatever the model did with them.
+      const tidy = tidyFences(text);
+      if (tidy !== text) { text = tidy; if (!depth && !hold) { yield { reset: true }; yield { delta: text }; } }
       answer = text;
       break;
     }
@@ -316,6 +433,11 @@ export async function* runAgent(env, ctx, req, signal) {
     if (shared.sources.length > before && !depth) yield { sources: shared.sources };
     calls.forEach((c, i) => msgs.push({ role: "tool", tool_call_id: c.id, content: results[i]?.text || "No result." }));
     if (heardDuringTools.length) msgs.push({ role: "user", content: `[They sent this while that was running:]\n${heardDuringTools.splice(0).join("\n")}` });
+  }
+
+  if (hold && answer && !signal?.aborted) {
+    answer = yield* checkedCode(env, ctx, { lane, system, msgs, req, signal, shared, ask: textOf(last), draft: answer });
+    yield { delta: answer };
   }
 
   if (!depth) {
